@@ -46,6 +46,18 @@ struct QRScanView: View {
                         .transition(.opacity)
                         .allowsHitTesting(false)
                 }
+
+                // Invalid QR toast (auto-dismiss)
+                if vm.showInvalidQRToast {
+                    VStack {
+                        Spacer()
+                        InvalidQRToast()
+                            .padding(.horizontal, Spacing.xl)
+                            .padding(.bottom, Spacing.xxxl * 2)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                    .allowsHitTesting(false)
+                }
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -64,8 +76,19 @@ struct QRScanView: View {
         .onAppear { vm.requestPermission() }
         .onChange(of: vm.scannedCode) { _, code in
             guard let code, !vm.didScan else { return }
-            vm.didScan = true
             let target = ScanTarget.parse(from: code)
+            // If the QR code doesn't resolve to a valid spare-life scene, show error toast
+            if target.sceneID == code && code.hasPrefix("sparelife://") == false
+                && URL(string: code)?.scheme != "sparelife" {
+                withAnimation(.spareSpring) { vm.showInvalidQRToast = true }
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                    withAnimation(.spareEase) { vm.showInvalidQRToast = false }
+                    vm.scannedCode = nil   // allow re-scan
+                }
+                return
+            }
+            vm.didScan = true
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                 onScanned(target)
@@ -248,7 +271,13 @@ private struct ScanFrameCorners: View {
 
 private struct ScanLine: View {
     let frameSize: CGFloat
-    @State private var offsetY: CGFloat = 0
+    /// Drives the animation: false = top, true = bottom.
+    @State private var atBottom = false
+
+    private var offsetY: CGFloat {
+        let half = frameSize / 2 - 8
+        return atBottom ? half : -half
+    }
 
     var body: some View {
         Rectangle()
@@ -260,13 +289,39 @@ private struct ScanLine: View {
             )
             .frame(width: frameSize - 16, height: 2)
             .offset(y: offsetY)
-            .onAppear {
-                let half = frameSize / 2 - 8
-                withAnimation(.linear(duration: 1.8).repeatForever(autoreverses: true)) {
-                    offsetY = half
-                }
-                offsetY = -half
+            .animation(
+                .linear(duration: 1.8).repeatForever(autoreverses: true),
+                value: atBottom
+            )
+            .onAppear { atBottom = true }
+    }
+}
+
+// MARK: - Invalid QR Toast
+
+private struct InvalidQRToast: View {
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            Image(systemName: "qrcode.viewfinder")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.emotionNegative)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("不是龙虾码")
+                    .font(.spareCaptionSB)
+                    .foregroundColor(.white)
+                Text("请扫描 Spare Life 场景二维码")
+                    .font(.spareMicro)
+                    .foregroundColor(.white.opacity(0.7))
             }
+            Spacer()
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+        .background(Color.spareDark.opacity(0.92), in: RoundedRectangle(cornerRadius: CornerRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: CornerRadius.md)
+                .strokeBorder(Color.emotionNegative.opacity(0.4), lineWidth: 1)
+        )
     }
 }
 
@@ -298,6 +353,7 @@ final class QRScanViewModel: NSObject, ObservableObject, AVCaptureMetadataOutput
     @Published var didScan = false
     @Published var torchOn = false
     @Published var showPhotoPicker = false
+    @Published var showInvalidQRToast = false
     @Published var permissionState: AVAuthorizationStatus = .notDetermined
 
     let captureSession = AVCaptureSession()

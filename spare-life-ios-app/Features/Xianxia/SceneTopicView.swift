@@ -15,6 +15,7 @@ struct SceneTopicView: View {
     @State private var showAvatarRadar = false
     @State private var selectedSegment: Segment = .feed
     @State private var showScanBanner = false
+    @State private var activeClusterFilter: TopicCluster? = nil
     @Environment(\.dismiss) private var dismiss
 
     init(scene: Scene, isFromScan: Bool = false) {
@@ -244,7 +245,11 @@ struct SceneTopicView: View {
             feedScrollView(items: items, showCacheBanner: true)
 
         case .loaded(let items):
-            let segmentItems = vm.items(for: selectedSegment, from: items)
+            let segmentItems = vm.items(
+                for: selectedSegment,
+                from: items,
+                clusterFilter: selectedSegment == .hot ? activeClusterFilter : nil
+            )
             feedScrollView(items: segmentItems, showCacheBanner: false)
         }
     }
@@ -267,12 +272,27 @@ struct SceneTopicView: View {
                     }
                     SceneHotOverviewSection(
                         summary: vm.primarySummary,
-                        hotTakeCount: hotItems.count
+                        hotTakeCount: hotItems.count,
+                        onClusterTap: { cluster in
+                            withAnimation(.spareSpring) {
+                                activeClusterFilter = (activeClusterFilter?.id == cluster.id) ? nil : cluster
+                            }
+                        }
                     )
                     .padding(.horizontal, Spacing.lg)
                     .padding(.top, Spacing.md)
                     .padding(.bottom, Spacing.sm)
                     .transition(.opacity)
+
+                    // Active cluster filter banner
+                    if let cluster = activeClusterFilter {
+                        ClusterFilterBanner(cluster: cluster) {
+                            withAnimation(.spareSpring) { activeClusterFilter = nil }
+                        }
+                        .padding(.horizontal, Spacing.lg)
+                        .padding(.bottom, Spacing.sm)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
                 }
 
                 if items.isEmpty {
@@ -328,6 +348,51 @@ struct SceneTopicView: View {
             .background(Color.spareYellow, in: Capsule())
             .cardShadow(prominent: true)
         }
+    }
+}
+
+// MARK: - ClusterFilterBanner
+// Shown when a specific AI topic cluster is selected for filtering.
+
+private struct ClusterFilterBanner: View {
+    let cluster: TopicCluster
+    let onClear: () -> Void
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            Circle()
+                .fill(cluster.sentiment.asBadgeEmotion.color)
+                .frame(width: 7, height: 7)
+            Text("# \(cluster.label)")
+                .font(.spareCaptionSB)
+                .foregroundColor(.primary)
+                .lineLimit(1)
+            Text("·")
+                .foregroundColor(.secondary)
+            Text("\(cluster.postCount) 条")
+                .font(.spareMicro)
+                .foregroundColor(.secondary)
+            Spacer()
+            Button {
+                onClear()
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundColor(Color(.systemGray3))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, Spacing.sm)
+        .background(
+            cluster.sentiment.asBadgeEmotion.color.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: CornerRadius.sm)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: CornerRadius.sm)
+                .strokeBorder(cluster.sentiment.asBadgeEmotion.color.opacity(0.2), lineWidth: 1)
+        )
     }
 }
 
@@ -438,14 +503,24 @@ final class SceneTopicViewModel: ObservableObject {
     }
 
     /// Filters feed items for the chosen segment tab.
-    func items(for segment: SceneTopicView.Segment, from all: [SceneFeedItem]) -> [SceneFeedItem] {
+    /// When `clusterFilter` is non-nil, further filters hot-take items by matching cluster label.
+    func items(
+        for segment: SceneTopicView.Segment,
+        from all: [SceneFeedItem],
+        clusterFilter: TopicCluster? = nil
+    ) -> [SceneFeedItem] {
         switch segment {
         case .feed:
             return all
         case .avatars:
             return all.filter { if case .avatarRadar = $0 { return true }; return false }
         case .hot:
-            return all.filter { if case .hotTake = $0 { return true }; return false }
+            let hotItems = all.filter { if case .hotTake = $0 { return true }; return false }
+            guard let cluster = clusterFilter else { return hotItems }
+            return hotItems.filter { item in
+                guard case .hotTake(let card) = item else { return false }
+                return card.tags.contains(cluster.label) || card.emotionLabel == cluster.sentiment
+            }
         }
     }
 }

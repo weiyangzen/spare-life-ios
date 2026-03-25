@@ -143,13 +143,15 @@ struct SceneSocialPromptCard: Identifiable, Equatable {
     let ctaLabel: String
     let lane: SocialLane
 
-    enum SocialLane: String, CaseIterable {
+    enum SocialLane: String, CaseIterable, Identifiable {
         case friend     = "交个朋友"
         case meal       = "一起吃饭"
         case collab     = "聊合作"
         case jobSeek    = "求职咨询"
         case skill      = "技能交流"
         case errand     = "跑腿求助"
+
+        var id: String { rawValue }
 
         var icon: String {
             switch self {

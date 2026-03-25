@@ -18,6 +18,7 @@ struct SceneAvatarRadarView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var sortOption: AvatarSortOption = .hottest
     @State private var initiatingAvatarID: String? = nil
+    @State private var initiatedAvatarIDs: Set<String> = []  // tracks completed initiations
     @State private var showIntentFor: SceneAvatarCard? = nil
 
     private var sortedAvatars: [SceneAvatarCard] {
@@ -66,6 +67,10 @@ struct SceneAvatarRadarView: View {
             }
             .sheet(item: $showIntentFor) { avatar in
                 SceneSocialIntentView(scene: scene, targetAvatar: avatar)
+                    .onDisappear {
+                        // Mark as initiated once the intent sheet is dismissed
+                        initiatedAvatarIDs.insert(avatar.id)
+                    }
             }
         }
     }
@@ -77,7 +82,8 @@ struct SceneAvatarRadarView: View {
             HStack(spacing: Spacing.xs) {
                 ForEach(AvatarSortOption.allCases) { option in
                     Button {
-                        withAnimation(.spareFast) { sortOption = option }
+                        withAnimation(.spareSpring) { sortOption = option }
+                        UISelectionFeedbackGenerator().selectionChanged()
                     } label: {
                         HStack(spacing: Spacing.xs) {
                             Image(systemName: option.icon)
@@ -124,6 +130,7 @@ struct SceneAvatarRadarView: View {
                     AvatarDetailRow(
                         avatar: avatar,
                         isInitiating: initiatingAvatarID == avatar.id,
+                        alreadyInitiated: initiatedAvatarIDs.contains(avatar.id),
                         onInitiate: {
                             guard avatar.allowsStrangerInit else { return }
                             initiatingAvatarID = avatar.id
@@ -135,6 +142,7 @@ struct SceneAvatarRadarView: View {
                             }
                         }
                     )
+                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
                 }
             }
             .padding(.horizontal, Spacing.lg)
@@ -217,6 +225,7 @@ private struct PulseDot: View {
 private struct AvatarDetailRow: View {
     let avatar: SceneAvatarCard
     var isInitiating: Bool
+    var alreadyInitiated: Bool = false
     var onInitiate: () -> Void
 
     /// True if the avatar joined within the past 10 minutes.
@@ -290,7 +299,23 @@ private struct AvatarDetailRow: View {
             }
 
             // ── CTA ───────────────────────────────────────────────────
-            if avatar.allowsStrangerInit {
+            if alreadyInitiated {
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.emotionPositive)
+                    Text("已发起对话")
+                        .font(.spareBodySB)
+                        .foregroundColor(.emotionPositive)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Spacing.md)
+                .background(Color.emotionPositive.opacity(0.10), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+                .overlay(
+                    RoundedRectangle(cornerRadius: CornerRadius.sm)
+                        .strokeBorder(Color.emotionPositive.opacity(0.25), lineWidth: 1)
+                )
+            } else if avatar.allowsStrangerInit {
                 Button {
                     onInitiate()
                 } label: {

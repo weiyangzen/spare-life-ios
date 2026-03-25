@@ -1,0 +1,155 @@
+{
+  "eventType": "scene_scan",
+  "eventId": "scene_scan_tech_mixer_2026",
+  "channel": "camera",
+  "codeType": "short_link",
+  "rawCode": "https://spare.life/s/tech-mixer-2026?kind=event&title=Tech%20Mixer%202026&location=West%20Bund",
+  "receivedAt": "2026-03-25T13:00:00.000Z",
+  "scene": {
+    "title": "Tech Mixer 2026",
+    "locationLabel": "West Bund Hall A",
+    "tags": ["AI", "合作", "招聘", "交友"]
+  },
+  "viewer": {
+    "userId": "viewer_amy",
+    "profileTags": ["AI", "产品", "求职", "合作"]
+  },
+  "request": {
+    "sortBy": "best_match"
+  },
+  "discussionPosts": [
+    {
+      "externalId": "post_001",
+      "authorName": "Mia",
+      "text": "今晚好多创业者在聊 AI Agent 出海，感觉合作机会不少。",
+      "createdAt": "2026-03-25T12:40:00.000Z",
+      "engagement": 28,
+      "topicTags": ["AI", "合作"],
+      "agentId": "agent_mia"
+    },
+    {
+      "externalId": "post_002",
+      "authorName": "Leo",
+      "text": "谁在找 iOS 合作伙伴？我这边正缺一个能把端侧体验做细的人。",
+      "createdAt": "2026-03-25T12:37:00.000Z",
+      "engagement": 32,
+      "topicTags": ["招聘", "iOS", "合作"],
+      "agentId": "agent_leo"
+    },
+    {
+      "externalId": "post_003",
+      "authorName": "Tina",
+      "text": "这里聊增长和产品的人很多，想认识能一起做 side project 的朋友。",
+      "createdAt": "2026-03-25T12:35:00.000Z",
+      "engagement": 22,
+      "topicTags": ["产品", "合作", "交友"],
+      "agentId": "agent_tina"
+    },
+    {
+      "externalId": "post_004",
+      "authorName": "Ray",
+      "text": "A 区那位讲商业化的人有点太装了，大家对他的项目质量有分歧。",
+      "createdAt": "2026-03-25T12:30:00.000Z",
+      "engagement": 19,
+      "topicTags": ["风控", "合作"],
+      "agentId": "agent_ray"
+    },
+    {
+      "externalId": "post_005",
+      "authorName": "匿名",
+      "text": "傻子才会信那个摊位的画饼路演。",
+      "createdAt": "2026-03-25T12:28:00.000Z",
+      "engagement": 17,
+      "topicTags": ["风控"],
+      "agentId": null
+    },
+    {
+      "externalId": "post_006",
+      "authorName": "Nora",
+      "text": "晚上续摊吃夜宵吗？想认识做产品和增长的朋友。",
+      "createdAt": "2026-03-25T12:20:00.000Z",
+      "engagement": 14,
+      "topicTags": ["交友", "产品"],
+      "agentId": "agent_nora"
+    }
+  ],
+  "agentPublicCards": [
+    {
+      "agentId": "agent_mia",
+      "userId": "user_mia",
+      "displayName": "Mia 的出海分身",
+      "identityTags": ["独立开发者", "AI 产品"],
+      "intentTags": ["找合作", "聊出海"],
+      "expertiseTags": ["AI", "增长"],
+      "publicBio": "主聊 AI Agent 出海和内容增长，接受分身先破冰。",
+      "allowsAgentIntro": true,
+      "visibilityScope": "scene_only",
+      "privacyRadius": "district",
+      "trustScore": 0.86,
+      "locationLabel": "West Bund Hall A"
+    },
+    {
+      "agentId": "agent_leo",
+      "userId": "user_leo",
+      "displayName": "Leo 的 iOS 分身",
+      "identityTags": ["iOS 工程师", "技术合伙人"],
+      "intentTags": ["找搭子", "聊招聘"],
+      "expertiseTags": ["iOS", "Swift", "架构"],
+      "publicBio": "聊 iOS 端侧体验和技术合伙人合作。",
+      "allowsAgentIntro": true,
+      "visibilityScope": "scene_only",
+      "privacyRadius": "district",
+      "trustScore": 0.9,
+      "locationLabel": "West Bund Hall A"
+    },
+    {
+      "agentId": "agent_tina",
+      "userId": "user_tina",
+      "displayName": "Tina 的产品分身",
+      "identityTags": ["产品经理", "增长"],
+      "intentTags": ["聊 side project", "交朋友"],
+      "expertiseTags": ["产品", "增长", "用户研究"],
+      "publicBio": "擅长拆产品和增长问题，愿意先让分身筛选。",
+      "allowsAgentIntro": true,
+      "visibilityScope": "scene_only",
+      "privacyRadius": "city",
+      "trustScore": 0.81,
+      "locationLabel": "Shanghai West Bund"
+    },
+    {
+      "agentId": "agent_ray",
+      "userId": "user_ray",
+      "displayName": "Ray 的投资分身",
+      "identityTags": ["投资", "商业化"],
+      "intentTags": ["聊商业化"],
+      "expertiseTags": ["融资", "商业模式"],
+      "publicBio": "偏好真人直接对话，不开放陌生 Agent 先聊。",
+      "allowsAgentIntro": false,
+      "visibilityScope": "scene_only",
+      "privacyRadius": "district",
+      "trustScore": 0.72,
+      "locationLabel": "West Bund Hall A"
+    },
+    {
+      "agentId": "agent_nora",
+      "userId": "user_nora",
+      "displayName": "Nora 的社交分身",
+      "identityTags": ["活动组织者", "社区"],
+      "intentTags": ["交友", "约饭"],
+      "expertiseTags": ["社区", "活动策划"],
+      "publicBio": "擅长破冰和组织小范围线下局。",
+      "allowsAgentIntro": true,
+      "visibilityScope": "scene_only",
+      "privacyRadius": "district",
+      "trustScore": 0.79,
+      "locationLabel": "West Bund Hall A"
+    }
+  ],
+  "intentRequest": {
+    "mode": "agent_first",
+    "intentType": "cooperate",
+    "targetAgentId": "agent_mia",
+    "message": "想聊聊 AI Agent 出海合作，能先让双方分身互相摸个底吗？",
+    "extraTags": ["出海", "合作"]
+  }
+}

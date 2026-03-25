@@ -8,17 +8,24 @@ import {
   normalizeFormPayload,
   requireIntentTemplate,
   requireLane,
+  requireLeadStage,
+  requireMatchOutcome,
+  resolveLeadSettlementType,
   resolveIcebreakMode,
   resolveVisibilityMode
 } from '../Models/a2aContracts.mjs';
 import { isoNow, sanitizeText, stableId, uniqueStrings } from '../Models/sceneContracts.mjs';
 import {
+  assertLeadStageTransition,
   advanceBondProgress,
   bootstrapCatalogSeed,
   buildArenaBlueprint,
   buildArenaEntryRule,
   buildArenaSettlementRule,
   buildBondBlueprint,
+  buildLeadPipelineBlueprint,
+  buildLeadResultCard,
+  buildLeadSettlementRule,
   buildBondTaskRewardRule,
   buildDailyOpenRule,
   buildHomeSnapshot,
@@ -153,6 +160,11 @@ export class EarnSocialExperienceUseCase {
       route: session.route,
       summary: session.summary
     }));
+    const leadCards = this.repository.listLeadPipelines({
+      userId: input.userId,
+      laneId,
+      limit: 6
+    }).map(buildLeadResultCard);
     const arenaCards = this.repository.listArenaMatches({
       laneId,
       statuses: ['active', 'resolved'],
@@ -184,6 +196,7 @@ export class EarnSocialExperienceUseCase {
         opportunityCards,
         personaCards,
         icebreakCards,
+        leadCards,
         arenaCards,
         trendCards,
         bondCards,
@@ -526,11 +539,33 @@ export class EarnSocialExperienceUseCase {
     });
     this.repository.updateIntentStatus(session.intentId, 'bonded', { bondId: bond.id, sessionId: session.id }, isoNow());
 
+    const intent = this.repository.findIntentPost(session.intentId);
+    let lead = this.repository.findLeadBySession(session.id);
+    if (!lead) {
+      const leadBlueprint = buildLeadPipelineBlueprint({
+        intent,
+        session: updated,
+        bond,
+        counterpartCard
+      });
+      lead = this.repository.createLeadPipeline(
+        {
+          lead: leadBlueprint,
+          stages: leadBlueprint.stages,
+          auditEvents: leadBlueprint.auditEvents
+        },
+        isoNow()
+      );
+    }
+
     return {
       eventType: 'dual_agent_handoff_ready',
       session: updated,
       bond,
       bondTasks: this.repository.listBondTasks(bond.id),
+      lead,
+      leadStages: this.repository.listLeadStages(lead.id),
+      leadAuditTrail: this.repository.listLeadAuditEvents(lead.id),
       reward,
       route: updated.humanThreadRoute
     };
@@ -751,6 +786,205 @@ export class EarnSocialExperienceUseCase {
       milestone,
       wallet: this.repository.getWallet(input.userId),
       route: updatedBond.threadRoute
+    };
+  }
+
+  advanceLeadStage(input) {
+    this.bootstrap();
+    const lead = this.repository.findLeadPipeline(input.leadId);
+    if (!lead) {
+      throw new Error(`Unknown lead pipeline: ${input.leadId}`);
+    }
+    const nextStage = requireLeadStage(input.stageKey);
+    assertLeadStageTransition({
+      currentStageKey: lead.currentStageKey,
+      nextStageKey: nextStage.key
+    });
+    const advanced = this.repository.advanceLeadStage({
+      leadId: lead.id,
+      stageKey: nextStage.key,
+      stageLabel: nextStage.label,
+      actorKind: 'initiator_user',
+      actorId: input.userId,
+      detail: input.detail ?? {},
+      nowIso: isoNow()
+    });
+    return {
+      eventType: 'lead_stage_advanced',
+      lead: advanced.lead,
+      stage: advanced.stage,
+      audit: advanced.audit,
+      stages: this.repository.listLeadStages(lead.id),
+      outcome: this.repository.findLeadOutcome(lead.id),
+      settlements: this.repository.listLeadSettlements(lead.id),
+      route: advanced.lead.route
+    };
+  }
+
+  recordLeadOutcome(input) {
+    this.bootstrap();
+    const lead = this.repository.findLeadPipeline(input.leadId);
+    if (!lead) {
+      throw new Error(`Unknown lead pipeline: ${input.leadId}`);
+    }
+    if (!['active_delivery', 'result_recorded'].includes(lead.currentStageKey)) {
+      throw new Error('Lead outcome can only be recorded after the pipeline enters active_delivery.');
+    }
+    const outcome = requireMatchOutcome(lead.laneId, input.outcomeCode);
+    const nowIso = isoNow();
+    const recorded = this.repository.saveLeadOutcome({
+      leadId: lead.id,
+      laneId: lead.laneId,
+      outcomeCode: outcome.code,
+      outcomeLabel: outcome.label,
+      outcomeStatus: outcome.status,
+      recordedByUserId: input.userId,
+      detail: input.detail ?? {},
+      nowIso
+    });
+
+    let stage = null;
+    let stageAudit = null;
+    if (lead.currentStageKey !== 'result_recorded') {
+      const transitioned = this.repository.advanceLeadStage({
+        leadId: lead.id,
+        stageKey: 'result_recorded',
+        stageLabel: requireLeadStage('result_recorded').label,
+        actorKind: 'initiator_user',
+        actorId: input.userId,
+        detail: {
+          outcomeCode: outcome.code,
+          outcomeLabel: outcome.label,
+          ...input.detail
+        },
+        nowIso
+      });
+      stage = transitioned.stage;
+      stageAudit = transitioned.audit;
+    }
+
+    const intentStatus = outcome.status === 'failed' ? 'cancelled' : 'closed';
+    const intent = this.repository.updateIntentStatus(
+      lead.intentId,
+      intentStatus,
+      {
+        leadId: lead.id,
+        outcomeCode: outcome.code,
+        outcomeStatus: outcome.status
+      },
+      nowIso
+    );
+
+    return {
+      eventType: 'lead_outcome_recorded',
+      lead: this.repository.findLeadPipeline(lead.id),
+      outcome: recorded.outcome,
+      audit: recorded.audit,
+      stage,
+      stageAudit,
+      intent,
+      stages: this.repository.listLeadStages(lead.id),
+      auditTrail: this.repository.listLeadAuditEvents(lead.id),
+      settlements: this.repository.listLeadSettlements(lead.id),
+      route: lead.route
+    };
+  }
+
+  settleLeadOutcome(input) {
+    this.bootstrap();
+    const lead = this.repository.findLeadPipeline(input.leadId);
+    if (!lead) {
+      throw new Error(`Unknown lead pipeline: ${input.leadId}`);
+    }
+    if (!['result_recorded', 'settled'].includes(lead.currentStageKey)) {
+      throw new Error('Lead settlement requires a recorded result first.');
+    }
+    if (![lead.initiatorUserId, lead.counterpartUserId].includes(input.userId)) {
+      throw new Error('Lead settlement can only be posted to a pipeline participant.');
+    }
+    const outcome = this.repository.findLeadOutcome(lead.id);
+    if (!outcome) {
+      throw new Error(`Lead pipeline ${lead.id} has no recorded outcome yet.`);
+    }
+    const amount = Number(input.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new Error('Lead settlement amount must be a positive number.');
+    }
+    const settlementType = resolveLeadSettlementType(input.settlementType, 'reward');
+    const nowIso = isoNow();
+    const settlementRule = buildLeadSettlementRule({
+      leadId: lead.id,
+      laneId: lead.laneId,
+      beneficiaryUserId: input.userId,
+      settlementType
+    });
+    const settlementLedger = this.repository.awardEnergy({
+      userId: input.userId,
+      laneId: lead.laneId,
+      amount,
+      ruleKey: settlementRule.ruleKey,
+      referenceKind: 'lead_pipeline',
+      referenceId: lead.id,
+      dedupeKey: settlementRule.dedupeKey,
+      detail: {
+        ...settlementRule.detail,
+        outcomeCode: outcome.outcomeCode,
+        outcomeStatus: outcome.outcomeStatus,
+        ...input.detail
+      },
+      nowIso
+    });
+    const settlement = this.repository.saveLeadSettlement({
+      leadId: lead.id,
+      beneficiaryUserId: input.userId,
+      settlementType,
+      amount,
+      status: settlementLedger.applied ? 'posted' : settlementLedger.reason === 'duplicate_rule' ? 'posted' : 'blocked',
+      dedupeKey: settlementRule.dedupeKey,
+      ledgerEntryId: settlementLedger.entry?.id ?? null,
+      detail: {
+        ...settlementRule.detail,
+        outcomeCode: outcome.outcomeCode,
+        outcomeStatus: outcome.outcomeStatus,
+        rewardApplied: settlementLedger.applied,
+        ...input.detail
+      },
+      nowIso,
+      settledAt: nowIso
+    });
+
+    let stage = null;
+    let stageAudit = null;
+    if (lead.currentStageKey !== 'settled') {
+      const transitioned = this.repository.advanceLeadStage({
+        leadId: lead.id,
+        stageKey: 'settled',
+        stageLabel: requireLeadStage('settled').label,
+        actorKind: 'system',
+        actorId: input.userId,
+        detail: {
+          settlementType,
+          amount,
+          ledgerEntryId: settlementLedger.entry?.id ?? null
+        },
+        nowIso
+      });
+      stage = transitioned.stage;
+      stageAudit = transitioned.audit;
+    }
+
+    return {
+      eventType: 'lead_settlement_recorded',
+      lead: this.repository.findLeadPipeline(lead.id),
+      outcome,
+      settlement,
+      settlementLedger,
+      stage,
+      stageAudit,
+      stages: this.repository.listLeadStages(lead.id),
+      auditTrail: this.repository.listLeadAuditEvents(lead.id),
+      wallet: this.repository.getWallet(input.userId),
+      route: lead.route
     };
   }
 

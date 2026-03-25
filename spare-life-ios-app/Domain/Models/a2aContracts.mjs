@@ -73,6 +73,20 @@ export const ENERGY_ENTRY_TYPES = new Set(['income', 'expense', 'freeze', 'settl
 export const ENERGY_ENTRY_STATUSES = new Set(['posted', 'frozen', 'settled', 'rolled_back', 'blocked']);
 export const ARENA_STATUSES = new Set(['scheduled', 'active', 'resolved', 'cancelled']);
 export const BOND_LEVELS = new Set(['spark', 'warming', 'trusted']);
+export const LEAD_SETTLEMENT_TYPES = new Set(['reward', 'points', 'commission']);
+export const MATCH_OUTCOME_STATUSES = new Set(['milestone', 'successful', 'failed']);
+
+export const LEAD_STAGE_DEFINITIONS = [
+  { key: 'agent_screened', label: '分身初筛完成', order: 10 },
+  { key: 'mutual_confirmation', label: '双方确认继续', order: 20 },
+  { key: 'human_takeover', label: '真人已接手', order: 30 },
+  { key: 'active_delivery', label: '结果推进中', order: 40 },
+  { key: 'result_recorded', label: '结果已记录', order: 50 },
+  { key: 'settled', label: '结算已完成', order: 60 },
+  { key: 'cancelled', label: '流程关闭', order: 99 }
+];
+
+export const LEAD_STAGE_KEYS = new Set(LEAD_STAGE_DEFINITIONS.map((stage) => stage.key));
 
 export const A2A_INTENT_TEMPLATES = [
   {
@@ -245,6 +259,27 @@ export const A2A_INTENT_TEMPLATES = [
   }
 ];
 
+export const LANE_MATCH_OUTCOME_DEFINITIONS = [
+  { laneId: 'idle_goods', code: 'deal_closed', label: '买卖成交', status: 'successful' },
+  { laneId: 'idle_goods', code: 'inspection_failed', label: '验货未通过', status: 'failed' },
+  { laneId: 'idle_goods', code: 'seller_withdrew', label: '卖家撤回交易', status: 'failed' },
+  { laneId: 'skill_qa', code: 'consult_completed', label: '问答完成', status: 'successful' },
+  { laneId: 'skill_qa', code: 'service_purchased', label: '服务成交', status: 'successful' },
+  { laneId: 'skill_qa', code: 'not_a_fit', label: '问题不匹配', status: 'failed' },
+  { laneId: 'romance', code: 'offline_meet_scheduled', label: '进入线下见面', status: 'milestone' },
+  { laneId: 'romance', code: 'steady_contact_started', label: '进入稳定接触', status: 'successful' },
+  { laneId: 'romance', code: 'not_matched', label: '双方不匹配', status: 'failed' },
+  { laneId: 'friendship', code: 'moved_to_private_thread', label: '转入熟人消息线程', status: 'milestone' },
+  { laneId: 'friendship', code: 'buddy_routine_started', label: '形成固定搭子关系', status: 'successful' },
+  { laneId: 'friendship', code: 'not_same_vibe', label: '相处氛围不合适', status: 'failed' },
+  { laneId: 'job_hiring', code: 'interview_scheduled', label: '进入面试', status: 'milestone' },
+  { laneId: 'job_hiring', code: 'offer_sent', label: '进入录用阶段', status: 'successful' },
+  { laneId: 'job_hiring', code: 'not_selected', label: '未进入后续流程', status: 'failed' },
+  { laneId: 'errand_help', code: 'task_accepted', label: '跑腿已接单', status: 'milestone' },
+  { laneId: 'errand_help', code: 'task_completed', label: '跑腿完成', status: 'successful' },
+  { laneId: 'errand_help', code: 'unable_to_fulfill', label: '任务未完成', status: 'failed' }
+];
+
 export function listLaneTemplates(laneId = null) {
   return A2A_INTENT_TEMPLATES.filter((template) => !laneId || template.laneId === laneId);
 }
@@ -326,6 +361,61 @@ export function resolveBondLevel(value, fallback = 'spark') {
   return safeValue;
 }
 
+export function getLeadStageDefinition(stageKey) {
+  if (!stageKey) {
+    return null;
+  }
+  return LEAD_STAGE_DEFINITIONS.find((stage) => stage.key === stageKey) ?? null;
+}
+
+export function requireLeadStage(stageKey) {
+  const stage = getLeadStageDefinition(stageKey);
+  if (!stage) {
+    throw new Error(`Unsupported lead stage: ${stageKey}`);
+  }
+  return stage;
+}
+
+export function resolveLeadStage(value, fallback = 'human_takeover') {
+  const safeValue = sanitizeText(value);
+  if (!safeValue) {
+    return fallback;
+  }
+  if (!LEAD_STAGE_KEYS.has(safeValue)) {
+    throw new Error(`Unsupported lead stage: ${safeValue}`);
+  }
+  return safeValue;
+}
+
+export function listLaneMatchOutcomes(laneId) {
+  if (!laneId) {
+    return [];
+  }
+  return LANE_MATCH_OUTCOME_DEFINITIONS.filter((outcome) => outcome.laneId === laneId);
+}
+
+export function requireMatchOutcome(laneId, outcomeCode) {
+  const outcome = listLaneMatchOutcomes(laneId).find((item) => item.code === sanitizeText(outcomeCode));
+  if (!outcome) {
+    throw new Error(`Unsupported match outcome ${outcomeCode} for lane ${laneId}`);
+  }
+  if (!MATCH_OUTCOME_STATUSES.has(outcome.status)) {
+    throw new Error(`Unsupported match outcome status: ${outcome.status}`);
+  }
+  return outcome;
+}
+
+export function resolveLeadSettlementType(value, fallback = 'reward') {
+  const safeValue = sanitizeText(value);
+  if (!safeValue) {
+    return fallback;
+  }
+  if (!LEAD_SETTLEMENT_TYPES.has(safeValue)) {
+    throw new Error(`Unsupported lead settlement type: ${safeValue}`);
+  }
+  return safeValue;
+}
+
 export function buildEarnSocialHomeRoute(laneId = null) {
   const params = new URLSearchParams();
   if (sanitizeText(laneId)) {
@@ -383,6 +473,10 @@ export function buildArenaRoute(matchId = null) {
 
 export function buildBondRoute(bondId) {
   return `sparelife://earn-social/bond?bond_id=${encodeURIComponent(sanitizeText(bondId))}`;
+}
+
+export function buildLeadRoute(leadId) {
+  return `sparelife://earn-social/lead?lead_id=${encodeURIComponent(sanitizeText(leadId))}`;
 }
 
 export function buildMessagesThreadRoute({ bondId, sessionId }) {

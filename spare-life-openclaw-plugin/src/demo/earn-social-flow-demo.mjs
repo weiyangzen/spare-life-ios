@@ -80,6 +80,32 @@ try {
     side: 'counterpart',
     granted: true
   });
+  const leadProgress = runtime.advanceLeadStage({
+    leadId: consentTwo.lead.id,
+    userId,
+    stageKey: 'active_delivery',
+    detail: {
+      nextAction: '双方改为真人沟通，开始推进岗位对齐与面试安排'
+    }
+  });
+  const leadOutcome = runtime.recordLeadOutcome({
+    leadId: consentTwo.lead.id,
+    userId,
+    outcomeCode: 'interview_scheduled',
+    detail: {
+      scheduledAt: '2026-03-27T19:00:00+08:00',
+      interviewer: '嘉禾 招聘方分身'
+    }
+  });
+  const leadSettlement = runtime.settleLeadOutcome({
+    leadId: consentTwo.lead.id,
+    userId,
+    settlementType: 'reward',
+    amount: 18,
+    detail: {
+      reason: '已促成求职赛道进入真人面试'
+    }
+  });
 
   const trends = runtime.exploreLaneTrends({
     userId,
@@ -146,12 +172,16 @@ try {
           laneCount: state.counts.lanes,
           templateCount: state.counts.templates,
           feedCardTypes: [...new Set(finalHome.home.feed.map((card) => card.cardType))],
-          finalIntentStatus: state.recentIntents[0]?.status ?? null,
+          finalIntentStatus: publishedIntent.intent.id === state.recentIntents[0]?.id ? state.recentIntents[0]?.status : state.recentIntents.find((item) => item.id === publishedIntent.intent.id)?.status ?? null,
           publishedIntentRoute: publishedIntent.intent.route,
           deckSizeBeforeIntent: firstDeck.cards.length,
           deckSizeAfterIntent: secondDeck.cards.length,
           icebreakStatusAfterHandoff: consentTwo.session.status,
           humanThreadRoute: consentTwo.route,
+          leadStage: state.recentLeads[0]?.currentStageKey ?? null,
+          leadOutcome: state.recentLeads[0]?.outcome?.outcomeCode ?? null,
+          leadSettlementCount: state.recentLeads[0]?.settlements?.length ?? 0,
+          leadAuditEvents: state.recentLeads[0]?.auditTrail?.length ?? 0,
           bondLevel: completedSharedGoal.bond.level,
           bondMilestones: state.counts.bondMilestones,
           trendTopLane: trends.trends[0]?.laneTitle ?? null,
@@ -159,6 +189,7 @@ try {
           duplicateTrendRewardBlocked: duplicateTrendClaim.reward?.applied === false,
           arenaWinner: resolvedArena.match.winnerSide,
           arenaSettlementApplied: resolvedArena.settlement.applied,
+          leadSettlementApplied: leadSettlement.settlementLedger.applied || leadSettlement.settlementLedger.reason === 'duplicate_rule',
           walletBalance: state.wallet.balance,
           ledgerEntries: state.counts.ledgerEntries
         },
@@ -170,6 +201,9 @@ try {
         icebreak,
         consentOne,
         consentTwo,
+        leadProgress,
+        leadOutcome,
+        leadSettlement,
         trends,
         duplicateTrendClaim,
         arena,

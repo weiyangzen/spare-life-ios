@@ -10,6 +10,9 @@ import {
   normalizeEarnSocialHomeInput,
   normalizeIcebreakStartInput,
   normalizeIntentPostInput,
+  normalizeLeadOutcomeInput,
+  normalizeLeadSettlementInput,
+  normalizeLeadStageInput,
   normalizePersonaFeedbackInput,
   normalizeTrendInput
 } from '../inbound/normalizeEarnSocialPayloads.mjs';
@@ -19,6 +22,7 @@ import {
   buildEarnSocialHomeResponse,
   buildIcebreakResponse,
   buildIntentMarketResponse,
+  buildLeadResponse,
   buildPersonaDeckResponse,
   buildPersonaFeedbackResponse,
   buildTrendResponse
@@ -74,6 +78,18 @@ export function createEarnSocialRuntime({ dbPath }) {
     completeBondTask(payload) {
       const normalized = normalizeBondTaskInput(payload);
       return buildBondResponse(useCase.completeBondTask(normalized));
+    },
+    advanceLeadStage(payload) {
+      const normalized = normalizeLeadStageInput(payload);
+      return buildLeadResponse(useCase.advanceLeadStage(normalized));
+    },
+    recordLeadOutcome(payload) {
+      const normalized = normalizeLeadOutcomeInput(payload);
+      return buildLeadResponse(useCase.recordLeadOutcome(normalized));
+    },
+    settleLeadOutcome(payload) {
+      const normalized = normalizeLeadSettlementInput(payload);
+      return buildLeadResponse(useCase.settleLeadOutcome(normalized));
     },
     inspectEarnSocialState(userId) {
       return useCase.inspectEarnSocialState(userId);

@@ -113,3 +113,31 @@ export function normalizeBondTaskInput(input) {
     increment: Number.isFinite(Number(input.increment)) ? Number(input.increment) : 1
   };
 }
+
+export function normalizeLeadStageInput(input) {
+  return {
+    leadId: requireString(input.leadId, 'leadId'),
+    userId: requireString(input.userId, 'userId'),
+    stageKey: requireString(input.stageKey, 'stageKey'),
+    detail: sanitizeObject(input.detail ?? {})
+  };
+}
+
+export function normalizeLeadOutcomeInput(input) {
+  return {
+    leadId: requireString(input.leadId, 'leadId'),
+    userId: requireString(input.userId, 'userId'),
+    outcomeCode: requireString(input.outcomeCode, 'outcomeCode'),
+    detail: sanitizeObject(input.detail ?? {})
+  };
+}
+
+export function normalizeLeadSettlementInput(input) {
+  return {
+    leadId: requireString(input.leadId, 'leadId'),
+    userId: requireString(input.userId, 'userId'),
+    settlementType: sanitizeText(input.settlementType) || 'reward',
+    amount: Number(input.amount),
+    detail: sanitizeObject(input.detail ?? {})
+  };
+}

@@ -8,10 +8,12 @@ import {
   buildIcebreakRoute,
   buildIntentDetailRoute,
   buildIntentMarketRoute,
+  buildLeadRoute,
   buildMessagesThreadRoute,
   buildPersonaDeckRoute,
   buildTrendRoute,
   extractIntentTags,
+  getLeadStageDefinition,
   inferIntentTitle,
   listLaneTemplates,
   requireIntentTemplate,
@@ -564,6 +566,8 @@ function cardPriority(type) {
       return 88;
     case 'dual_agent':
       return 78;
+    case 'lead_result':
+      return 74;
     case 'arena_activity':
       return 68;
     case 'trend_snapshot':
@@ -575,7 +579,7 @@ function cardPriority(type) {
   }
 }
 
-export function buildMixedFeed({ laneId, opportunityCards = [], personaCards = [], icebreakCards = [], arenaCards = [], trendCards = [], bondCards = [] }) {
+export function buildMixedFeed({ laneId, opportunityCards = [], personaCards = [], icebreakCards = [], leadCards = [], arenaCards = [], trendCards = [], bondCards = [] }) {
   return [
     ...opportunityCards.map((card) => ({
       cardType: 'lane_opportunity',
@@ -601,6 +605,15 @@ export function buildMixedFeed({ laneId, opportunityCards = [], personaCards = [
       laneId: card.laneId,
       priority: cardPriority('dual_agent'),
       weight: card.compatibilityScore,
+      route: card.route,
+      payload: card
+    })),
+    ...leadCards.map((card) => ({
+      cardType: 'lead_result',
+      cardId: buildFeedCardId('lead_result', card.leadId),
+      laneId: card.laneId,
+      priority: cardPriority('lead_result'),
+      weight: card.stageWeight,
       route: card.route,
       payload: card
     })),
@@ -788,6 +801,154 @@ export function buildBondBlueprint({ laneId, counterpartCard, icebreakSessionId 
   };
 }
 
+export function buildLeadPipelineBlueprint({ intent, session, bond, counterpartCard = null }) {
+  const leadId = stableId('lead-pipeline', intent.id, session.id, bond.id);
+  const counterpartName = counterpartCard?.displayName ?? session.targetAgentId;
+  const stages = ['agent_screened', 'mutual_confirmation', 'human_takeover'].map((stageKey, index) => ({
+    stageIndex: index + 1,
+    stageKey,
+    stageLabel: getLeadStageDefinition(stageKey)?.label ?? stageKey,
+    actorKind: 'system',
+    detail:
+      stageKey === 'agent_screened'
+        ? {
+            sourceSessionId: session.id,
+            targetAgentId: session.targetAgentId,
+            compatibilityScore: session.compatibilityScore
+          }
+        : stageKey === 'mutual_confirmation'
+          ? {
+              initiatorConfirmed: true,
+              counterpartConfirmed: true
+            }
+          : {
+              bondId: bond.id,
+              humanThreadRoute: bond.threadRoute
+            }
+  }));
+
+  const recommendationChain = {
+    recommendedFromIntentId: intent.id,
+    recommendedToUserId: session.initiatorUserId,
+    recommendedAgentId: session.targetAgentId,
+    recommendedCounterpartUserId: session.counterpartUserId,
+    counterpartName
+  };
+
+  return {
+    leadId,
+    laneId: session.laneId,
+    intentId: intent.id,
+    sourceSessionId: session.id,
+    bondId: bond.id,
+    initiatorUserId: session.initiatorUserId,
+    counterpartUserId: session.counterpartUserId,
+    targetAgentId: session.targetAgentId,
+    humanTakeover: true,
+    sourceRoute: intent.route,
+    route: buildLeadRoute(leadId),
+    currentStageKey: 'human_takeover',
+    currentStageLabel: getLeadStageDefinition('human_takeover')?.label ?? '真人已接手',
+    confirmations: {
+      initiator: true,
+      counterpart: true
+    },
+    stages,
+    auditEvents: [
+      {
+        eventType: 'source_linked',
+        actorKind: 'system',
+        actorId: session.targetAgentId,
+        detail: {
+          recommendationChain,
+          sourceSessionId: session.id,
+          sourceRoute: intent.route,
+          humanTakeover: true
+        }
+      },
+      {
+        eventType: 'confirmation_recorded',
+        actorKind: 'initiator_user',
+        actorId: session.initiatorUserId,
+        detail: {
+          confirmed: true,
+          side: 'initiator'
+        }
+      },
+      {
+        eventType: 'confirmation_recorded',
+        actorKind: 'counterpart_user',
+        actorId: session.counterpartUserId,
+        detail: {
+          confirmed: true,
+          side: 'counterpart'
+        }
+      },
+      {
+        eventType: 'recommended_match',
+        actorKind: 'system',
+        actorId: session.targetAgentId,
+        detail: {
+          recommendationChain
+        }
+      }
+    ]
+  };
+}
+
+export function assertLeadStageTransition({ currentStageKey, nextStageKey }) {
+  const transitionMap = new Map([
+    ['agent_screened', new Set(['mutual_confirmation', 'cancelled'])],
+    ['mutual_confirmation', new Set(['human_takeover', 'cancelled'])],
+    ['human_takeover', new Set(['active_delivery', 'cancelled'])],
+    ['active_delivery', new Set(['result_recorded', 'cancelled'])],
+    ['result_recorded', new Set(['settled', 'cancelled'])],
+    ['settled', new Set()],
+    ['cancelled', new Set()]
+  ]);
+  const allowedTransitions = transitionMap.get(currentStageKey);
+  if (!allowedTransitions) {
+    throw new Error(`Unknown current lead stage: ${currentStageKey}`);
+  }
+  if (!allowedTransitions.has(nextStageKey)) {
+    throw new Error(`Lead stage cannot transition from ${currentStageKey} to ${nextStageKey}.`);
+  }
+}
+
+export function buildLeadSettlementRule({ leadId, laneId, beneficiaryUserId, settlementType }) {
+  return {
+    ruleKey: `lead_${settlementType}_settlement`,
+    dedupeKey: buildDedupeKey(`lead_${settlementType}_settlement:${leadId}`, beneficiaryUserId),
+    detail: {
+      leadId,
+      laneId,
+      settlementType
+    }
+  };
+}
+
+export function buildLeadResultCard(lead) {
+  const lane = requireLane(lead.laneId);
+  const stageOrder = getLeadStageDefinition(lead.currentStageKey)?.order ?? 0;
+  return {
+    leadId: lead.id,
+    laneId: lead.laneId,
+    laneTitle: lane.title,
+    stageKey: lead.currentStageKey,
+    stageLabel: lead.currentStageLabel,
+    latestOutcomeCode: lead.latestOutcomeCode,
+    latestOutcomeLabel: lead.latestOutcomeLabel,
+    latestOutcomeStatus: lead.latestOutcomeStatus,
+    humanTakeover: lead.humanTakeover,
+    summary:
+      lead.latestOutcomeLabel
+        ? `${lane.title}结果：${lead.latestOutcomeLabel}`
+        : `${lane.title}流程当前处于“${lead.currentStageLabel}”`,
+    stageWeight: stageOrder + (lead.latestOutcomeStatus === 'successful' ? 20 : lead.latestOutcomeStatus === 'milestone' ? 12 : 0),
+    route: lead.route
+  };
+}
+
 export function advanceBondProgress({ bond, tasks }) {
   const completedTasks = tasks.filter((task) => task.status === 'completed').length;
   const totalTasks = tasks.length || 1;
@@ -805,12 +966,13 @@ export function advanceBondProgress({ bond, tasks }) {
   };
 }
 
-export function buildHomeSnapshot({ selectedLaneId = null, laneStats = [], opportunityCards = [], personaCards = [], icebreakCards = [], arenaCards = [], trendCards = [], bondCards = [], wallet }) {
+export function buildHomeSnapshot({ selectedLaneId = null, laneStats = [], opportunityCards = [], personaCards = [], icebreakCards = [], leadCards = [], arenaCards = [], trendCards = [], bondCards = [], wallet }) {
   const feed = buildMixedFeed({
     laneId: selectedLaneId,
     opportunityCards,
     personaCards,
     icebreakCards,
+    leadCards,
     arenaCards,
     trendCards,
     bondCards

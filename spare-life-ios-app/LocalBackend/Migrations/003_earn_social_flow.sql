@@ -336,3 +336,95 @@ CREATE TABLE IF NOT EXISTS a2a_thread_migrations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_a2a_thread_migrations_bond ON a2a_thread_migrations(bond_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS a2a_lead_pipelines (
+  id TEXT PRIMARY KEY,
+  lane_id TEXT NOT NULL,
+  intent_id TEXT NOT NULL,
+  source_session_id TEXT NOT NULL,
+  bond_id TEXT NOT NULL,
+  initiator_user_id TEXT NOT NULL,
+  counterpart_user_id TEXT NOT NULL,
+  target_agent_id TEXT NOT NULL,
+  human_takeover INTEGER NOT NULL DEFAULT 0,
+  source_route TEXT NOT NULL,
+  route TEXT NOT NULL,
+  current_stage_key TEXT NOT NULL,
+  current_stage_label TEXT NOT NULL,
+  confirmations_json TEXT NOT NULL,
+  latest_outcome_code TEXT,
+  latest_outcome_label TEXT,
+  latest_outcome_status TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(lane_id) REFERENCES a2a_lanes(id) ON DELETE CASCADE,
+  FOREIGN KEY(intent_id) REFERENCES a2a_intent_posts(id) ON DELETE CASCADE,
+  FOREIGN KEY(source_session_id) REFERENCES a2a_icebreak_sessions(id) ON DELETE CASCADE,
+  FOREIGN KEY(bond_id) REFERENCES a2a_bond_relationships(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_a2a_leads_user ON a2a_lead_pipelines(initiator_user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_a2a_leads_lane_stage ON a2a_lead_pipelines(lane_id, current_stage_key, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS a2a_lead_stage_events (
+  id TEXT PRIMARY KEY,
+  lead_id TEXT NOT NULL,
+  stage_index INTEGER NOT NULL,
+  stage_key TEXT NOT NULL,
+  stage_label TEXT NOT NULL,
+  actor_kind TEXT NOT NULL,
+  detail_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(lead_id) REFERENCES a2a_lead_pipelines(id) ON DELETE CASCADE,
+  UNIQUE(lead_id, stage_index)
+);
+
+CREATE INDEX IF NOT EXISTS idx_a2a_lead_stage_events_lead ON a2a_lead_stage_events(lead_id, stage_index ASC);
+
+CREATE TABLE IF NOT EXISTS a2a_lead_audit_events (
+  id TEXT PRIMARY KEY,
+  lead_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  actor_kind TEXT NOT NULL,
+  actor_id TEXT,
+  detail_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(lead_id) REFERENCES a2a_lead_pipelines(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_a2a_lead_audit_events_lead ON a2a_lead_audit_events(lead_id, created_at ASC);
+
+CREATE TABLE IF NOT EXISTS a2a_match_outcomes (
+  id TEXT PRIMARY KEY,
+  lead_id TEXT NOT NULL UNIQUE,
+  lane_id TEXT NOT NULL,
+  outcome_code TEXT NOT NULL,
+  outcome_label TEXT NOT NULL,
+  outcome_status TEXT NOT NULL,
+  recorded_by_user_id TEXT NOT NULL,
+  detail_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(lead_id) REFERENCES a2a_lead_pipelines(id) ON DELETE CASCADE,
+  FOREIGN KEY(lane_id) REFERENCES a2a_lanes(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_a2a_match_outcomes_lane ON a2a_match_outcomes(lane_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS a2a_lead_settlements (
+  id TEXT PRIMARY KEY,
+  lead_id TEXT NOT NULL,
+  beneficiary_user_id TEXT NOT NULL,
+  settlement_type TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  dedupe_key TEXT NOT NULL UNIQUE,
+  ledger_entry_id TEXT,
+  detail_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  settled_at TEXT,
+  FOREIGN KEY(lead_id) REFERENCES a2a_lead_pipelines(id) ON DELETE CASCADE,
+  FOREIGN KEY(ledger_entry_id) REFERENCES a2a_energy_ledger(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_a2a_lead_settlements_lead ON a2a_lead_settlements(lead_id, created_at DESC);

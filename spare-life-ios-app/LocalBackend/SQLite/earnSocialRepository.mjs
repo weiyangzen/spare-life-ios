@@ -364,6 +364,101 @@ function parseMilestoneRow(row) {
   };
 }
 
+function parseLeadRow(row) {
+  if (!row) {
+    return null;
+  }
+  return {
+    id: row.id,
+    laneId: row.lane_id,
+    intentId: row.intent_id,
+    sourceSessionId: row.source_session_id,
+    bondId: row.bond_id,
+    initiatorUserId: row.initiator_user_id,
+    counterpartUserId: row.counterpart_user_id,
+    targetAgentId: row.target_agent_id,
+    humanTakeover: Boolean(row.human_takeover),
+    sourceRoute: row.source_route,
+    route: row.route,
+    currentStageKey: row.current_stage_key,
+    currentStageLabel: row.current_stage_label,
+    confirmations: fromJson(row.confirmations_json, {}),
+    latestOutcomeCode: row.latest_outcome_code,
+    latestOutcomeLabel: row.latest_outcome_label,
+    latestOutcomeStatus: row.latest_outcome_status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function parseLeadStageRow(row) {
+  if (!row) {
+    return null;
+  }
+  return {
+    id: row.id,
+    leadId: row.lead_id,
+    stageIndex: Number(row.stage_index),
+    stageKey: row.stage_key,
+    stageLabel: row.stage_label,
+    actorKind: row.actor_kind,
+    detail: fromJson(row.detail_json, {}),
+    createdAt: row.created_at
+  };
+}
+
+function parseLeadAuditRow(row) {
+  if (!row) {
+    return null;
+  }
+  return {
+    id: row.id,
+    leadId: row.lead_id,
+    eventType: row.event_type,
+    actorKind: row.actor_kind,
+    actorId: row.actor_id,
+    detail: fromJson(row.detail_json, {}),
+    createdAt: row.created_at
+  };
+}
+
+function parseOutcomeRow(row) {
+  if (!row) {
+    return null;
+  }
+  return {
+    id: row.id,
+    leadId: row.lead_id,
+    laneId: row.lane_id,
+    outcomeCode: row.outcome_code,
+    outcomeLabel: row.outcome_label,
+    outcomeStatus: row.outcome_status,
+    recordedByUserId: row.recorded_by_user_id,
+    detail: fromJson(row.detail_json, {}),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function parseLeadSettlementRow(row) {
+  if (!row) {
+    return null;
+  }
+  return {
+    id: row.id,
+    leadId: row.lead_id,
+    beneficiaryUserId: row.beneficiary_user_id,
+    settlementType: row.settlement_type,
+    amount: Number(row.amount),
+    status: row.status,
+    dedupeKey: row.dedupe_key,
+    ledgerEntryId: row.ledger_entry_id,
+    detail: fromJson(row.detail_json, {}),
+    createdAt: row.created_at,
+    settledAt: row.settled_at
+  };
+}
+
 export class EarnSocialRepository {
   constructor(dbPath) {
     mkdirSync(dirname(dbPath), { recursive: true });
@@ -1533,6 +1628,357 @@ export class EarnSocialRepository {
     return parseMilestoneRow(this.db.prepare('SELECT * FROM a2a_bond_milestones WHERE id = ?').get(milestoneId));
   }
 
+  createLeadPipeline({ lead, stages = [], auditEvents = [] }, nowIso = isoNow()) {
+    return this.withTransaction(() => {
+      this.db
+        .prepare(
+          `INSERT INTO a2a_lead_pipelines (
+            id, lane_id, intent_id, source_session_id, bond_id, initiator_user_id, counterpart_user_id,
+            target_agent_id, human_takeover, source_route, route, current_stage_key, current_stage_label,
+            confirmations_json, latest_outcome_code, latest_outcome_label, latest_outcome_status, created_at, updated_at
+          ) VALUES (
+            @id, @lane_id, @intent_id, @source_session_id, @bond_id, @initiator_user_id, @counterpart_user_id,
+            @target_agent_id, @human_takeover, @source_route, @route, @current_stage_key, @current_stage_label,
+            @confirmations_json, @latest_outcome_code, @latest_outcome_label, @latest_outcome_status, @created_at, @updated_at
+          )`
+        )
+        .run({
+          id: lead.leadId,
+          lane_id: lead.laneId,
+          intent_id: lead.intentId,
+          source_session_id: lead.sourceSessionId,
+          bond_id: lead.bondId,
+          initiator_user_id: lead.initiatorUserId,
+          counterpart_user_id: lead.counterpartUserId,
+          target_agent_id: lead.targetAgentId,
+          human_takeover: lead.humanTakeover ? 1 : 0,
+          source_route: lead.sourceRoute,
+          route: lead.route,
+          current_stage_key: lead.currentStageKey,
+          current_stage_label: lead.currentStageLabel,
+          confirmations_json: toJson(lead.confirmations ?? {}),
+          latest_outcome_code: lead.latestOutcomeCode ?? null,
+          latest_outcome_label: lead.latestOutcomeLabel ?? null,
+          latest_outcome_status: lead.latestOutcomeStatus ?? null,
+          created_at: nowIso,
+          updated_at: nowIso
+        });
+
+      const insertStage = this.db.prepare(
+        `INSERT INTO a2a_lead_stage_events (
+          id, lead_id, stage_index, stage_key, stage_label, actor_kind, detail_json, created_at
+        ) VALUES (
+          @id, @lead_id, @stage_index, @stage_key, @stage_label, @actor_kind, @detail_json, @created_at
+        )`
+      );
+      for (const [index, stage] of stages.entries()) {
+        const stageIndex = Number(stage.stageIndex ?? index + 1);
+        insertStage.run({
+          id: stableId('lead-stage', lead.leadId, stageIndex),
+          lead_id: lead.leadId,
+          stage_index: stageIndex,
+          stage_key: stage.stageKey,
+          stage_label: stage.stageLabel,
+          actor_kind: stage.actorKind ?? 'system',
+          detail_json: toJson(stage.detail ?? {}),
+          created_at: stage.createdAt ?? nowIso
+        });
+      }
+
+      const insertAudit = this.db.prepare(
+        `INSERT INTO a2a_lead_audit_events (
+          id, lead_id, event_type, actor_kind, actor_id, detail_json, created_at
+        ) VALUES (
+          @id, @lead_id, @event_type, @actor_kind, @actor_id, @detail_json, @created_at
+        )`
+      );
+      for (const event of auditEvents) {
+        const auditId = `lead_audit_${randomUUID().replace(/-/g, '').slice(0, 20)}`;
+        insertAudit.run({
+          id: auditId,
+          lead_id: lead.leadId,
+          event_type: event.eventType,
+          actor_kind: event.actorKind ?? 'system',
+          actor_id: event.actorId ?? null,
+          detail_json: toJson(event.detail ?? {}),
+          created_at: event.createdAt ?? nowIso
+        });
+      }
+
+      return this.findLeadPipeline(lead.leadId);
+    });
+  }
+
+  findLeadPipeline(leadId) {
+    return parseLeadRow(this.db.prepare('SELECT * FROM a2a_lead_pipelines WHERE id = ?').get(leadId));
+  }
+
+  findLeadBySession(sessionId) {
+    return parseLeadRow(this.db.prepare('SELECT * FROM a2a_lead_pipelines WHERE source_session_id = ?').get(sessionId));
+  }
+
+  listLeadPipelines({ userId = null, laneId = null, currentStageKeys = [], limit = 10 } = {}) {
+    return this.db
+      .prepare('SELECT * FROM a2a_lead_pipelines ORDER BY updated_at DESC')
+      .all()
+      .map(parseLeadRow)
+      .filter(
+        (lead) =>
+          (!userId || lead.initiatorUserId === userId) &&
+          (!laneId || lead.laneId === laneId) &&
+          (!currentStageKeys.length || currentStageKeys.includes(lead.currentStageKey))
+      )
+      .slice(0, limit);
+  }
+
+  listLeadStages(leadId) {
+    return this.db
+      .prepare('SELECT * FROM a2a_lead_stage_events WHERE lead_id = ? ORDER BY stage_index ASC')
+      .all(leadId)
+      .map(parseLeadStageRow);
+  }
+
+  recordLeadAuditEvent({ leadId, eventType, actorKind = 'system', actorId = null, detail = {}, nowIso = isoNow() }) {
+    const auditId = `lead_audit_${randomUUID().replace(/-/g, '').slice(0, 20)}`;
+    this.db
+      .prepare(
+        `INSERT INTO a2a_lead_audit_events (
+          id, lead_id, event_type, actor_kind, actor_id, detail_json, created_at
+        ) VALUES (
+          @id, @lead_id, @event_type, @actor_kind, @actor_id, @detail_json, @created_at
+        )`
+      )
+      .run({
+        id: auditId,
+        lead_id: leadId,
+        event_type: eventType,
+        actor_kind: actorKind,
+        actor_id: actorId,
+        detail_json: toJson(detail),
+        created_at: nowIso
+      });
+    return parseLeadAuditRow(this.db.prepare('SELECT * FROM a2a_lead_audit_events WHERE id = ?').get(auditId));
+  }
+
+  listLeadAuditEvents(leadId) {
+    return this.db
+      .prepare('SELECT * FROM a2a_lead_audit_events WHERE lead_id = ? ORDER BY created_at ASC')
+      .all(leadId)
+      .map(parseLeadAuditRow);
+  }
+
+  advanceLeadStage({ leadId, stageKey, stageLabel, actorKind = 'system', actorId = null, detail = {}, nowIso = isoNow() }) {
+    return this.withTransaction(() => {
+      const nextStageIndex =
+        Number(
+          this.db
+            .prepare('SELECT MAX(stage_index) AS max_stage_index FROM a2a_lead_stage_events WHERE lead_id = ?')
+            .get(leadId)?.max_stage_index ?? 0
+        ) + 1;
+      const stageId = stableId('lead-stage', leadId, nextStageIndex);
+
+      this.db
+        .prepare(
+          `INSERT INTO a2a_lead_stage_events (
+            id, lead_id, stage_index, stage_key, stage_label, actor_kind, detail_json, created_at
+          ) VALUES (
+            @id, @lead_id, @stage_index, @stage_key, @stage_label, @actor_kind, @detail_json, @created_at
+          )`
+        )
+        .run({
+          id: stageId,
+          lead_id: leadId,
+          stage_index: nextStageIndex,
+          stage_key: stageKey,
+          stage_label: stageLabel,
+          actor_kind: actorKind,
+          detail_json: toJson(detail),
+          created_at: nowIso
+        });
+
+      this.db
+        .prepare(
+          `UPDATE a2a_lead_pipelines
+           SET current_stage_key = @current_stage_key,
+               current_stage_label = @current_stage_label,
+               updated_at = @updated_at
+           WHERE id = @id`
+        )
+        .run({
+          id: leadId,
+          current_stage_key: stageKey,
+          current_stage_label: stageLabel,
+          updated_at: nowIso
+        });
+
+      const audit = this.recordLeadAuditEvent({
+        leadId,
+        eventType: 'stage_entered',
+        actorKind,
+        actorId,
+        detail: {
+          stageKey,
+          stageLabel,
+          ...detail
+        },
+        nowIso
+      });
+
+      return {
+        lead: this.findLeadPipeline(leadId),
+        stage: parseLeadStageRow(this.db.prepare('SELECT * FROM a2a_lead_stage_events WHERE id = ?').get(stageId)),
+        audit
+      };
+    });
+  }
+
+  findLeadOutcome(leadId) {
+    return parseOutcomeRow(this.db.prepare('SELECT * FROM a2a_match_outcomes WHERE lead_id = ?').get(leadId));
+  }
+
+  saveLeadOutcome({ leadId, laneId, outcomeCode, outcomeLabel, outcomeStatus, recordedByUserId, detail = {}, nowIso = isoNow() }) {
+    return this.withTransaction(() => {
+      const outcomeId = stableId('lead-outcome', leadId);
+      this.db
+        .prepare(
+          `INSERT INTO a2a_match_outcomes (
+            id, lead_id, lane_id, outcome_code, outcome_label, outcome_status, recorded_by_user_id,
+            detail_json, created_at, updated_at
+          ) VALUES (
+            @id, @lead_id, @lane_id, @outcome_code, @outcome_label, @outcome_status, @recorded_by_user_id,
+            @detail_json, @created_at, @updated_at
+          )
+          ON CONFLICT(lead_id) DO UPDATE SET
+            lane_id = excluded.lane_id,
+            outcome_code = excluded.outcome_code,
+            outcome_label = excluded.outcome_label,
+            outcome_status = excluded.outcome_status,
+            recorded_by_user_id = excluded.recorded_by_user_id,
+            detail_json = excluded.detail_json,
+            updated_at = excluded.updated_at`
+        )
+        .run({
+          id: outcomeId,
+          lead_id: leadId,
+          lane_id: laneId,
+          outcome_code: outcomeCode,
+          outcome_label: outcomeLabel,
+          outcome_status: outcomeStatus,
+          recorded_by_user_id: recordedByUserId,
+          detail_json: toJson(detail),
+          created_at: nowIso,
+          updated_at: nowIso
+        });
+
+      this.db
+        .prepare(
+          `UPDATE a2a_lead_pipelines
+           SET latest_outcome_code = @latest_outcome_code,
+               latest_outcome_label = @latest_outcome_label,
+               latest_outcome_status = @latest_outcome_status,
+               updated_at = @updated_at
+           WHERE id = @id`
+        )
+        .run({
+          id: leadId,
+          latest_outcome_code: outcomeCode,
+          latest_outcome_label: outcomeLabel,
+          latest_outcome_status: outcomeStatus,
+          updated_at: nowIso
+        });
+
+      const audit = this.recordLeadAuditEvent({
+        leadId,
+        eventType: 'outcome_recorded',
+        actorKind: 'initiator_user',
+        actorId: recordedByUserId,
+        detail: {
+          outcomeCode,
+          outcomeLabel,
+          outcomeStatus,
+          ...detail
+        },
+        nowIso
+      });
+
+      return {
+        lead: this.findLeadPipeline(leadId),
+        outcome: this.findLeadOutcome(leadId),
+        audit
+      };
+    });
+  }
+
+  findLeadSettlementByDedupeKey(dedupeKey) {
+    if (!dedupeKey) {
+      return null;
+    }
+    return parseLeadSettlementRow(this.db.prepare('SELECT * FROM a2a_lead_settlements WHERE dedupe_key = ?').get(dedupeKey));
+  }
+
+  saveLeadSettlement({
+    leadId,
+    beneficiaryUserId,
+    settlementType,
+    amount,
+    status,
+    dedupeKey,
+    ledgerEntryId = null,
+    detail = {},
+    nowIso = isoNow(),
+    settledAt = null
+  }) {
+    const existing = this.findLeadSettlementByDedupeKey(dedupeKey);
+    if (existing) {
+      return existing;
+    }
+    const settlementId = `lead_settlement_${randomUUID().replace(/-/g, '').slice(0, 20)}`;
+    this.db
+      .prepare(
+        `INSERT INTO a2a_lead_settlements (
+          id, lead_id, beneficiary_user_id, settlement_type, amount, status, dedupe_key,
+          ledger_entry_id, detail_json, created_at, settled_at
+        ) VALUES (
+          @id, @lead_id, @beneficiary_user_id, @settlement_type, @amount, @status, @dedupe_key,
+          @ledger_entry_id, @detail_json, @created_at, @settled_at
+        )`
+      )
+      .run({
+        id: settlementId,
+        lead_id: leadId,
+        beneficiary_user_id: beneficiaryUserId,
+        settlement_type: settlementType,
+        amount,
+        status,
+        dedupe_key: dedupeKey,
+        ledger_entry_id: ledgerEntryId,
+        detail_json: toJson(detail),
+        created_at: nowIso,
+        settled_at: settledAt
+      });
+    this.recordLeadAuditEvent({
+      leadId,
+      eventType: 'settlement_recorded',
+      actorKind: 'system',
+      actorId: beneficiaryUserId,
+      detail: {
+        settlementType,
+        amount,
+        status,
+        ledgerEntryId
+      },
+      nowIso
+    });
+    return parseLeadSettlementRow(this.db.prepare('SELECT * FROM a2a_lead_settlements WHERE id = ?').get(settlementId));
+  }
+
+  listLeadSettlements(leadId) {
+    return this.db
+      .prepare('SELECT * FROM a2a_lead_settlements WHERE lead_id = ? ORDER BY created_at DESC')
+      .all(leadId)
+      .map(parseLeadSettlementRow);
+  }
+
   inspectEarnSocialState(userId) {
     const counts = {
       lanes: this.countRows('a2a_lanes'),
@@ -1542,6 +1988,37 @@ export class EarnSocialRepository {
       userIntents: Number(this.db.prepare('SELECT COUNT(*) AS total FROM a2a_intent_posts WHERE user_id = ?').get(userId)?.total ?? 0),
       icebreaks: Number(this.db.prepare('SELECT COUNT(*) AS total FROM a2a_icebreak_sessions WHERE initiator_user_id = ?').get(userId)?.total ?? 0),
       bonds: Number(this.db.prepare('SELECT COUNT(*) AS total FROM a2a_bond_relationships WHERE initiator_user_id = ?').get(userId)?.total ?? 0),
+      leads: Number(this.db.prepare('SELECT COUNT(*) AS total FROM a2a_lead_pipelines WHERE initiator_user_id = ?').get(userId)?.total ?? 0),
+      leadOutcomes: Number(
+        this.db
+          .prepare(
+            `SELECT COUNT(*) AS total
+             FROM a2a_match_outcomes AS outcomes
+             JOIN a2a_lead_pipelines AS leads ON leads.id = outcomes.lead_id
+             WHERE leads.initiator_user_id = ?`
+          )
+          .get(userId)?.total ?? 0
+      ),
+      leadSettlements: Number(
+        this.db
+          .prepare(
+            `SELECT COUNT(*) AS total
+             FROM a2a_lead_settlements AS settlements
+             JOIN a2a_lead_pipelines AS leads ON leads.id = settlements.lead_id
+             WHERE leads.initiator_user_id = ?`
+          )
+          .get(userId)?.total ?? 0
+      ),
+      leadAuditEvents: Number(
+        this.db
+          .prepare(
+            `SELECT COUNT(*) AS total
+             FROM a2a_lead_audit_events AS audits
+             JOIN a2a_lead_pipelines AS leads ON leads.id = audits.lead_id
+             WHERE leads.initiator_user_id = ?`
+          )
+          .get(userId)?.total ?? 0
+      ),
       bondMilestones: Number(
         this.db
           .prepare(
@@ -1572,6 +2049,16 @@ export class EarnSocialRepository {
         userId,
         limit: 5
       }),
+      recentLeads: this.listLeadPipelines({
+        userId,
+        limit: 5
+      }).map((lead) => ({
+        ...lead,
+        stages: this.listLeadStages(lead.id),
+        outcome: this.findLeadOutcome(lead.id),
+        settlements: this.listLeadSettlements(lead.id),
+        auditTrail: this.listLeadAuditEvents(lead.id)
+      })),
       ledger: this.listEnergyLedger(userId, 8),
       laneHeat: this.listLatestLaneHeatSnapshots()
     };

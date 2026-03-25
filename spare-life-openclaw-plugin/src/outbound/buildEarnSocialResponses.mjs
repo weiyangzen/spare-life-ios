@@ -29,3 +29,7 @@ export function buildArenaResponse(result) {
 export function buildBondResponse(result) {
   return result;
 }
+
+export function buildLeadResponse(result) {
+  return result;
+}

@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "scene-flow-demo": "node ./src/demo/scene-flow-demo.mjs"
+    "scene-flow-demo": "node ./src/demo/scene-flow-demo.mjs",
+    "master-flow-demo": "node ./src/demo/master-flow-demo.mjs",
+    "test:master-flow": "node --test ./tests/master-flow.test.mjs"
   }
 }

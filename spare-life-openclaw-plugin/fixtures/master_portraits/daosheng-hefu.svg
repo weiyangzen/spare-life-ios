@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 320">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e314c"/>
+      <stop offset="100%" stop-color="#b88a2f"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="320" fill="url(#bg)"/>
+  <rect x="58" y="56" width="124" height="132" rx="30" fill="#f2db9b" opacity="0.16"/>
+  <path d="M64 258c12-44 42-70 56-70s44 26 56 70" fill="none" stroke="#f4deb0" stroke-width="10" stroke-linecap="round"/>
+  <rect x="94" y="98" width="52" height="52" rx="20" fill="none" stroke="#f4deb0" stroke-width="10"/>
+  <text x="120" y="292" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="24" fill="#f7e8c0">DH</text>
+</svg>

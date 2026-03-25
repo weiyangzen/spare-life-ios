@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 320">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a2633"/>
+      <stop offset="100%" stop-color="#8b6a32"/>
+    </linearGradient>
+  </defs>
+  <rect width="240" height="320" fill="url(#bg)"/>
+  <circle cx="120" cy="110" r="62" fill="#d7b26a" opacity="0.18"/>
+  <path d="M62 258c14-46 43-69 58-69s44 23 58 69" fill="none" stroke="#f4dfb7" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="120" cy="122" r="38" fill="none" stroke="#f4dfb7" stroke-width="10"/>
+  <text x="120" y="292" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="#f7e7c3">ZG</text>
+</svg>

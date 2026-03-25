@@ -7,6 +7,7 @@ iOS app repository for `weiyangzen/spare-life-ios`.
 Current app logo source:
 
 - `assets/branding/spare-life-logo.jpeg`
+- imported from `Downloads/Gemini_Generated_Image_o7xrryo7xrryo7xr.jpeg`
 
 ## Workspace Layout
 

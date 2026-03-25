@@ -47,6 +47,13 @@ struct SceneSocialIntentView: View {
                 }
             }
             .interactiveDismissDisabled(vm.submitState == .submitting)
+            .onChange(of: vm.submitState) { _, state in
+                // Reset spring scales so animation replays if user retries.
+                if case .submitting = state {
+                    successCheckScale = 0.3
+                    successRingScale  = 0.5
+                }
+            }
         }
     }
 
@@ -62,6 +69,10 @@ struct SceneSocialIntentView: View {
     private var formBody: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: Spacing.lg) {
+                // Step progress bar
+                IntentStepProgress(draft: vm.draft)
+                    .padding(.top, Spacing.xs)
+
                 // Target avatar card (if specific avatar was chosen)
                 if let avatar = targetAvatar {
                     TargetAvatarBanner(avatar: avatar)
@@ -134,18 +145,34 @@ struct SceneSocialIntentView: View {
 
     // MARK: - Success View
 
+    @State private var successCheckScale: CGFloat = 0.3
+    @State private var successRingScale: CGFloat = 0.5
+
     private var successView: some View {
         VStack(spacing: Spacing.xl) {
             Spacer()
 
-            // Animated checkmark
+            // Spring-animated checkmark
             ZStack {
                 Circle()
                     .fill(Color.emotionPositive.opacity(0.12))
-                    .frame(width: 100, height: 100)
+                    .frame(width: 110, height: 110)
+                    .scaleEffect(successRingScale)
+                Circle()
+                    .strokeBorder(Color.emotionPositive.opacity(0.25), lineWidth: 2)
+                    .frame(width: 110, height: 110)
+                    .scaleEffect(successRingScale)
                 Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 56))
+                    .font(.system(size: 58))
                     .foregroundColor(.emotionPositive)
+                    .scaleEffect(successCheckScale)
+            }
+            .onAppear {
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.55)) {
+                    successCheckScale = 1.0
+                    successRingScale = 1.0
+                }
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
             }
 
             VStack(spacing: Spacing.sm) {
@@ -162,12 +189,17 @@ struct SceneSocialIntentView: View {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 dismiss()
             } label: {
-                Text("查看对话")
-                    .font(.spareBodySB)
-                    .foregroundColor(.spareDark)
-                    .frame(maxWidth: 200)
-                    .padding(.vertical, Spacing.md)
-                    .background(Color.spareYellow, in: Capsule())
+                HStack(spacing: Spacing.sm) {
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                        .font(.system(size: 14))
+                    Text("查看对话")
+                        .font(.spareBodySB)
+                }
+                .foregroundColor(.spareDark)
+                .frame(maxWidth: 220)
+                .padding(.vertical, Spacing.md)
+                .background(Color.spareYellow, in: Capsule())
+                .cardShadow(prominent: true)
             }
             .buttonStyle(.plain)
 
@@ -230,6 +262,90 @@ struct SceneSocialIntentView: View {
             }
             .buttonStyle(.plain)
             Spacer()
+        }
+    }
+}
+
+// MARK: - IntentStepProgress
+// Horizontal 3-step roadmap shown at the top of the intent form.
+// Steps: 1 = lane, 2 = mode, 3 = note (optional).
+
+private struct IntentStepProgress: View {
+    let draft: IntentDraft
+
+    // Step 3 is considered "active" once the user has typed a note.
+    private var noteActive: Bool { !draft.note.isEmpty }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            StepNode(number: 1, label: "选赛道", isDone: true)
+
+            StepConnector(filled: true)
+
+            StepNode(number: 2, label: "选方式", isDone: true)
+
+            StepConnector(filled: noteActive)
+
+            StepNode(number: 3, label: "写意图", isDone: noteActive, isOptional: true)
+        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.vertical, Spacing.sm)
+        .background(
+            Color(.secondarySystemGroupedBackground),
+            in: RoundedRectangle(cornerRadius: CornerRadius.md)
+        )
+    }
+
+    // ── Sub-components ──────────────────────────────────────────────
+
+    private struct StepNode: View {
+        let number: Int
+        let label: String
+        var isDone: Bool
+        var isOptional: Bool = false
+
+        var body: some View {
+            VStack(spacing: 3) {
+                ZStack {
+                    Circle()
+                        .fill(isDone ? Color.spareYellow : Color(.systemGray5))
+                        .frame(width: 26, height: 26)
+                    if isDone {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.spareDark)
+                    } else {
+                        Text("\(number)")
+                            .font(.spareMicro)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .animation(.spareFast, value: isDone)
+
+                HStack(spacing: 1) {
+                    Text(label)
+                        .font(.spareMicro)
+                        .foregroundColor(isDone ? .primary : .secondary)
+                    if isOptional {
+                        Text("*")
+                            .font(.spareMicro)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private struct StepConnector: View {
+        var filled: Bool
+
+        var body: some View {
+            Rectangle()
+                .fill(filled ? Color.spareYellow : Color(.systemGray4))
+                .frame(height: 2)
+                .frame(maxWidth: .infinity)
+                .offset(y: -9)  // align with circle centres
+                .animation(.spareFast, value: filled)
         }
     }
 }

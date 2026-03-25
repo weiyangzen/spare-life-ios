@@ -47,7 +47,8 @@ struct XianxiaHomeView: View {
                 }
             }
             .navigationDestination(item: $vm.activeScene) { scene in
-                SceneTopicView(scene: scene)
+                SceneTopicView(scene: scene,
+                               isFromScan: vm.scannedSceneIDs.contains(scene.id))
             }
         }
     }
@@ -319,6 +320,9 @@ final class XianxiaHomeViewModel: ObservableObject {
     @Published var feedState: SceneFeedState = .idle
     @Published var recentScenes: [Scene] = []
     @Published var activeScene: Scene? = nil
+    /// Tracks scene IDs entered via QR scan so SceneTopicView can show
+    /// the scan-entry banner on first arrival.
+    var scannedSceneIDs: Set<String> = []
 
     // Inject real repository here once FUNC lane wires it up.
     // For now the VM exposes the full state machine so UI is driven correctly.
@@ -362,6 +366,8 @@ final class XianxiaHomeViewModel: ObservableObject {
             recentScenes.insert(scene, at: 0)
             if recentScenes.count > 8 { recentScenes = Array(recentScenes.prefix(8)) }
         }
+        // Mark this scene as entered via scan so the topic view shows entry banner.
+        scannedSceneIDs.insert(scene.id)
         activeScene = scene
     }
 

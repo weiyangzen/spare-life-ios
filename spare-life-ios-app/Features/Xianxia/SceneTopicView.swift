@@ -9,14 +9,17 @@ import SwiftUI
 
 struct SceneTopicView: View {
     let scene: Scene
+    let isFromScan: Bool
     @StateObject private var vm: SceneTopicViewModel
     @State private var showSocialIntent = false
     @State private var showAvatarRadar = false
     @State private var selectedSegment: Segment = .feed
+    @State private var showScanBanner = false
     @Environment(\.dismiss) private var dismiss
 
-    init(scene: Scene) {
+    init(scene: Scene, isFromScan: Bool = false) {
         self.scene = scene
+        self.isFromScan = isFromScan
         _vm = StateObject(wrappedValue: SceneTopicViewModel(sceneID: scene.id))
     }
 
@@ -43,6 +46,14 @@ struct SceneTopicView: View {
                 // ── Custom nav header ─────────────────────────────────
                 sceneHeader
 
+                // ── Scan entry banner (auto-dismiss after 3 s) ────────
+                if showScanBanner {
+                    ScanEntryBanner(sceneName: scene.name, category: scene.category)
+                        .padding(.horizontal, Spacing.lg)
+                        .padding(.top, Spacing.xs)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
                 // ── Scene AI summary strip ────────────────────────────
                 if case .loaded = vm.feedState, let summary = vm.primarySummary {
                     SceneSummaryBanner(summary: summary)
@@ -67,12 +78,24 @@ struct SceneTopicView: View {
                 .padding(.bottom, Spacing.xl)
         }
         .navigationBarHidden(true)
-        .onAppear { vm.loadFeed() }
+        .onAppear {
+            vm.loadFeed()
+            if isFromScan {
+                withAnimation(.spareSpring) { showScanBanner = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                    withAnimation(.spareEase) { showScanBanner = false }
+                }
+            }
+        }
         .sheet(isPresented: $showSocialIntent) {
             SceneSocialIntentView(scene: scene)
         }
         .sheet(isPresented: $showAvatarRadar) {
-            SceneAvatarRadarView(scene: scene, avatars: vm.avatarCards)
+            SceneAvatarRadarView(
+                scene: scene,
+                avatars: vm.avatarCards,
+                isLoading: vm.avatarsLoading
+            )
         }
     }
 
@@ -235,6 +258,23 @@ struct SceneTopicView: View {
                         .padding(.bottom, Spacing.sm)
                 }
 
+                // Hot segment: show AI cluster overview before card waterfall
+                if selectedSegment == .hot {
+                    let hotItems = items.filter {
+                        if case .hotTake = $0 { return true }
+                        if case .summary = $0 { return true }
+                        return false
+                    }
+                    SceneHotOverviewSection(
+                        summary: vm.primarySummary,
+                        hotTakeCount: hotItems.count
+                    )
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.top, Spacing.md)
+                    .padding(.bottom, Spacing.sm)
+                    .transition(.opacity)
+                }
+
                 if items.isEmpty {
                     EmptyStateView(
                         icon: "magnifyingglass",
@@ -372,6 +412,13 @@ final class SceneTopicViewModel: ObservableObject {
 
     init(sceneID: String) {
         self.sceneID = sceneID
+    }
+
+    /// True while feed is loading (avatar data has not yet arrived).
+    var avatarsLoading: Bool {
+        if case .loading = feedState { return true }
+        if case .idle    = feedState { return true }
+        return false
     }
 
     func loadFeed() {

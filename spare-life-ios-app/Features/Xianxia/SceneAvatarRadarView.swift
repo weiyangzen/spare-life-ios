@@ -13,6 +13,7 @@ import SwiftUI
 struct SceneAvatarRadarView: View {
     let scene: Scene
     let avatars: [SceneAvatarCard]
+    var isLoading: Bool = false
 
     @Environment(\.dismiss) private var dismiss
     @State private var sortOption: AvatarSortOption = .hottest
@@ -42,7 +43,9 @@ struct SceneAvatarRadarView: View {
                     Divider()
 
                     // ── Avatar list ───────────────────────────────────────
-                    if avatars.isEmpty {
+                    if isLoading {
+                        avatarLoadingView
+                    } else if avatars.isEmpty {
                         emptyStateView
                     } else {
                         avatarScrollView
@@ -96,6 +99,22 @@ struct SceneAvatarRadarView: View {
         }
     }
 
+    // MARK: - Avatar Loading View
+    // Shown while the feed (and avatar cards within it) are still loading.
+
+    private var avatarLoadingView: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            LazyVStack(spacing: Spacing.sm) {
+                ForEach(0..<4, id: \.self) { _ in
+                    AvatarSkeletonRow()
+                }
+            }
+            .padding(.horizontal, Spacing.lg)
+            .padding(.vertical, Spacing.md)
+        }
+        .allowsHitTesting(false)
+    }
+
     // MARK: - Avatar Scroll View
 
     private var avatarScrollView: some View {
@@ -138,6 +157,60 @@ struct SceneAvatarRadarView: View {
     }
 }
 
+// MARK: - AvatarSkeletonRow
+// Shimmer placeholder for a single avatar row while loading.
+
+private struct AvatarSkeletonRow: View {
+    var body: some View {
+        HStack(spacing: Spacing.md) {
+            Circle()
+                .fill(Color(.systemGray5))
+                .frame(width: 46, height: 46)
+                .shimmer()
+
+            VStack(alignment: .leading, spacing: Spacing.xs) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color(.systemGray5))
+                    .frame(width: 100, height: 14)
+                    .shimmer()
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color(.systemGray5))
+                    .frame(width: 160, height: 11)
+                    .shimmer()
+            }
+            Spacer()
+        }
+        .padding(Spacing.md)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+    }
+}
+
+// MARK: - PulseDot
+// Animated green circle indicating an avatar joined the scene very recently.
+
+private struct PulseDot: View {
+    @State private var pulsing = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color.emotionPositive.opacity(0.35))
+                .frame(width: 14, height: 14)
+                .scaleEffect(pulsing ? 1.6 : 1.0)
+                .opacity(pulsing ? 0 : 0.8)
+            Circle()
+                .fill(Color.emotionPositive)
+                .frame(width: 8, height: 8)
+        }
+        .onAppear {
+            withAnimation(.easeOut(duration: 1.1).repeatForever(autoreverses: false)) {
+                pulsing = true
+            }
+        }
+    }
+}
+
 // MARK: - AvatarDetailRow
 // A full-featured row representing one active avatar in the radar list.
 
@@ -146,14 +219,25 @@ private struct AvatarDetailRow: View {
     var isInitiating: Bool
     var onInitiate: () -> Void
 
+    /// True if the avatar joined within the past 10 minutes.
+    private var isNewlyJoined: Bool {
+        Date().timeIntervalSince(avatar.joinedSceneAt) < 600
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             // ── Top: avatar circle + identity + activity ──────────────
             HStack(alignment: .top, spacing: Spacing.md) {
-                // Avatar with activity ring
-                ZStack {
-                    AvatarView(name: avatar.displayName, size: 46)
-                    ActivityRing(score: avatar.activityScore, size: 46)
+                // Avatar with activity ring + optional new-arrival pulse dot
+                ZStack(alignment: .topTrailing) {
+                    ZStack {
+                        AvatarView(name: avatar.displayName, size: 46)
+                        ActivityRing(score: avatar.activityScore, size: 46)
+                    }
+                    if isNewlyJoined {
+                        PulseDot()
+                            .offset(x: 2, y: -2)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 2) {

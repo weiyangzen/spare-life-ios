@@ -1,10 +1,10 @@
 // MyProfileView.swift
 // Spare Life – 我的 · My Profile & Avatar Public Profile
 // Blueprint §7 我的 · [UIUX] My Profile (id: 37f88205febb)
+// Blueprint §统一UI 我的首页卡片化 (line:1154) [UIUX]
 // UIUX lane – slot 2
 
 import SwiftUI
-import UIKit
 
 // MARK: - Models
 
@@ -122,73 +122,32 @@ struct MyProfileView: View {
 private struct ProfileScrollView: View {
     @ObservedObject var store: MyProfileStore
     let profile: UserProfile
-    @StateObject private var scrollState = WaterfallScrollState()
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ZStack(alignment: .bottomTrailing) {
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        // Scroll offset tracker + anchor
-                        GeometryReader { geo in
-                            Color.clear.preference(
-                                key: ProfileScrollOffsetKey.self,
-                                value: geo.frame(in: .named("profileScroll")).minY
-                            )
-                        }
-                        .frame(height: 0)
-                        .id("profile_top")
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 0) {
+                ProfileHeroSection(store: store, profile: profile)
+                    .padding(.bottom, Spacing.lg)
 
-                        ProfileHeroSection(store: store, profile: profile)
-                            .padding(.bottom, Spacing.lg)
+                VStack(spacing: Spacing.md) {
+                    statsRow
 
-                        VStack(spacing: Spacing.md) {
-                            statsRow
-
-                            if let avatar = store.avatarProfile {
-                                AvatarPublicProfileCard(avatar: avatar) {
-                                    store.editingAvatar = true
-                                }
-                            }
-
-                            // Feature cards in waterfall grid – avoids degenerating
-                            // into a plain settings page (blueprint §7 line:1154).
-                            featureCardGrid
-
-                            actionButtons
-                        }
-                        .padding(.horizontal, Spacing.lg)
-
-                        // Cross-domain discover section – demonstrates mixed card
-                        // rendering with FeedSorter + FeedKindFilterBar (line:1151).
-                        DiscoverMixedFeedSection(
-                            cards: DiscoverMixedFeedDemo.sampleCards()
-                        )
-                        .padding(.top, Spacing.xl)
-                        .padding(.bottom, Spacing.xxxl + 32)
-                    }
-                }
-                .coordinateSpace(name: "profileScroll")
-                .onPreferenceChange(ProfileScrollOffsetKey.self) { offset in
-                    scrollState.offsetY = offset
-                    scrollState.isAtTop = offset > -40
-                }
-                .refreshable { store.reload() }
-
-                // Scroll-to-top FAB
-                if !scrollState.isAtTop {
-                    ScrollToTopButton {
-                        withAnimation(.spareSpring) {
-                            proxy.scrollTo("profile_top", anchor: .top)
+                    if let avatar = store.avatarProfile {
+                        AvatarPublicProfileCard(avatar: avatar) {
+                            store.editingAvatar = true
                         }
                     }
-                    .padding(.trailing, Spacing.lg)
-                    .padding(.bottom, Spacing.xl)
-                    .transition(.scale.combined(with: .opacity))
+
+                    // Feature card grid: SyncScore / Personality / Memory / Privacy
+                    featureCardGrid
+
+                    actionButtons
                 }
+                .padding(.horizontal, Spacing.lg)
+                .padding(.bottom, Spacing.xxxl + 32)
             }
-            .animation(.spareSpring, value: scrollState.isAtTop)
         }
+        .refreshable { store.reload() }
         .sheet(isPresented: $store.editingProfile) {
             EditProfileSheet(profile: profile)
                 .presentationDragIndicator(.visible)
@@ -226,103 +185,244 @@ private struct ProfileScrollView: View {
         }
     }
 
-    // MARK: - Feature Card Waterfall Grid
+    // MARK: - Feature Card Grid (同步度卡 / 人格卡 / 记忆卡 / 隐私卡)
 
     private var featureCardGrid: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            FeedSectionHeader(
-                title: "我的面板",
-                subtitle: "点击进入各子系统"
-            )
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text("我的功能")
+                .font(.spareTitle3)
+                .padding(.top, Spacing.xs)
 
-            WaterfallLayout(columns: 2, spacing: Spacing.md) {
-                // Sync Score card
-                NavigationLink {
-                    SyncScoreDashboardView()
-                } label: {
-                    ProfileFeatureCard(
-                        icon: "gauge.open.with.lines.needle.33percent",
-                        iconColor: .emotionPositive,
-                        title: "同步度",
-                        value: "72%",
-                        subtitle: "3 个待训练任务",
-                        accentColor: .emotionPositive,
-                        height: 168
-                    )
+            // 2-column grid
+            HStack(alignment: .top, spacing: Spacing.md) {
+                VStack(spacing: Spacing.md) {
+                    syncScoreCard
+                    memoryCard
                 }
-                .buttonStyle(CardPressStyle())
-
-                // Personality / Awakening card
-                NavigationLink {
-                    AwakeningPersonalityView()
-                } label: {
-                    ProfileFeatureCard(
-                        icon: "sparkles.rectangle.stack.fill",
-                        iconColor: .purple,
-                        title: "人格觉醒",
-                        value: "Lv.4",
-                        subtitle: "5 项特征 · 2 个面具",
-                        accentColor: .purple,
-                        height: 148
-                    )
+                VStack(spacing: Spacing.md) {
+                    personalityCard
+                    privacyCard
                 }
-                .buttonStyle(CardPressStyle())
-
-                // Memory Palace card
-                NavigationLink {
-                    MemoryPalaceView()
-                } label: {
-                    ProfileFeatureCard(
-                        icon: "brain.head.profile",
-                        iconColor: .blue,
-                        title: "记忆宫殿",
-                        value: "42",
-                        subtitle: "对话 18 · 行动 12 · 情绪 12",
-                        accentColor: .blue,
-                        height: 156
-                    )
-                }
-                .buttonStyle(CardPressStyle())
-
-                // Privacy & Local Backend card
-                NavigationLink {
-                    PrivacyLocalBackendView()
-                } label: {
-                    ProfileFeatureCard(
-                        icon: "lock.shield.fill",
-                        iconColor: .secondary,
-                        title: "隐私后端",
-                        value: "本地",
-                        subtitle: "SQLite · 12.4 MB · 已加密",
-                        accentColor: .secondary,
-                        height: 140
-                    )
-                }
-                .buttonStyle(CardPressStyle())
-
-                // Growth Stats card
-                NavigationLink {
-                    GrowthStatsView()
-                } label: {
-                    ProfileFeatureCard(
-                        icon: "chart.line.uptrend.xyaxis",
-                        iconColor: .spareYellow,
-                        title: "成长回顾",
-                        value: "",
-                        subtitle: "近 7 天闲能 +340 · 社交分 +5",
-                        accentColor: .spareYellow,
-                        height: 130
-                    )
-                }
-                .buttonStyle(CardPressStyle())
             }
         }
     }
 
+    // MARK: Sync Score Card (同步度卡)
+
+    private var syncScoreCard: some View {
+        NavigationLink(destination: SyncScoreDashboardView()) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                        .foregroundColor(.blue)
+                        .font(.system(size: 18))
+                    Text("同步度")
+                        .font(.spareCaptionSB)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+                }
+
+                // Circular progress indicator (72%)
+                ZStack {
+                    Circle()
+                        .stroke(Color(.systemGray5), lineWidth: 6)
+                    Circle()
+                        .trim(from: 0, to: 0.72)
+                        .stroke(Color.blue, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    VStack(spacing: 1) {
+                        Text("72%")
+                            .font(.spareTitle3)
+                        Text("像我度")
+                            .font(.spareMicro)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .frame(width: 64, height: 64)
+                .frame(maxWidth: .infinity)
+
+                Text("3 个训练任务待完成")
+                    .font(.spareMicro)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(Spacing.md)
+            .background(Color.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+            .cardShadow()
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Personality Card (人格卡)
+
+    private var personalityCard: some View {
+        NavigationLink(destination: AwakeningPersonalityView()) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "sparkles")
+                        .foregroundColor(.purple)
+                        .font(.system(size: 18))
+                    Text("人格")
+                        .font(.spareCaptionSB)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+                }
+
+                // Awakening level badge
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "flame.fill")
+                        .foregroundColor(.orange)
+                        .font(.system(size: 13))
+                    Text("觉醒 Lv.3")
+                        .font(.spareCaption)
+                        .foregroundColor(.primary)
+                }
+
+                // Trait pills
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    HStack(spacing: Spacing.xs) {
+                        PillTag(label: "好奇", color: .purple)
+                        PillTag(label: "直率", color: .purple)
+                    }
+                    PillTag(label: "创意", color: .purple)
+                }
+
+                Text("2 个面具已配置")
+                    .font(.spareMicro)
+                    .foregroundColor(.secondary)
+            }
+            .padding(Spacing.md)
+            .background(Color.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+            .cardShadow()
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Memory Card (记忆卡)
+
+    private var memoryCard: some View {
+        NavigationLink(destination: MemoryPalaceView()) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "brain")
+                        .foregroundColor(.teal)
+                        .font(.system(size: 18))
+                    Text("记忆宫殿")
+                        .font(.spareCaptionSB)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+                }
+
+                HStack(alignment: .lastTextBaseline, spacing: Spacing.xs) {
+                    Text("248")
+                        .font(.spareTitle2)
+                        .foregroundColor(.teal)
+                    Text("条记忆")
+                        .font(.spareCaption)
+                        .foregroundColor(.secondary)
+                }
+
+                // Category breakdown
+                VStack(alignment: .leading, spacing: 3) {
+                    memoryBar(label: "对话", fraction: 0.6, color: .teal)
+                    memoryBar(label: "行动", fraction: 0.25, color: .blue)
+                    memoryBar(label: "情绪", fraction: 0.15, color: .pink)
+                }
+            }
+            .padding(Spacing.md)
+            .background(Color.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+            .cardShadow()
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func memoryBar(label: String, fraction: CGFloat, color: Color) -> some View {
+        HStack(spacing: Spacing.xs) {
+            Text(label)
+                .font(.spareMicro)
+                .foregroundColor(.secondary)
+                .frame(width: 28, alignment: .leading)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color(.systemGray5)).frame(height: 4)
+                    Capsule().fill(color).frame(width: geo.size.width * fraction, height: 4)
+                }
+            }
+            .frame(height: 4)
+        }
+    }
+
+    // MARK: Privacy Card (隐私卡)
+
+    private var privacyCard: some View {
+        NavigationLink(destination: PrivacyLocalBackendView()) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "lock.shield.fill")
+                        .foregroundColor(.green)
+                        .font(.system(size: 18))
+                    Text("隐私")
+                        .font(.spareCaptionSB)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+                }
+
+                // Local backend status badge
+                HStack(spacing: Spacing.xs) {
+                    Circle()
+                        .fill(Color.emotionPositive)
+                        .frame(width: 6, height: 6)
+                    Text("本地后端运行中")
+                        .font(.spareMicro)
+                        .foregroundColor(.emotionPositive)
+                }
+
+                // Storage used
+                HStack(alignment: .lastTextBaseline, spacing: Spacing.xs) {
+                    Text("12.4")
+                        .font(.spareTitle3)
+                    Text("MB")
+                        .font(.spareCaption)
+                        .foregroundColor(.secondary)
+                }
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color(.systemGray5)).frame(height: 4)
+                        Capsule().fill(Color.emotionPositive)
+                            .frame(width: geo.size.width * 0.12, height: 4)
+                    }
+                }
+                .frame(height: 4)
+
+                Text("无云端上传")
+                    .font(.spareMicro)
+                    .foregroundColor(.secondary)
+            }
+            .padding(Spacing.md)
+            .background(Color.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+            .cardShadow()
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Action Buttons
+
     private var actionButtons: some View {
         VStack(spacing: Spacing.sm) {
             Button {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 store.editingProfile = true
             } label: {
                 Label("编辑资料", systemImage: "pencil")
@@ -334,7 +434,6 @@ private struct ProfileScrollView: View {
             }
 
             Button {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 store.shareSheetActive = true
             } label: {
                 Label("分享主页", systemImage: "square.and.arrow.up")
@@ -353,149 +452,45 @@ private struct ProfileScrollView: View {
     }
 }
 
-// MARK: - Scroll Offset Key
-
-private struct ProfileScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
-// MARK: - Profile Feature Card
-
-/// A rich, card-style entry point for each "我的" subsystem.
-/// Uses varied heights in the waterfall grid to avoid a flat settings feel.
-private struct ProfileFeatureCard: View {
-    let icon: String
-    let iconColor: Color
-    let title: String
-    let value: String
-    let subtitle: String
-    let accentColor: Color
-    var height: CGFloat = 150
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.system(size: 22))
-                    .foregroundColor(iconColor)
-                Spacer()
-                if !value.isEmpty {
-                    Text(value)
-                        .font(.spareTitle2)
-                        .foregroundColor(.primary)
-                }
-            }
-
-            Spacer()
-
-            VStack(alignment: .leading, spacing: Spacing.xxs) {
-                Text(title)
-                    .font(.spareBodySB)
-                    .foregroundColor(.primary)
-                Text(subtitle)
-                    .font(.spareCaption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-            }
-
-            // Subtle accent bar at bottom
-            RoundedRectangle(cornerRadius: 2)
-                .fill(accentColor.opacity(0.3))
-                .frame(height: 3)
-        }
-        .padding(Spacing.lg)
-        .frame(height: height)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke(accentColor.opacity(0.15), lineWidth: 1)
-        )
-        .cardShadow()
-    }
-}
-
 // MARK: - Hero Section
 
 private struct ProfileHeroSection: View {
     @ObservedObject var store: MyProfileStore
     let profile: UserProfile
-    var scrollOffset: CGFloat = 0
-
-    /// Sync score progress for the activity ring (0...1).
-    private let syncProgress: CGFloat = 0.72
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            // Parallax banner gradient – moves at half scroll speed
-            GeometryReader { geo in
-                let minY = geo.frame(in: .global).minY
-                let parallaxOffset = minY > 0 ? -minY * 0.5 : 0
-                LinearGradient(
-                    colors: [Color.spareYellow.opacity(0.6), Color.blue.opacity(0.35)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .frame(height: 160 + (minY > 0 ? minY : 0))
-                .offset(y: parallaxOffset)
-                .clipped()
-            }
+            // Banner gradient
+            LinearGradient(
+                colors: [Color.spareYellow.opacity(0.6), Color.blue.opacity(0.35)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
             .frame(height: 160)
 
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 HStack(alignment: .bottom) {
-                    // Avatar with sync activity ring
-                    ZStack {
-                        // Activity ring: syncing progress
-                        Circle()
-                            .stroke(Color(.systemGray5), lineWidth: 3.5)
-                            .frame(width: 88, height: 88)
-                        Circle()
-                            .trim(from: 0, to: syncProgress)
-                            .stroke(
-                                AngularGradient(
-                                    colors: [.spareYellow, .emotionPositive, .spareYellow],
-                                    center: .center
-                                ),
-                                style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
-                            )
-                            .frame(width: 88, height: 88)
-                            .rotationEffect(.degrees(-90))
-
-                        AvatarView(name: profile.displayName, size: 80)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color(.systemBackground), lineWidth: 3)
-                            )
-                    }
-                    .offset(y: 32)
+                    AvatarView(name: profile.displayName, size: 80)
+                        .overlay(
+                            Circle()
+                                .stroke(Color(.systemBackground), lineWidth: 3)
+                        )
+                        .offset(y: 32)
 
                     Spacer()
 
-                    VStack(alignment: .trailing, spacing: Spacing.xxs) {
-                        if profile.isVerified {
-                            HStack(spacing: 4) {
-                                Image(systemName: "checkmark.seal.fill")
-                                    .foregroundColor(.blue)
-                                Text("已认证")
-                                    .font(.spareMicro)
-                            }
-                            .padding(.horizontal, Spacing.sm)
-                            .padding(.vertical, Spacing.xs)
-                            .background(.thinMaterial, in: Capsule())
+                    if profile.isVerified {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.seal.fill")
+                                .foregroundColor(.blue)
+                            Text("已认证")
+                                .font(.spareMicro)
                         }
-
-                        // Sync percentage label
-                        Text("同步 \(Int(syncProgress * 100))%")
-                            .font(.spareMicro)
-                            .foregroundColor(.spareYellow)
-                            .padding(.horizontal, Spacing.sm)
-                            .padding(.vertical, Spacing.xs)
-                            .background(.ultraThinMaterial, in: Capsule())
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, Spacing.xs)
+                        .background(.thinMaterial, in: Capsule())
+                        .padding(.bottom, 4)
                     }
-                    .padding(.bottom, 4)
                 }
                 .padding(.horizontal, Spacing.lg)
             }

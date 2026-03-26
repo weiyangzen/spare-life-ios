@@ -1,46 +1,43 @@
 // FeedCardProtocol.swift
-// Spare Life – unified feed card protocol, concrete types, sorting, and renderers
-// Blueprint §7 统一 UI · [UIUX] 卡片混排与排序规则 (line:1151)
+// Spare Life – unified FeedCard protocol, mixed-card renderer, and feed sorter
+// Blueprint §统一UI 卡片混排与排序规则 (line:1151) [UIUX]
 // UIUX lane – slot 2
 
 import SwiftUI
-import UIKit
 
 // MARK: - FeedCard Protocol
 
-/// Every card type shown in the unified waterfall feed conforms to FeedCard.
-/// This enables mixed-type feeds where summary, person, action, and status
-/// cards coexist in a single scrollable layout.
-protocol FeedCard: Identifiable {
+/// Unified protocol for all mixed-feed card types.
+/// Each card must declare its kind (determines visual treatment) and a sort priority.
+protocol FeedCard: Identifiable where ID == String {
     var id: String { get }
     var cardKind: FeedCardKind { get }
-    /// Higher = sorted earlier when priority is equal. Range 0-100.
+    /// Higher priority = shown earlier after ranking. Range 0-100.
     var sortPriority: Int { get }
-    /// Non-nil pins the card to the top of the feed.
+    /// Non-nil = card is pinned and always floats to top.
     var pinnedAt: Date? { get }
+    /// ISO timestamp used for recency-decay in ranking.
     var createdAt: Date { get }
 }
 
-// MARK: - Card Kinds
+// MARK: - Card Kind
 
-enum FeedCardKind: String, CaseIterable, Identifiable {
-    case summary  = "摘要"
-    case person   = "人物"
-    case action   = "行动"
-    case status   = "状态"
-
-    var id: String { rawValue }
+enum FeedCardKind: String, CaseIterable {
+    case summary  = "摘要卡"
+    case person   = "人物卡"
+    case action   = "行动卡"
+    case status   = "状态卡"
 
     var icon: String {
         switch self {
         case .summary: return "doc.text.fill"
-        case .person:  return "person.fill"
+        case .person:  return "person.crop.circle.fill"
         case .action:  return "bolt.fill"
         case .status:  return "chart.bar.fill"
         }
     }
 
-    var tint: Color {
+    var accentColor: Color {
         switch self {
         case .summary: return .blue
         case .person:  return .purple
@@ -50,7 +47,7 @@ enum FeedCardKind: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Concrete Card Types
+// MARK: - Concrete card types
 
 struct SummaryFeedCard: FeedCard {
     let id: String
@@ -58,11 +55,10 @@ struct SummaryFeedCard: FeedCard {
     let sortPriority: Int
     let pinnedAt: Date?
     let createdAt: Date
-
     let title: String
     let excerpt: String
+    let tagLabel: String?
     let thumbnailSeed: Int
-    let tag: String?
 }
 
 struct PersonFeedCard: FeedCard {
@@ -71,11 +67,11 @@ struct PersonFeedCard: FeedCard {
     let sortPriority: Int
     let pinnedAt: Date?
     let createdAt: Date
-
-    let name: String
+    let personName: String
     let tagline: String
     let traits: [String]
-    let actionLabel: String
+    let avatarSeed: Int
+    let actionLabel: String?
 }
 
 struct ActionFeedCard: FeedCard {
@@ -84,11 +80,11 @@ struct ActionFeedCard: FeedCard {
     let sortPriority: Int
     let pinnedAt: Date?
     let createdAt: Date
-
     let headline: String
     let subtext: String
     let ctaLabel: String
-    let rewardBadge: String?
+    let reward: String?
+    var ctaTapped: Bool = false
 }
 
 struct StatusFeedCard: FeedCard {
@@ -97,16 +93,26 @@ struct StatusFeedCard: FeedCard {
     let sortPriority: Int
     let pinnedAt: Date?
     let createdAt: Date
-
+    let headline: String
     let value: String
     let unit: String
-    let trend: Double      // -1.0 to +1.0
-    let sparkline: [CGFloat]
+    let trend: Trend
+    let sparkline: [Double]
+
+    enum Trend: String {
+        case up = "↑", down = "↓", flat = "—"
+        var color: Color {
+            switch self {
+            case .up:   return .emotionPositive
+            case .down: return .emotionNegative
+            case .flat: return .emotionNeutral
+            }
+        }
+    }
 }
 
-// MARK: - Type-erased Wrapper
+// MARK: - Type-erased wrapper
 
-/// Wraps any concrete FeedCard so mixed-type arrays work in SwiftUI ForEach.
 enum AnyFeedCard: Identifiable {
     case summary(SummaryFeedCard)
     case person(PersonFeedCard)
@@ -161,56 +167,67 @@ enum AnyFeedCard: Identifiable {
 
 // MARK: - Feed Sorter
 
-/// Sorts mixed cards: pinned first (newest pin date wins), then by
-/// composite score = priority + recency bonus. Recency bonus peaks at
-/// creation and decays over 48 hours using an exponential curve.
+/// Sorts a mixed array of AnyFeedCard by:
+/// 1. Pinned cards first (sorted by pinnedAt descending)
+/// 2. Then by score = sortPriority * recencyBoost
 enum FeedSorter {
-    static func sorted(_ cards: [AnyFeedCard]) -> [AnyFeedCard] {
+    static func sort(_ cards: [AnyFeedCard]) -> [AnyFeedCard] {
         let now = Date()
-        let pinned = cards.filter { $0.pinnedAt != nil }
-            .sorted { ($0.pinnedAt ?? .distantPast) > ($1.pinnedAt ?? .distantPast) }
-        let unpinned = cards.filter { $0.pinnedAt == nil }
-            .sorted { score(for: $0, now: now) > score(for: $1, now: now) }
+        let pinned  = cards.filter { $0.pinnedAt != nil }.sorted {
+            ($0.pinnedAt ?? now) > ($1.pinnedAt ?? now)
+        }
+        let unpinned = cards.filter { $0.pinnedAt == nil }.sorted { a, b in
+            score(a, now: now) > score(b, now: now)
+        }
         return pinned + unpinned
     }
 
-    private static func score(for card: AnyFeedCard, now: Date) -> Double {
-        let age = now.timeIntervalSince(card.createdAt)
-        let halfLife: TimeInterval = 48 * 3600
-        let recencyBonus = 50.0 * exp(-age / halfLife)
-        return Double(card.sortPriority) + recencyBonus
+    /// Score = priority + recency bonus (decays over 48 h)
+    private static func score(_ card: AnyFeedCard, now: Date) -> Double {
+        let ageHours = now.timeIntervalSince(card.createdAt) / 3600
+        let recencyBoost = max(0, 10 - ageHours * 0.2)
+        return Double(card.sortPriority) + recencyBoost
     }
 }
 
 // MARK: - Analytics Event
 
+/// Minimal埋点 event emitted by card interactions.
 struct FeedCardEvent {
-    enum Action: String { case impression, tap, ctaTap, swipeAway }
+    enum Action: String {
+        case impression, tap, ctaTap, swipeAway
+    }
     let cardID: String
-    let cardKind: FeedCardKind
+    let kind: FeedCardKind
     let action: Action
-    let timestamp: Date = Date()
+    let timestamp: Date = .now
 }
 
-// MARK: - Card Renderers
+// MARK: - Mixed Card Renderer
 
-/// Routes any AnyFeedCard to the correct card view.
+/// Renders any AnyFeedCard with the correct card view.
 struct MixedFeedCardView: View {
     let card: AnyFeedCard
-    var onTap: (() -> Void)? = nil
+    var onEvent: ((FeedCardEvent) -> Void)? = nil
 
     var body: some View {
         Group {
             switch card {
             case .summary(let c):
-                SummaryCardView(card: c, onTap: onTap)
+                SummaryCardView(card: c)
             case .person(let c):
-                PersonCardView(card: c, onTap: onTap)
+                PersonCardView(card: c)
             case .action(let c):
-                ActionCardView(card: c, onTap: onTap)
+                ActionCardView(card: c)
             case .status(let c):
                 StatusCardView(card: c)
             }
+        }
+        .onTapGesture {
+            onEvent?(FeedCardEvent(cardID: card.id, kind: card.cardKind, action: .tap))
+        }
+        .onAppear {
+            onEvent?(FeedCardEvent(cardID: card.id, kind: card.cardKind, action: .impression))
         }
     }
 }
@@ -219,38 +236,36 @@ struct MixedFeedCardView: View {
 
 struct SummaryCardView: View {
     let card: SummaryFeedCard
-    var onTap: (() -> Void)? = nil
 
     var body: some View {
-        Button(action: { onTap?() }) {
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                // Thumbnail area
-                ZStack(alignment: .topTrailing) {
-                    Color.avatarGradient(seed: card.thumbnailSeed)
-                        .frame(height: 100)
-                        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
-
-                    if let tag = card.tag {
-                        PillTag(label: tag, color: .white, filled: false)
-                            .padding(Spacing.sm)
-                    }
+        VStack(alignment: .leading, spacing: 0) {
+            // Thumbnail strip (gradient placeholder)
+            Color.avatarGradient(seed: card.thumbnailSeed)
+                .frame(height: 80)
+                .overlay(alignment: .topLeading) {
+                    kindPill(card.cardKind)
+                        .padding(Spacing.sm)
                 }
 
+            VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text(card.title)
                     .font(.spareBodySB)
-                    .foregroundColor(.primary)
                     .lineLimit(2)
 
                 Text(card.excerpt)
                     .font(.spareCaption)
                     .foregroundColor(.secondary)
                     .lineLimit(3)
+
+                if let tag = card.tagLabel {
+                    PillTag(label: tag, color: FeedCardKind.summary.accentColor)
+                }
             }
             .padding(Spacing.md)
-            .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-            .cardShadow()
         }
-        .buttonStyle(CardPressStyle())
+        .background(Color.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+        .cardShadow()
     }
 }
 
@@ -258,48 +273,48 @@ struct SummaryCardView: View {
 
 struct PersonCardView: View {
     let card: PersonFeedCard
-    var onTap: (() -> Void)? = nil
 
     var body: some View {
-        Button(action: { onTap?() }) {
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                HStack(spacing: Spacing.sm) {
-                    AvatarView(name: card.name, size: 44)
-                    VStack(alignment: .leading, spacing: Spacing.xxs) {
-                        Text(card.name)
-                            .font(.spareBodySB)
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
-                        Text(card.tagline)
-                            .font(.spareCaption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(spacing: Spacing.md) {
+                AvatarView(name: card.personName, size: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(card.personName)
+                        .font(.spareBodySB)
+                        .lineLimit(1)
+                    Text(card.tagline)
+                        .font(.spareCaption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                kindPill(card.cardKind)
+            }
+
+            // Trait pills
+            if !card.traits.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Spacing.xs) {
+                        ForEach(card.traits, id: \.self) { trait in
+                            PillTag(label: trait, color: FeedCardKind.person.accentColor)
+                        }
                     }
                 }
+            }
 
-                // Trait pills
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 48), spacing: 4, alignment: .leading)],
-                    alignment: .leading,
-                    spacing: 4
-                ) {
-                    ForEach(card.traits.prefix(4), id: \.self) { trait in
-                        PillTag(label: trait, color: .purple, filled: false)
-                    }
-                }
-
-                Text(card.actionLabel)
+            if let action = card.actionLabel {
+                Text(action)
                     .font(.spareCaptionSB)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, Spacing.sm)
-                    .background(Color.primary, in: Capsule())
+                    .background(FeedCardKind.person.accentColor, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
             }
-            .padding(Spacing.md)
-            .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-            .cardShadow()
         }
-        .buttonStyle(CardPressStyle())
+        .padding(Spacing.md)
+        .background(Color.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+        .cardShadow()
     }
 }
 
@@ -307,42 +322,49 @@ struct PersonCardView: View {
 
 struct ActionCardView: View {
     let card: ActionFeedCard
-    var onTap: (() -> Void)? = nil
 
     var body: some View {
-        Button(action: { onTap?() }) {
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                HStack {
-                    Image(systemName: "bolt.fill")
-                        .foregroundColor(.spareYellow)
-                    Spacer()
-                    if let badge = card.rewardBadge {
-                        PillTag(label: badge, color: .spareYellow, filled: true)
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(alignment: .top) {
+                Image(systemName: FeedCardKind.action.icon)
+                    .foregroundColor(FeedCardKind.action.accentColor)
+                    .font(.system(size: 20, weight: .semibold))
+                Spacer()
+                if let reward = card.reward {
+                    HStack(spacing: 3) {
+                        Image(systemName: "bolt.circle.fill")
+                            .foregroundColor(.spareYellow)
+                            .font(.spareMicro)
+                        Text(reward)
+                            .font(.spareMicro)
+                            .foregroundColor(.primary)
                     }
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
+                    .background(Color.spareYellow.opacity(0.15), in: Capsule())
                 }
-
-                Text(card.headline)
-                    .font(.spareBodySB)
-                    .foregroundColor(.primary)
-                    .lineLimit(2)
-
-                Text(card.subtext)
-                    .font(.spareCaption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-
-                Text(card.ctaLabel)
-                    .font(.spareCaptionSB)
-                    .foregroundColor(.spareDark)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, Spacing.sm)
-                    .background(Color.spareYellow, in: Capsule())
             }
-            .padding(Spacing.md)
-            .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-            .cardShadow()
+
+            Text(card.headline)
+                .font(.spareBodySB)
+                .lineLimit(2)
+
+            Text(card.subtext)
+                .font(.spareCaption)
+                .foregroundColor(.secondary)
+                .lineLimit(2)
+
+            Text(card.ctaLabel)
+                .font(.spareCaptionSB)
+                .foregroundColor(.black)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Spacing.sm)
+                .background(FeedCardKind.action.accentColor, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
         }
-        .buttonStyle(CardPressStyle())
+        .padding(Spacing.md)
+        .background(Color.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+        .cardShadow()
     }
 }
 
@@ -353,59 +375,57 @@ struct StatusCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(alignment: .firstTextBaseline, spacing: Spacing.xs) {
+            HStack {
+                kindPill(card.cardKind)
+                Spacer()
+                Text(card.trend.rawValue)
+                    .font(.spareBodySB)
+                    .foregroundColor(card.trend.color)
+            }
+
+            HStack(alignment: .lastTextBaseline, spacing: Spacing.xs) {
                 Text(card.value)
                     .font(.spareTitle2)
-                    .foregroundColor(.primary)
                 Text(card.unit)
                     .font(.spareCaption)
                     .foregroundColor(.secondary)
-                Spacer()
-                trendIndicator
             }
 
-            if card.sparkline.count >= 2 {
-                SparklineView(data: card.sparkline, color: trendColor)
-                    .frame(height: 36)
+            Text(card.headline)
+                .font(.spareCaption)
+                .foregroundColor(.secondary)
+                .lineLimit(2)
+
+            // Sparkline
+            if !card.sparkline.isEmpty {
+                SparklineView(values: card.sparkline, color: FeedCardKind.status.accentColor)
+                    .frame(height: 32)
             }
         }
         .padding(Spacing.md)
-        .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+        .background(Color.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
         .cardShadow()
-    }
-
-    private var trendColor: Color {
-        card.trend > 0 ? .emotionPositive : card.trend < 0 ? .emotionNegative : .emotionNeutral
-    }
-
-    private var trendIndicator: some View {
-        HStack(spacing: 2) {
-            Image(systemName: card.trend > 0 ? "arrow.up.right" : card.trend < 0 ? "arrow.down.right" : "arrow.right")
-                .font(.spareMicro)
-            Text(String(format: "%+.0f%%", card.trend * 100))
-                .font(.spareMicro)
-        }
-        .foregroundColor(trendColor)
     }
 }
 
 // MARK: - Sparkline
 
-struct SparklineView: View {
-    let data: [CGFloat]
-    var color: Color = .blue
+private struct SparklineView: View {
+    let values: [Double]
+    var color: Color
 
     var body: some View {
         GeometryReader { geo in
-            let minVal = data.min() ?? 0
-            let maxVal = data.max() ?? 1
-            let range = max(maxVal - minVal, 0.001)
-            let step = geo.size.width / CGFloat(data.count - 1)
+            let minV = values.min() ?? 0
+            let maxV = values.max() ?? 1
+            let range = max(maxV - minV, 1)
+            let step = geo.size.width / CGFloat(max(values.count - 1, 1))
 
             Path { path in
-                for (i, val) in data.enumerated() {
+                for (i, v) in values.enumerated() {
                     let x = CGFloat(i) * step
-                    let y = geo.size.height * (1 - (val - minVal) / range)
+                    let y = geo.size.height - (CGFloat(v - minV) / CGFloat(range)) * geo.size.height
                     if i == 0 { path.move(to: CGPoint(x: x, y: y)) }
                     else { path.addLine(to: CGPoint(x: x, y: y)) }
                 }
@@ -415,20 +435,28 @@ struct SparklineView: View {
     }
 }
 
+// MARK: - Kind Pill helper
+
+private func kindPill(_ kind: FeedCardKind) -> some View {
+    Label(kind.rawValue, systemImage: kind.icon)
+        .font(.spareMicro)
+        .foregroundColor(kind.accentColor)
+        .padding(.horizontal, Spacing.sm)
+        .padding(.vertical, 2)
+        .background(kind.accentColor.opacity(0.12), in: Capsule())
+}
+
 // MARK: - Feed Kind Filter Bar
 
-/// Horizontal chip bar for filtering a mixed feed by card kind.
 struct FeedKindFilterBar: View {
-    @Binding var selected: FeedCardKind?
-    var counts: [FeedCardKind: Int] = [:]
+    @Binding var selectedKind: FeedCardKind?
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Spacing.sm) {
-                filterChip(kind: nil, label: "全部", icon: "square.grid.2x2")
-
-                ForEach(FeedCardKind.allCases) { kind in
-                    filterChip(kind: kind, label: kind.rawValue, icon: kind.icon)
+                kindChip(nil, label: "全部", icon: "square.grid.2x2.fill")
+                ForEach(FeedCardKind.allCases, id: \.self) { kind in
+                    kindChip(kind, label: kind.rawValue, icon: kind.icon)
                 }
             }
             .padding(.horizontal, Spacing.lg)
@@ -436,114 +464,24 @@ struct FeedKindFilterBar: View {
         }
     }
 
-    private func filterChip(kind: FeedCardKind?, label: String, icon: String) -> some View {
-        let isSelected = selected == kind
-        let count = kind.flatMap { counts[$0] }
+    private func kindChip(_ kind: FeedCardKind?, label: String, icon: String) -> some View {
+        let isSelected = selectedKind == kind
         return Button {
-            UISelectionFeedbackGenerator().selectionChanged()
-            withAnimation(.spareFast) { selected = isSelected ? nil : kind }
-        } label: {
-            HStack(spacing: Spacing.xs) {
-                Image(systemName: icon)
-                    .font(.system(size: 11, weight: .medium))
-                Text(label)
-                    .font(.spareCaptionSB)
-                if let count, count > 0 {
-                    Text("\(count)")
-                        .font(.spareMicro)
-                        .foregroundColor(isSelected ? .spareDark.opacity(0.6) : .secondary)
-                }
+            withAnimation(.spareSpring) {
+                selectedKind = isSelected ? nil : kind
             }
-            .foregroundColor(isSelected ? .spareDark : .primary)
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-            .background(isSelected ? Color.spareYellow : Color.cardBackground, in: Capsule())
-            .cardShadow()
+        } label: {
+            Label(label, systemImage: icon)
+                .font(.spareCaptionSB)
+                .foregroundColor(isSelected ? .white : .primary)
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.sm)
+                .background(
+                    isSelected ? (kind?.accentColor ?? .primary) : Color.cardBackground,
+                    in: Capsule()
+                )
+                .cardShadow()
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Feed Section Header
-
-struct FeedSectionHeader: View {
-    let title: String
-    var subtitle: String? = nil
-    var trailingLabel: String? = nil
-    var trailingAction: (() -> Void)? = nil
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.spareTitle3)
-                if let sub = subtitle {
-                    Text(sub)
-                        .font(.spareCaption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            Spacer()
-            if let label = trailingLabel, let action = trailingAction {
-                Button(action: action) {
-                    Text(label)
-                        .font(.spareCaptionSB)
-                        .foregroundColor(.spareYellow)
-                }
-            }
-        }
-        .padding(.horizontal, Spacing.lg)
-    }
-}
-
-// MARK: - Feed Pinned Banner
-
-struct FeedPinnedBanner: View {
-    let card: ActionFeedCard
-    var onTap: (() -> Void)?
-
-    var body: some View {
-        Button(action: { onTap?() }) {
-            HStack(spacing: Spacing.sm) {
-                Image(systemName: "pin.fill")
-                    .foregroundColor(.spareYellow)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(card.headline)
-                        .font(.spareBodySB)
-                        .foregroundColor(.primary)
-                    Text(card.subtext)
-                        .font(.spareCaption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer()
-                Text(card.ctaLabel)
-                    .font(.spareCaptionSB)
-                    .foregroundColor(.spareDark)
-                    .padding(.horizontal, Spacing.md)
-                    .padding(.vertical, Spacing.sm)
-                    .background(Color.spareYellow, in: Capsule())
-            }
-            .padding(Spacing.md)
-            .background(Color.spareYellowLight.opacity(0.3), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-            .overlay(
-                RoundedRectangle(cornerRadius: CornerRadius.lg)
-                    .stroke(Color.spareYellow.opacity(0.4), lineWidth: 1)
-            )
-        }
-        .buttonStyle(CardPressStyle())
-        .padding(.horizontal, Spacing.lg)
-    }
-}
-
-// MARK: - Card Press Button Style
-
-/// Provides a subtle scale-down + shadow lift on press for all feed cards.
-struct CardPressStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .opacity(configuration.isPressed ? 0.92 : 1.0)
-            .animation(.spareFast, value: configuration.isPressed)
     }
 }

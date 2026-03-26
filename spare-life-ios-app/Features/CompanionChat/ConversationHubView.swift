@@ -1,13 +1,28 @@
 // ConversationHubView.swift
 // Spare Life – IM 首页与最近聊天区
 // Blueprint §消息 功能点 IM首页 (line:1137)
+// Blueprint §统一UI 消息首页 IM 列表化 (line:1152) [UIUX]
 // UIUX lane – slot 2
 
 import SwiftUI
-import UIKit
+
+// MARK: - Sort Mode
+
+enum ConversationSortMode: String, CaseIterable {
+    case byTime   = "按时间"
+    case byUnread = "按未读"
+
+    var icon: String {
+        switch self {
+        case .byTime:   return "clock.fill"
+        case .byUnread: return "bell.badge.fill"
+        }
+    }
+}
 
 struct ConversationHubView: View {
     @StateObject private var store = ConversationHubStore()
+    @State private var sortMode: ConversationSortMode = .byTime
 
     var body: some View {
         NavigationStack {
@@ -50,6 +65,14 @@ struct ConversationHubView: View {
             Menu {
                 Button { } label: { Label("新建对话", systemImage: "square.and.pencil") }
                 Button { } label: { Label("新建群聊", systemImage: "person.3.fill") }
+                Divider()
+                ForEach(ConversationSortMode.allCases, id: \.self) { mode in
+                    Button {
+                        withAnimation(.spareSpring) { sortMode = mode }
+                    } label: {
+                        Label(mode.rawValue, systemImage: mode.icon)
+                    }
+                }
             } label: {
                 Image(systemName: "square.and.pencil.circle.fill")
                     .font(.system(size: 22))
@@ -100,32 +123,47 @@ struct ConversationHubView: View {
 
     // MARK: - Loaded
 
+    private var sortedThreads: [ConversationThread] {
+        switch sortMode {
+        case .byTime:
+            return store.filteredThreads.sorted { $0.lastTimestamp > $1.lastTimestamp }
+        case .byUnread:
+            return store.filteredThreads.sorted { $0.unreadCount > $1.unreadCount }
+        }
+    }
+
     private var loadedBody: some View {
         List {
-            // Quick-access recent contacts strip
-            if store.searchQuery.isEmpty {
+            // Quick-access recent contacts strip (always shown when not searching)
+            if store.searchQuery.isEmpty && !store.filteredThreads.isEmpty {
                 recentContactsStrip
             }
 
-            // Kind filter chips + sort mode
+            // Kind filter chips
             kindFilterSection
 
             // Pinned section
-            let pinned = store.filteredThreads.filter { $0.isPinned }
+            let pinned = sortedThreads.filter { $0.isPinned }
             if !pinned.isEmpty && store.searchQuery.isEmpty {
                 Section {
                     ForEach(pinned) { thread in
                         threadRow(thread)
                     }
                 } header: {
-                    Text("置顶")
-                        .font(.spareCaptionSB)
-                        .foregroundColor(.secondary)
+                    HStack {
+                        Image(systemName: "pin.fill")
+                            .foregroundColor(.spareYellow)
+                            .font(.spareMicro)
+                        Text("置顶")
+                            .font(.spareCaptionSB)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
 
             // All / search results
-            let others = sortedThreads(store.filteredThreads.filter { !$0.isPinned || !store.searchQuery.isEmpty })
+            let others = sortedThreads.filter { !$0.isPinned || !store.searchQuery.isEmpty }
+            let totalUnread = others.reduce(0) { $0 + $1.unreadCount }
             Section {
                 if others.isEmpty {
                     noSearchResultRow
@@ -139,90 +177,74 @@ struct ConversationHubView: View {
                 }
             } header: {
                 if store.searchQuery.isEmpty {
-                    HStack {
+                    HStack(spacing: Spacing.xs) {
+                        Image(systemName: sortMode.icon)
+                            .foregroundColor(.secondary)
+                            .font(.spareMicro)
                         Text("最近聊天")
                             .font(.spareCaptionSB)
                             .foregroundColor(.secondary)
+                        if totalUnread > 0 {
+                            Text("\(totalUnread) 条未读")
+                                .font(.spareMicro)
+                                .foregroundColor(.emotionNegative)
+                        }
                         Spacer()
-                        sortModeMenu
+                        Text(sortMode.rawValue)
+                            .font(.spareMicro)
+                            .foregroundColor(.spareYellow)
                     }
                 }
             }
         }
         .listStyle(.plain)
         .refreshable { await store.refresh() }
+        .animation(.spareEase, value: sortMode)
     }
 
-    // MARK: - Recent Contacts Strip
+    // MARK: - Recent Contacts Quick-Access Strip
 
     private var recentContactsStrip: some View {
         Section {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.md) {
-                    ForEach(store.recentContacts) { thread in
+                HStack(spacing: Spacing.lg) {
+                    ForEach(store.filteredThreads.prefix(8)) { thread in
                         NavigationLink {
                             ChatThreadView(thread: thread)
                         } label: {
                             VStack(spacing: Spacing.xs) {
                                 ZStack(alignment: .topTrailing) {
-                                    AvatarView(name: thread.contactName, size: 52)
+                                    AvatarView(name: thread.contactName, size: 50)
                                     if thread.unreadCount > 0 {
                                         Circle()
                                             .fill(Color.emotionNegative)
-                                            .frame(width: 12, height: 12)
+                                            .frame(width: 14, height: 14)
                                             .overlay(
-                                                Circle()
-                                                    .stroke(Color(.systemGroupedBackground), lineWidth: 2)
+                                                Text(thread.unreadCount > 9 ? "9+" : "\(thread.unreadCount)")
+                                                    .font(.system(size: 8, weight: .bold))
+                                                    .foregroundColor(.white)
                                             )
-                                            .offset(x: 2, y: -2)
+                                            .offset(x: 4, y: -4)
                                     }
                                 }
 
-                                Text(thread.contactName)
+                                Text(String(thread.contactName.prefix(4)))
                                     .font(.spareMicro)
                                     .foregroundColor(.primary)
                                     .lineLimit(1)
-                                    .frame(width: 56)
+                                    .frame(width: 50)
                             }
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.vertical, Spacing.xs)
+                .padding(.vertical, Spacing.sm)
+                .padding(.horizontal, Spacing.lg)
             }
         }
-        .listRowBackground(Color.clear)
+        .listRowBackground(Color(.secondarySystemGroupedBackground))
         .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 0, leading: Spacing.lg, bottom: 0, trailing: Spacing.lg))
-    }
-
-    // MARK: - Sort Mode
-
-    @State private var sortMode: ConversationSortMode = .byTime
-
-    private var sortModeMenu: some View {
-        Menu {
-            ForEach(ConversationSortMode.allCases) { mode in
-                Button {
-                    sortMode = mode
-                } label: {
-                    Label(mode.label, systemImage: mode.icon)
-                }
-            }
-        } label: {
-            Label(sortMode.label, systemImage: "arrow.up.arrow.down")
-                .font(.spareMicro)
-                .foregroundColor(.secondary)
-        }
-    }
-
-    private func sortedThreads(_ threads: [ConversationThread]) -> [ConversationThread] {
-        switch sortMode {
-        case .byTime:
-            return threads.sorted { $0.lastTimestamp > $1.lastTimestamp }
-        case .byUnread:
-            return threads.sorted { $0.unreadCount > $1.unreadCount }
-        }
+        .listRowInsets(EdgeInsets())
     }
 
     // MARK: - Kind Filter Chips
@@ -248,7 +270,6 @@ struct ConversationHubView: View {
     private func kindChip(_ kind: ConversationKind?, label: String, icon: String) -> some View {
         let isSelected = store.selectedKind == kind
         return Button {
-            UISelectionFeedbackGenerator().selectionChanged()
             withAnimation(.spareSpring) {
                 store.selectedKind = isSelected ? nil : kind
             }
@@ -272,21 +293,10 @@ struct ConversationHubView: View {
             ChatThreadView(thread: thread)
         } label: {
             HStack(alignment: .center, spacing: Spacing.md) {
-                // Avatar + kind badge + online indicator
+                // Avatar + kind badge
                 ZStack(alignment: .bottomTrailing) {
                     AvatarView(name: thread.contactName, size: 52)
-                    if thread.isOnline {
-                        Circle()
-                            .fill(Color.emotionPositive)
-                            .frame(width: 14, height: 14)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color(.secondarySystemGroupedBackground), lineWidth: 2.5)
-                            )
-                            .offset(x: 2, y: 2)
-                    } else {
-                        kindBadge(thread.kind)
-                    }
+                    kindBadge(thread.kind)
                 }
 
                 // Content
@@ -302,14 +312,10 @@ struct ConversationHubView: View {
                     }
 
                     HStack(alignment: .center, spacing: Spacing.xs) {
-                        if thread.isTyping {
-                            TypingIndicator()
-                        } else {
-                            Text(thread.lastMessage)
-                                .font(.spareCaption)
-                                .foregroundColor(thread.unreadCount > 0 ? .primary : .secondary)
-                                .lineLimit(1)
-                        }
+                        Text(thread.lastMessage)
+                            .font(.spareCaption)
+                            .foregroundColor(thread.unreadCount > 0 ? .primary : .secondary)
+                            .lineLimit(1)
                         Spacer()
                         if thread.unreadCount > 0 {
                             unreadBadge(thread.unreadCount)
@@ -335,10 +341,7 @@ struct ConversationHubView: View {
         .buttonStyle(.plain)
         .listRowBackground(Color(.secondarySystemGroupedBackground))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                store.pin(threadID: thread.id)
-            } label: {
+            Button { store.pin(threadID: thread.id) } label: {
                 Label(thread.isPinned ? "取消置顶" : "置顶",
                       systemImage: thread.isPinned ? "pin.slash" : "pin.fill")
             }
@@ -349,10 +352,7 @@ struct ConversationHubView: View {
             }
         }
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
-            Button {
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
-                store.markRead(threadID: thread.id)
-            } label: {
+            Button { store.markRead(threadID: thread.id) } label: {
                 Label("已读", systemImage: "checkmark.circle.fill")
             }
             .tint(.emotionPositive)
@@ -393,37 +393,6 @@ struct ConversationHubView: View {
         )
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
-    }
-}
-
-// MARK: - Typing Indicator
-
-/// Animated three-dot typing indicator shown when a contact is composing.
-struct TypingIndicator: View {
-    @State private var phase: Int = 0
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Text("正在输入")
-                .font(.spareCaption)
-                .foregroundColor(.emotionPositive)
-            ForEach(0..<3) { i in
-                Circle()
-                    .fill(Color.emotionPositive)
-                    .frame(width: 5, height: 5)
-                    .scaleEffect(phase == i ? 1.3 : 0.7)
-                    .opacity(phase == i ? 1.0 : 0.4)
-            }
-        }
-        .onAppear { startAnimation() }
-    }
-
-    private func startAnimation() {
-        Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { _ in
-            withAnimation(.easeInOut(duration: 0.25)) {
-                phase = (phase + 1) % 3
-            }
-        }
     }
 }
 

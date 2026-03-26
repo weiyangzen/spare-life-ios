@@ -1,14 +1,13 @@
 // UnifiedWaterfallFeed.swift
-// Spare Life – generic waterfall feed container with full state handling
-// Blueprint §7 统一 UI · [UIUX] 4个首页双列瀑布流 (line:1150)
+// Spare Life – unified two-column waterfall feed with loading / empty / error states
+// Blueprint §统一UI 4 个首页双列瀑布流 (line:1150) [UIUX]
 // UIUX lane – slot 2
 
 import SwiftUI
-import UIKit
 
-// MARK: - Feed Load State
+// MARK: - Load State
 
-enum FeedLoadState: Equatable {
+enum FeedLoadState {
     case idle
     case loading
     case loaded
@@ -18,22 +17,143 @@ enum FeedLoadState: Equatable {
         if case .loading = self { return true }
         return false
     }
-
-    static func == (lhs: FeedLoadState, rhs: FeedLoadState) -> Bool {
-        switch (lhs, rhs) {
-        case (.idle, .idle), (.loading, .loading), (.loaded, .loaded): return true
-        case (.error(let a), .error(let b)): return a == b
-        default: return false
-        }
-    }
 }
 
 // MARK: - Scroll State
 
-/// Tracks scroll offset for hide/show nav effects and scroll-to-top.
+/// Published by the feed container so parent views can react (e.g. hide/show nav bar).
 final class WaterfallScrollState: ObservableObject {
     @Published var offsetY: CGFloat = 0
     @Published var isAtTop: Bool = true
+}
+
+// MARK: - UnifiedWaterfallFeed
+
+/// A two-column waterfall feed container used by all four home pages.
+/// Handles loading skeletons, empty state, error state, and pull-to-refresh.
+struct UnifiedWaterfallFeed<Card: Identifiable, CardView: View>: View {
+    let loadState: FeedLoadState
+    let cards: [Card]
+    let emptyIcon: String
+    let emptyTitle: String
+    let emptyMessage: String
+    var emptyActionLabel: String? = nil
+    var emptyAction: (() -> Void)? = nil
+    var onRefresh: (() async -> Void)? = nil
+    var skeletonCount: Int = 6
+    @ViewBuilder var cardView: (Card) -> CardView
+
+    // Scroll state exposed to parent
+    @StateObject private var scrollState = WaterfallScrollState()
+
+    var body: some View {
+        switch loadState {
+        case .idle, .loading:
+            skeletonBody
+        case .loaded:
+            if cards.isEmpty {
+                emptyBody
+            } else {
+                loadedBody
+            }
+        case .error(let msg):
+            errorBody(msg)
+        }
+    }
+
+    // MARK: Skeleton
+
+    private var skeletonBody: some View {
+        let heights: [CGFloat] = [130, 175, 120, 165, 195, 140, 160, 115]
+        return ScrollView(.vertical, showsIndicators: false) {
+            WaterfallLayout(columns: 2, spacing: Spacing.md) {
+                ForEach(0..<skeletonCount, id: \.self) { i in
+                    SkeletonCard(height: heights[i % heights.count])
+                }
+            }
+            .padding(.horizontal, Spacing.lg)
+            .padding(.top, Spacing.sm)
+        }
+        .allowsHitTesting(false)
+    }
+
+    // MARK: Empty
+
+    private var emptyBody: some View {
+        ScrollView {
+            EmptyStateView(
+                icon: emptyIcon,
+                title: emptyTitle,
+                message: emptyMessage,
+                actionLabel: emptyActionLabel,
+                action: emptyAction
+            )
+            .frame(maxWidth: .infinity)
+            .padding(.top, 80)
+        }
+        .refreshable {
+            await onRefresh?()
+        }
+    }
+
+    // MARK: Error
+
+    private func errorBody(_ message: String) -> some View {
+        ScrollView {
+            ErrorStateView(
+                message: message,
+                cached: false,
+                retry: {
+                    Task { await onRefresh?() }
+                }
+            )
+            .frame(maxWidth: .infinity)
+            .padding(.top, 80)
+        }
+    }
+
+    // MARK: Loaded
+
+    private var loadedBody: some View {
+        GeometryReader { outer in
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    // Scroll tracking anchor
+                    GeometryReader { inner in
+                        Color.clear.preference(
+                            key: ScrollOffsetKey.self,
+                            value: inner.frame(in: .named("waterfallScroll")).minY
+                        )
+                    }
+                    .frame(height: 0)
+
+                    WaterfallLayout(columns: 2, spacing: Spacing.md) {
+                        ForEach(cards) { card in
+                            cardView(card)
+                                .frame(width: columnWidth(proxy: outer))
+                        }
+                    }
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.bottom, Spacing.xxxl)
+                }
+            }
+            .coordinateSpace(name: "waterfallScroll")
+            .onPreferenceChange(ScrollOffsetKey.self) { offset in
+                scrollState.offsetY = offset
+                scrollState.isAtTop = offset >= -10
+            }
+            .refreshable {
+                await onRefresh?()
+            }
+        }
+    }
+
+    private func columnWidth(proxy: GeometryProxy) -> CGFloat {
+        let total = proxy.size.width
+        let spacing = Spacing.md
+        let horizontalPadding = Spacing.lg * 2
+        return (total - horizontalPadding - spacing) / 2
+    }
 }
 
 // MARK: - Scroll Offset Preference Key
@@ -45,171 +165,103 @@ private struct ScrollOffsetKey: PreferenceKey {
     }
 }
 
-// MARK: - UnifiedWaterfallFeed
+// MARK: - Scroll-to-Top Button
 
-/// A generic, reusable waterfall feed container used by all four main tabs
-/// (咸虾, 大师, 赚闲能, 我的). It handles:
-/// - Skeleton loading state with shimmer placeholders
-/// - Empty state with customizable icon, title, message, and CTA
-/// - Error state with retry
-/// - Loaded state with pull-to-refresh, scroll tracking, and scroll-to-top FAB
-struct UnifiedWaterfallFeed<Card: Identifiable, CardView: View>: View {
-    let loadState: FeedLoadState
-    let cards: [Card]
-    let emptyIcon: String
-    let emptyTitle: String
-    let emptyMessage: String
-    var emptyActionLabel: String? = nil
-    var emptyAction: (() -> Void)? = nil
-    var onRefresh: (() async -> Void)? = nil
-    var onRetry: (() -> Void)? = nil
-    @ViewBuilder let cardView: (Card) -> CardView
-
-    @StateObject private var scrollState = WaterfallScrollState()
-    private static var topAnchorID: String { "waterfall_top" }
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            ZStack(alignment: .bottomTrailing) {
-                switch loadState {
-                case .idle, .loading:
-                    WaterfallSkeleton(count: 8)
-                        .transition(.opacity)
-
-                case .loaded:
-                    if cards.isEmpty {
-                        emptyBody
-                    } else {
-                        loadedBody
-                    }
-
-                case .error(let msg):
-                    ScrollView {
-                        ErrorStateView(message: msg, retry: onRetry)
-                            .padding(.top, Spacing.xxxl)
-                    }
-                }
-
-                // Scroll-to-top FAB
-                if !scrollState.isAtTop {
-                    ScrollToTopButton {
-                        withAnimation(.spareSpring) {
-                            proxy.scrollTo(Self.topAnchorID, anchor: .top)
-                        }
-                    }
-                    .padding(.trailing, Spacing.lg)
-                    .padding(.bottom, Spacing.xl)
-                    .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .animation(.spareSpring, value: scrollState.isAtTop)
-        }
-    }
-
-    private var emptyBody: some View {
-        ScrollView {
-            EmptyStateView(
-                icon: emptyIcon,
-                title: emptyTitle,
-                message: emptyMessage,
-                actionLabel: emptyActionLabel,
-                action: emptyAction
-            )
-            .padding(.top, Spacing.xxxl)
-        }
-    }
-
-    private var loadedBody: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 0) {
-                // Invisible offset tracker + scroll anchor
-                GeometryReader { geo in
-                    Color.clear.preference(
-                        key: ScrollOffsetKey.self,
-                        value: geo.frame(in: .named("waterfallScroll")).minY
-                    )
-                }
-                .frame(height: 0)
-                .id(Self.topAnchorID)
-
-                WaterfallLayout(columns: 2, spacing: Spacing.md) {
-                    ForEach(cards) { card in
-                        cardView(card)
-                            .transition(.asymmetric(
-                                insertion: .scale(scale: 0.92).combined(with: .opacity),
-                                removal: .opacity
-                            ))
-                    }
-                }
-                .padding(.horizontal, Spacing.lg)
-                .padding(.top, Spacing.md)
-                .padding(.bottom, Spacing.xxxl)
-            }
-        }
-        .coordinateSpace(name: "waterfallScroll")
-        .onPreferenceChange(ScrollOffsetKey.self) { offset in
-            scrollState.offsetY = offset
-            scrollState.isAtTop = offset > -40
-        }
-        .refreshable {
-            await onRefresh?()
-            hapticNotify()
-        }
-    }
-
-    private func hapticNotify() {
-        let gen = UINotificationFeedbackGenerator()
-        gen.notificationOccurred(.success)
-    }
-}
-
-// MARK: - Staggered Entrance Modifier
-
-/// Applies staggered scale+opacity entrance animation to cards as they appear.
-/// Each card's delay is based on its index, creating a cascade effect on first load.
-struct StaggeredCardEntrance: ViewModifier {
-    let index: Int
-    let isLoaded: Bool
-
-    @State private var appeared = false
-
-    func body(content: Content) -> some View {
-        content
-            .scaleEffect(appeared ? 1.0 : 0.88)
-            .opacity(appeared ? 1.0 : 0)
-            .onAppear {
-                guard !appeared, isLoaded else { return }
-                let delay = Double(min(index, 10)) * 0.04
-                withAnimation(.spareSpring.delay(delay)) {
-                    appeared = true
-                }
-            }
-    }
-}
-
-extension View {
-    func staggeredEntrance(index: Int, isLoaded: Bool) -> some View {
-        modifier(StaggeredCardEntrance(index: index, isLoaded: isLoaded))
-    }
-}
-
-// MARK: - Scroll To Top Button
-
+/// Floating FAB that snaps user back to top when they scroll down.
 struct ScrollToTopButton: View {
-    var action: () -> Void
+    let isVisible: Bool
+    let action: () -> Void
 
     var body: some View {
-        Button {
-            let impact = UIImpactFeedbackGenerator(style: .light)
-            impact.impactOccurred()
-            action()
-        } label: {
-            Image(systemName: "arrow.up")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(.white)
-                .frame(width: 40, height: 40)
-                .background(Color.primary.opacity(0.8), in: Circle())
-                .cardShadow(prominent: true)
+        if isVisible {
+            Button(action: action) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 36, weight: .semibold))
+                    .foregroundColor(.spareYellow)
+                    .shadow(radius: 8)
+            }
+            .transition(.scale.combined(with: .opacity))
+            .padding(.trailing, Spacing.lg)
+            .padding(.bottom, Spacing.xxl)
         }
+    }
+}
+
+// MARK: - Section Header
+
+/// Reusable section header used above feed segments.
+struct FeedSectionHeader: View {
+    let title: String
+    var subtitle: String? = nil
+    var trailingLabel: String? = nil
+    var trailingAction: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.spareTitle3)
+                if let sub = subtitle {
+                    Text(sub)
+                        .font(.spareCaption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            Spacer()
+            if let label = trailingLabel {
+                Button {
+                    trailingAction?()
+                } label: {
+                    Text(label)
+                        .font(.spareCaptionSB)
+                        .foregroundColor(.spareYellow)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.top, Spacing.md)
+        .padding(.bottom, Spacing.xs)
+    }
+}
+
+// MARK: - Pinned Banner
+
+/// Shown at top of feed for pinned action cards.
+struct FeedPinnedBanner: View {
+    let card: ActionFeedCard
+
+    var body: some View {
+        HStack(spacing: Spacing.md) {
+            Image(systemName: "pin.circle.fill")
+                .foregroundColor(.spareYellow)
+                .font(.system(size: 24))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(card.headline)
+                    .font(.spareBodySB)
+                    .lineLimit(1)
+                Text(card.subtext)
+                    .font(.spareCaption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Text(card.ctaLabel)
+                .font(.spareCaptionSB)
+                .foregroundColor(.black)
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.sm)
+                .background(Color.spareYellow, in: Capsule())
+        }
+        .padding(Spacing.md)
+        .background(Color.spareYellow.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: CornerRadius.md)
+                .stroke(Color.spareYellow.opacity(0.4), lineWidth: 1)
+        )
+        .padding(.horizontal, Spacing.lg)
+        .padding(.top, Spacing.sm)
     }
 }

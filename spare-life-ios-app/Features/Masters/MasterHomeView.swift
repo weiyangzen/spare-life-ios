@@ -242,13 +242,20 @@ struct MasterHomeView: View {
                     .padding(.horizontal, Spacing.lg)
                     .padding(.top, Spacing.md)
 
+                    FeedSectionHeader(
+                        title: "大师目录",
+                        subtitle: "\(store.homeCards.count) 位大师"
+                    )
+                    .padding(.top, Spacing.md)
+                    .padding(.bottom, Spacing.xs)
+
                     WaterfallLayout(columns: 2, spacing: Spacing.md) {
                         ForEach(store.homeCards) { card in
                             homeCard(for: card)
                         }
                     }
                     .padding(.horizontal, Spacing.lg)
-                    .padding(.top, Spacing.md)
+                    .padding(.top, Spacing.xs)
                     .padding(.bottom, Spacing.xxxl)
                 }
             }

@@ -189,9 +189,10 @@ private struct ProfileScrollView: View {
 
     private var featureCardGrid: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("我的面板")
-                .font(.spareTitle3)
-                .padding(.horizontal, Spacing.xs)
+            FeedSectionHeader(
+                title: "我的面板",
+                subtitle: "点击进入各子系统"
+            )
 
             WaterfallLayout(columns: 2, spacing: Spacing.md) {
                 // Sync Score card

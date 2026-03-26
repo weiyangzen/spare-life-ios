@@ -200,6 +200,14 @@ struct XianxiaHomeView: View {
                         .padding(.vertical, Spacing.sm)
                 }
 
+                FeedSectionHeader(
+                    title: "场景卡片流",
+                    subtitle: "\(items.count) 条内容",
+                    trailingLabel: nil
+                )
+                .padding(.top, Spacing.md)
+                .padding(.bottom, Spacing.xs)
+
                 WaterfallLayout(columns: 2, spacing: Spacing.md) {
                     ForEach(items) { item in
                         feedCard(for: item)

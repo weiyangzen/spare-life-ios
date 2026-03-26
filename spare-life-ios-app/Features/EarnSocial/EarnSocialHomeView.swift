@@ -297,24 +297,14 @@ struct EarnSocialHomeView: View {
         switch store.homeState {
         case .idle, .loading:
             VStack(spacing: Spacing.md) {
-                HStack {
-                    Text("混排 feed")
-                        .font(.spareCaptionSB)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                }
+                FeedSectionHeader(title: "混排 feed")
                 WaterfallSkeleton(count: 8)
                     .frame(height: 860)
             }
 
         case .error(let message):
             VStack(spacing: Spacing.md) {
-                HStack {
-                    Text("混排 feed")
-                        .font(.spareCaptionSB)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                }
+                FeedSectionHeader(title: "混排 feed")
 
                 ErrorStateView(
                     message: message,
@@ -326,15 +316,10 @@ struct EarnSocialHomeView: View {
         case .loaded:
             let cards = store.visibleFeedCards
             VStack(alignment: .leading, spacing: Spacing.md) {
-                HStack {
-                    Text("混排 feed")
-                        .font(.spareCaptionSB)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text("\(cards.count) 张卡")
-                        .font(.spareMicro)
-                        .foregroundColor(.secondary)
-                }
+                FeedSectionHeader(
+                    title: "混排 feed",
+                    subtitle: "\(cards.count) 张卡"
+                )
 
                 if let toastMessage = store.toastMessage {
                     EarnInlineToast(message: toastMessage) {

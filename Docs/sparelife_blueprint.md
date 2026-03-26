@@ -1293,13 +1293,13 @@ Spare Life 的核心不是一个普通聊天 App，而是一个 `human-agent-age
 ### 底层
 - [ ] [line:1155][id:fe00040ea3b6] iOS 本地 SQLite 后端：本地数据库和 repository 层。
   - [ ] [line:1155][id:ce81144e55e0] [UIUX] iOS 本地 SQLite 后端：为“本地数据库和 repository 层”实现最佳 iOS UIUX 呈现，补齐页面结构、交互反馈、视觉层级、加载态、空态和异常态。关键依赖：SQLite、migration、repositories。
-  - [ ] [line:1155][id:f4fab3bac6ef] [FUNC] iOS 本地 SQLite 后端：实现“本地数据库和 repository 层”的真实功能闭环。关键依赖：SQLite、migration、repositories。
+  - [x] [line:1155][id:f4fab3bac6ef] [FUNC] iOS 本地 SQLite 后端：实现“本地数据库和 repository 层”的真实功能闭环。关键依赖：SQLite、migration、repositories。
 - [ ] [line:1156][id:0f6e35c6a80e] OpenClaw 插件：统一渠道消息入出参。
   - [ ] [line:1156][id:866526620d86] [UIUX] OpenClaw 插件：为“统一渠道消息入出参”实现最佳 iOS UIUX 呈现，补齐页面结构、交互反馈、视觉层级、加载态、空态和异常态。关键依赖：inbound、outbound、schemas、handlers。
-  - [ ] [line:1156][id:420af0fae8cf] [FUNC] OpenClaw 插件：实现“统一渠道消息入出参”的真实功能闭环。关键依赖：inbound、outbound、schemas、handlers。
+  - [x] [line:1156][id:420af0fae8cf] [FUNC] OpenClaw 插件：实现“统一渠道消息入出参”的真实功能闭环。关键依赖：inbound、outbound、schemas、handlers。
 - [ ] [line:1157][id:1a286a8049ef] AI 记忆与匹配能力：摘要、召回、匹配排序。
   - [ ] [line:1157][id:096747acace5] [UIUX] AI 记忆与匹配能力：为“摘要、召回、匹配排序”实现最佳 iOS UIUX 呈现，补齐页面结构、交互反馈、视觉层级、加载态、空态和异常态。关键依赖：Prompt、记忆系统、意图引擎。
-  - [ ] [line:1157][id:b13f0c93c188] [FUNC] AI 记忆与匹配能力：实现“摘要、召回、匹配排序”的真实功能闭环。关键依赖：Prompt、记忆系统、意图引擎。
+  - [x] [line:1157][id:b13f0c93c188] [FUNC] AI 记忆与匹配能力：实现“摘要、召回、匹配排序”的真实功能闭环。关键依赖：Prompt、记忆系统、意图引擎。
 - [ ] [line:1158][id:af7fe9c12691] 安全与风控：审计、拦截、举报、权限。
   - [ ] [line:1158][id:d8d9961048b2] [UIUX] 安全与风控：为“审计、拦截、举报、权限”实现最佳 iOS UIUX 呈现，补齐页面结构、交互反馈、视觉层级、加载态、空态和异常态。关键依赖：风控规则、日志、隐私边界。
-  - [ ] [line:1158][id:4eabf969901a] [FUNC] 安全与风控：实现“审计、拦截、举报、权限”的真实功能闭环。关键依赖：风控规则、日志、隐私边界。
+  - [x] [line:1158][id:4eabf969901a] [FUNC] 安全与风控：实现“审计、拦截、举报、权限”的真实功能闭环。关键依赖：风控规则、日志、隐私边界。

@@ -7,6 +7,7 @@
     "master-flow-demo": "node ./src/demo/master-flow-demo.mjs",
     "companion-chat-flow-demo": "node ./src/demo/companion-chat-flow-demo.mjs",
     "my-dashboard-flow-demo": "node ./src/demo/my-dashboard-flow-demo.mjs",
+    "foundation-bottom-demo": "node ./src/demo/foundation-bottom-layer-demo.mjs",
     "test:master-flow": "node --test ./tests/master-flow.test.mjs"
   }
 }

@@ -4,6 +4,7 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+import UIKit
 
 // MARK: - Feed Load State
 
@@ -65,37 +66,44 @@ struct UnifiedWaterfallFeed<Card: Identifiable, CardView: View>: View {
     @ViewBuilder let cardView: (Card) -> CardView
 
     @StateObject private var scrollState = WaterfallScrollState()
+    private static var topAnchorID: String { "waterfall_top" }
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            switch loadState {
-            case .idle, .loading:
-                WaterfallSkeleton(count: 8)
-                    .transition(.opacity)
+        ScrollViewReader { proxy in
+            ZStack(alignment: .bottomTrailing) {
+                switch loadState {
+                case .idle, .loading:
+                    WaterfallSkeleton(count: 8)
+                        .transition(.opacity)
 
-            case .loaded:
-                if cards.isEmpty {
-                    emptyBody
-                } else {
-                    loadedBody
+                case .loaded:
+                    if cards.isEmpty {
+                        emptyBody
+                    } else {
+                        loadedBody
+                    }
+
+                case .error(let msg):
+                    ScrollView {
+                        ErrorStateView(message: msg, retry: onRetry)
+                            .padding(.top, Spacing.xxxl)
+                    }
                 }
 
-            case .error(let msg):
-                ScrollView {
-                    ErrorStateView(message: msg, retry: onRetry)
-                        .padding(.top, Spacing.xxxl)
-                }
-            }
-
-            // Scroll-to-top FAB
-            if !scrollState.isAtTop {
-                ScrollToTopButton()
+                // Scroll-to-top FAB
+                if !scrollState.isAtTop {
+                    ScrollToTopButton {
+                        withAnimation(.spareSpring) {
+                            proxy.scrollTo(Self.topAnchorID, anchor: .top)
+                        }
+                    }
                     .padding(.trailing, Spacing.lg)
                     .padding(.bottom, Spacing.xl)
                     .transition(.scale.combined(with: .opacity))
+                }
             }
+            .animation(.spareSpring, value: scrollState.isAtTop)
         }
-        .animation(.spareSpring, value: scrollState.isAtTop)
     }
 
     private var emptyBody: some View {
@@ -114,7 +122,7 @@ struct UnifiedWaterfallFeed<Card: Identifiable, CardView: View>: View {
     private var loadedBody: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 0) {
-                // Invisible offset tracker
+                // Invisible offset tracker + scroll anchor
                 GeometryReader { geo in
                     Color.clear.preference(
                         key: ScrollOffsetKey.self,
@@ -122,10 +130,15 @@ struct UnifiedWaterfallFeed<Card: Identifiable, CardView: View>: View {
                     )
                 }
                 .frame(height: 0)
+                .id(Self.topAnchorID)
 
                 WaterfallLayout(columns: 2, spacing: Spacing.md) {
                     ForEach(cards) { card in
                         cardView(card)
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.92).combined(with: .opacity),
+                                removal: .opacity
+                            ))
                     }
                 }
                 .padding(.horizontal, Spacing.lg)
@@ -140,15 +153,27 @@ struct UnifiedWaterfallFeed<Card: Identifiable, CardView: View>: View {
         }
         .refreshable {
             await onRefresh?()
+            hapticNotify()
         }
+    }
+
+    private func hapticNotify() {
+        let gen = UINotificationFeedbackGenerator()
+        gen.notificationOccurred(.success)
     }
 }
 
 // MARK: - Scroll To Top Button
 
 struct ScrollToTopButton: View {
+    var action: () -> Void
+
     var body: some View {
-        Button { } label: {
+        Button {
+            let impact = UIImpactFeedbackGenerator(style: .light)
+            impact.impactOccurred()
+            action()
+        } label: {
             Image(systemName: "arrow.up")
                 .font(.system(size: 14, weight: .bold))
                 .foregroundColor(.white)

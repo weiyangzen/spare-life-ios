@@ -4,6 +4,7 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+import UIKit
 
 // MARK: - FeedCard Protocol
 
@@ -249,7 +250,7 @@ struct SummaryCardView: View {
             .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
             .cardShadow()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CardPressStyle())
     }
 }
 
@@ -298,7 +299,7 @@ struct PersonCardView: View {
             .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
             .cardShadow()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CardPressStyle())
     }
 }
 
@@ -341,7 +342,7 @@ struct ActionCardView: View {
             .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
             .cardShadow()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CardPressStyle())
     }
 }
 
@@ -439,6 +440,7 @@ struct FeedKindFilterBar: View {
         let isSelected = selected == kind
         let count = kind.flatMap { counts[$0] }
         return Button {
+            UISelectionFeedbackGenerator().selectionChanged()
             withAnimation(.spareFast) { selected = isSelected ? nil : kind }
         } label: {
             HStack(spacing: Spacing.xs) {
@@ -529,7 +531,19 @@ struct FeedPinnedBanner: View {
                     .stroke(Color.spareYellow.opacity(0.4), lineWidth: 1)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CardPressStyle())
         .padding(.horizontal, Spacing.lg)
+    }
+}
+
+// MARK: - Card Press Button Style
+
+/// Provides a subtle scale-down + shadow lift on press for all feed cards.
+struct CardPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .opacity(configuration.isPressed ? 0.92 : 1.0)
+            .animation(.spareFast, value: configuration.isPressed)
     }
 }

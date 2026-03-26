@@ -4,6 +4,7 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+import UIKit
 
 // MARK: - Models
 
@@ -209,7 +210,7 @@ private struct ProfileScrollView: View {
                         height: 168
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CardPressStyle())
 
                 // Personality / Awakening card
                 NavigationLink {
@@ -225,7 +226,7 @@ private struct ProfileScrollView: View {
                         height: 148
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CardPressStyle())
 
                 // Memory Palace card
                 NavigationLink {
@@ -241,7 +242,7 @@ private struct ProfileScrollView: View {
                         height: 156
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CardPressStyle())
 
                 // Privacy & Local Backend card
                 NavigationLink {
@@ -257,7 +258,7 @@ private struct ProfileScrollView: View {
                         height: 140
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CardPressStyle())
 
                 // Growth Stats card
                 NavigationLink {
@@ -273,7 +274,7 @@ private struct ProfileScrollView: View {
                         height: 130
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CardPressStyle())
             }
         }
     }
@@ -281,6 +282,7 @@ private struct ProfileScrollView: View {
     private var actionButtons: some View {
         VStack(spacing: Spacing.sm) {
             Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 store.editingProfile = true
             } label: {
                 Label("编辑资料", systemImage: "pencil")
@@ -292,6 +294,7 @@ private struct ProfileScrollView: View {
             }
 
             Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 store.shareSheetActive = true
             } label: {
                 Label("分享主页", systemImage: "square.and.arrow.up")

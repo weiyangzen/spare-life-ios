@@ -4,6 +4,7 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+import UIKit
 
 struct ConversationHubView: View {
     @StateObject private var store = ConversationHubStore()
@@ -247,6 +248,7 @@ struct ConversationHubView: View {
     private func kindChip(_ kind: ConversationKind?, label: String, icon: String) -> some View {
         let isSelected = store.selectedKind == kind
         return Button {
+            UISelectionFeedbackGenerator().selectionChanged()
             withAnimation(.spareSpring) {
                 store.selectedKind = isSelected ? nil : kind
             }
@@ -318,7 +320,10 @@ struct ConversationHubView: View {
         .buttonStyle(.plain)
         .listRowBackground(Color(.secondarySystemGroupedBackground))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            Button { store.pin(threadID: thread.id) } label: {
+            Button {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                store.pin(threadID: thread.id)
+            } label: {
                 Label(thread.isPinned ? "取消置顶" : "置顶",
                       systemImage: thread.isPinned ? "pin.slash" : "pin.fill")
             }
@@ -329,7 +334,10 @@ struct ConversationHubView: View {
             }
         }
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
-            Button { store.markRead(threadID: thread.id) } label: {
+            Button {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                store.markRead(threadID: thread.id)
+            } label: {
                 Label("已读", systemImage: "checkmark.circle.fill")
             }
             .tint(.emotionPositive)

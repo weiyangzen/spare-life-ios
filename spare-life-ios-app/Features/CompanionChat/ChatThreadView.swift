@@ -4,6 +4,7 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+import UIKit
 
 // MARK: - Chat Thread Store
 
@@ -37,6 +38,7 @@ final class ChatThreadStore: ObservableObject {
 
     func send() {
         guard !draftText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         let msg = ChatMessage(
             id: UUID().uuidString,
             senderRole: .myHuman,
@@ -206,6 +208,7 @@ struct ChatThreadView: View {
             if contextExpanded {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: Spacing.sm) {
+                        // animated entrance for context cards
                         // Relationship context card
                         RelationshipContextCard(
                             contactName: thread.contactName,
@@ -240,12 +243,14 @@ struct ChatThreadView: View {
                     .padding(.horizontal, Spacing.lg)
                     .padding(.vertical, Spacing.sm)
                 }
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
 
             // Compact chip strip with agent toggle + collapse
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Spacing.sm) {
                     Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         withAnimation(.spareSpring) { contextExpanded.toggle() }
                     } label: {
                         Label(contextExpanded ? "收起" : "上下文",
@@ -276,6 +281,7 @@ struct ChatThreadView: View {
                     }
 
                     Button {
+                        UISelectionFeedbackGenerator().selectionChanged()
                         withAnimation(.spareSpring) {
                             store.showAgentPanel.toggle()
                         }

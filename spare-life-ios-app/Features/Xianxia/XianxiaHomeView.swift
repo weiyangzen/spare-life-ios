@@ -112,6 +112,7 @@ struct XianxiaHomeView: View {
                             category: cat,
                             isSelected: selectedCategory == cat
                         ) {
+                            UISelectionFeedbackGenerator().selectionChanged()
                             withAnimation(.spareFast) {
                                 selectedCategory = cat
                             }
@@ -211,6 +212,10 @@ struct XianxiaHomeView: View {
                 WaterfallLayout(columns: 2, spacing: Spacing.md) {
                     ForEach(items) { item in
                         feedCard(for: item)
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.92).combined(with: .opacity),
+                                removal: .opacity
+                            ))
                     }
                 }
                 .padding(.horizontal, Spacing.lg)

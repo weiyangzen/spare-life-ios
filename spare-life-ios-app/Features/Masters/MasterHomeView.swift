@@ -128,6 +128,7 @@ struct MasterHomeView: View {
                         icon: "square.grid.2x2.fill",
                         isSelected: store.selectedDomainID == nil
                     ) {
+                        UISelectionFeedbackGenerator().selectionChanged()
                         withAnimation(.spareFast) { store.selectedDomainID = nil }
                     }
 
@@ -137,6 +138,7 @@ struct MasterHomeView: View {
                             icon: domain.symbol,
                             isSelected: store.selectedDomainID == domain.id
                         ) {
+                            UISelectionFeedbackGenerator().selectionChanged()
                             withAnimation(.spareFast) { store.selectedDomainID = domain.id }
                         }
                     }
@@ -252,6 +254,10 @@ struct MasterHomeView: View {
                     WaterfallLayout(columns: 2, spacing: Spacing.md) {
                         ForEach(store.homeCards) { card in
                             homeCard(for: card)
+                                .transition(.asymmetric(
+                                    insertion: .scale(scale: 0.92).combined(with: .opacity),
+                                    removal: .opacity
+                                ))
                         }
                     }
                     .padding(.horizontal, Spacing.lg)

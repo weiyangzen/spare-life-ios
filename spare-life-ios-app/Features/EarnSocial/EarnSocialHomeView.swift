@@ -281,6 +281,7 @@ struct EarnSocialHomeView: View {
                             filter: filter,
                             isSelected: filter == store.selectedFilter
                         ) {
+                            UISelectionFeedbackGenerator().selectionChanged()
                             withAnimation(.spareFast) {
                                 store.selectQuickFilter(filter)
                             }
@@ -348,6 +349,10 @@ struct EarnSocialHomeView: View {
                     WaterfallLayout(columns: 2, spacing: Spacing.md) {
                         ForEach(cards) { card in
                             feedCard(for: card)
+                                .transition(.asymmetric(
+                                    insertion: .scale(scale: 0.92).combined(with: .opacity),
+                                    removal: .opacity
+                                ))
                         }
                     }
                 }

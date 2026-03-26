@@ -163,6 +163,36 @@ struct UnifiedWaterfallFeed<Card: Identifiable, CardView: View>: View {
     }
 }
 
+// MARK: - Staggered Entrance Modifier
+
+/// Applies staggered scale+opacity entrance animation to cards as they appear.
+/// Each card's delay is based on its index, creating a cascade effect on first load.
+struct StaggeredCardEntrance: ViewModifier {
+    let index: Int
+    let isLoaded: Bool
+
+    @State private var appeared = false
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(appeared ? 1.0 : 0.88)
+            .opacity(appeared ? 1.0 : 0)
+            .onAppear {
+                guard !appeared, isLoaded else { return }
+                let delay = Double(min(index, 10)) * 0.04
+                withAnimation(.spareSpring.delay(delay)) {
+                    appeared = true
+                }
+            }
+    }
+}
+
+extension View {
+    func staggeredEntrance(index: Int, isLoaded: Bool) -> some View {
+        modifier(StaggeredCardEntrance(index: index, isLoaded: isLoaded))
+    }
+}
+
 // MARK: - Scroll To Top Button
 
 struct ScrollToTopButton: View {

@@ -272,10 +272,21 @@ struct ConversationHubView: View {
             ChatThreadView(thread: thread)
         } label: {
             HStack(alignment: .center, spacing: Spacing.md) {
-                // Avatar + kind badge
+                // Avatar + kind badge + online indicator
                 ZStack(alignment: .bottomTrailing) {
                     AvatarView(name: thread.contactName, size: 52)
-                    kindBadge(thread.kind)
+                    if thread.isOnline {
+                        Circle()
+                            .fill(Color.emotionPositive)
+                            .frame(width: 14, height: 14)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color(.secondarySystemGroupedBackground), lineWidth: 2.5)
+                            )
+                            .offset(x: 2, y: 2)
+                    } else {
+                        kindBadge(thread.kind)
+                    }
                 }
 
                 // Content
@@ -291,10 +302,14 @@ struct ConversationHubView: View {
                     }
 
                     HStack(alignment: .center, spacing: Spacing.xs) {
-                        Text(thread.lastMessage)
-                            .font(.spareCaption)
-                            .foregroundColor(thread.unreadCount > 0 ? .primary : .secondary)
-                            .lineLimit(1)
+                        if thread.isTyping {
+                            TypingIndicator()
+                        } else {
+                            Text(thread.lastMessage)
+                                .font(.spareCaption)
+                                .foregroundColor(thread.unreadCount > 0 ? .primary : .secondary)
+                                .lineLimit(1)
+                        }
                         Spacer()
                         if thread.unreadCount > 0 {
                             unreadBadge(thread.unreadCount)
@@ -378,6 +393,37 @@ struct ConversationHubView: View {
         )
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
+    }
+}
+
+// MARK: - Typing Indicator
+
+/// Animated three-dot typing indicator shown when a contact is composing.
+struct TypingIndicator: View {
+    @State private var phase: Int = 0
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Text("正在输入")
+                .font(.spareCaption)
+                .foregroundColor(.emotionPositive)
+            ForEach(0..<3) { i in
+                Circle()
+                    .fill(Color.emotionPositive)
+                    .frame(width: 5, height: 5)
+                    .scaleEffect(phase == i ? 1.3 : 0.7)
+                    .opacity(phase == i ? 1.0 : 0.4)
+            }
+        }
+        .onAppear { startAnimation() }
+    }
+
+    private func startAnimation() {
+        Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { _ in
+            withAnimation(.easeInOut(duration: 0.25)) {
+                phase = (phase + 1) % 3
+            }
+        }
     }
 }
 

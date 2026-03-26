@@ -26,6 +26,8 @@ struct ConversationThread: Identifiable, Hashable {
     var isPinned: Bool
     var relationTemperature: RelationTemperature   // 熟人关系温度
     var activeMaskName: String?                     // 当前对该联系人启用的面具名称
+    var isOnline: Bool = false                      // 联系人在线状态
+    var isTyping: Bool = false                      // 正在输入指示
 }
 
 // MARK: - Relation Temperature (跨会话情感连续性)
@@ -307,13 +309,15 @@ final class ConversationHubStore: ObservableObject {
                 id: "t1", contactName: "林熙", avatarSeed: 2, kind: .human,
                 lastMessage: "下午一起去那个咖啡馆？",
                 lastTimestamp: Date() - 300, unreadCount: 2, isPinned: true,
-                relationTemperature: .close, activeMaskName: "温柔模式"
+                relationTemperature: .close, activeMaskName: "温柔模式",
+                isOnline: true, isTyping: true
             ),
             ConversationThread(
                 id: "t2", contactName: "陈明", avatarSeed: 5, kind: .quadRole,
                 lastMessage: "你的分身刚才说了个很有趣的观点",
                 lastTimestamp: Date() - 1800, unreadCount: 5, isPinned: false,
-                relationTemperature: .warm, activeMaskName: nil
+                relationTemperature: .warm, activeMaskName: nil,
+                isOnline: true
             ),
             ConversationThread(
                 id: "t3", contactName: "周游 & 王芳", avatarSeed: 8, kind: .group,

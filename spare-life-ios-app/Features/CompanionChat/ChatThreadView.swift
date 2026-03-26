@@ -208,8 +208,7 @@ struct ChatThreadView: View {
             if contextExpanded {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: Spacing.sm) {
-                        // animated entrance for context cards
-                        // Relationship context card
+                        // Staggered entrance for context cards
                         RelationshipContextCard(
                             contactName: thread.contactName,
                             temperature: thread.relationTemperature,
@@ -217,27 +216,28 @@ struct ChatThreadView: View {
                         ) {
                             store.showRelationship = true
                         }
+                        .staggeredEntrance(index: 0, isLoaded: !store.isLoading)
 
-                        // Mask context card
                         MaskContextCard(
                             maskName: thread.activeMaskName,
                             disclosureLevel: 2
                         ) {
                             store.showContactMask = true
                         }
+                        .staggeredEntrance(index: 1, isLoaded: !store.isLoading)
 
-                        // Memory context card
                         MemoryContextCard(
                             contactName: thread.contactName
                         ) {
                             store.showCrossSessionMemory = true
                         }
+                        .staggeredEntrance(index: 2, isLoaded: !store.isLoading)
 
-                        // Group context card (if group)
                         if thread.kind == .group {
                             GroupContextCard {
                                 store.showGroupPlay = true
                             }
+                            .staggeredEntrance(index: 3, isLoaded: !store.isLoading)
                         }
                     }
                     .padding(.horizontal, Spacing.lg)

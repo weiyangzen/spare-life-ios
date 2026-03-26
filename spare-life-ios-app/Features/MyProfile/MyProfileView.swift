@@ -422,40 +422,80 @@ private struct ProfileFeatureCard: View {
 private struct ProfileHeroSection: View {
     @ObservedObject var store: MyProfileStore
     let profile: UserProfile
+    var scrollOffset: CGFloat = 0
+
+    /// Sync score progress for the activity ring (0...1).
+    private let syncProgress: CGFloat = 0.72
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            // Banner gradient
-            LinearGradient(
-                colors: [Color.spareYellow.opacity(0.6), Color.blue.opacity(0.35)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            // Parallax banner gradient – moves at half scroll speed
+            GeometryReader { geo in
+                let minY = geo.frame(in: .global).minY
+                let parallaxOffset = minY > 0 ? -minY * 0.5 : 0
+                LinearGradient(
+                    colors: [Color.spareYellow.opacity(0.6), Color.blue.opacity(0.35)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .frame(height: 160 + (minY > 0 ? minY : 0))
+                .offset(y: parallaxOffset)
+                .clipped()
+            }
             .frame(height: 160)
 
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 HStack(alignment: .bottom) {
-                    AvatarView(name: profile.displayName, size: 80)
-                        .overlay(
-                            Circle()
-                                .stroke(Color(.systemBackground), lineWidth: 3)
-                        )
-                        .offset(y: 32)
+                    // Avatar with sync activity ring
+                    ZStack {
+                        // Activity ring: syncing progress
+                        Circle()
+                            .stroke(Color(.systemGray5), lineWidth: 3.5)
+                            .frame(width: 88, height: 88)
+                        Circle()
+                            .trim(from: 0, to: syncProgress)
+                            .stroke(
+                                AngularGradient(
+                                    colors: [.spareYellow, .emotionPositive, .spareYellow],
+                                    center: .center
+                                ),
+                                style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
+                            )
+                            .frame(width: 88, height: 88)
+                            .rotationEffect(.degrees(-90))
+
+                        AvatarView(name: profile.displayName, size: 80)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color(.systemBackground), lineWidth: 3)
+                            )
+                    }
+                    .offset(y: 32)
 
                     Spacer()
 
-                    if profile.isVerified {
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark.seal.fill")
-                                .foregroundColor(.blue)
-                            Text("已认证")
-                                .font(.spareMicro)
+                    VStack(alignment: .trailing, spacing: Spacing.xxs) {
+                        if profile.isVerified {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.seal.fill")
+                                    .foregroundColor(.blue)
+                                Text("已认证")
+                                    .font(.spareMicro)
+                            }
+                            .padding(.horizontal, Spacing.sm)
+                            .padding(.vertical, Spacing.xs)
+                            .background(.thinMaterial, in: Capsule())
                         }
-                        .padding(.horizontal, Spacing.sm)
-                        .padding(.vertical, Spacing.xs)
-                        .background(.thinMaterial, in: Capsule())
-                        .padding(.bottom, 4)
+
+                        // Sync percentage label
+                        Text("同步 \(Int(syncProgress * 100))%")
+                            .font(.spareMicro)
+                            .foregroundColor(.spareYellow)
+                            .padding(.horizontal, Spacing.sm)
+                            .padding(.vertical, Spacing.xs)
+                            .background(.ultraThinMaterial, in: Capsule())
                     }
+                    .padding(.bottom, 4)
                 }
                 .padding(.horizontal, Spacing.lg)
             }

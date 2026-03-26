@@ -145,6 +145,13 @@ private struct ProfileScrollView: View {
                     actionButtons
                 }
                 .padding(.horizontal, Spacing.lg)
+
+                // Cross-domain discover section – demonstrates mixed card
+                // rendering with FeedSorter + FeedKindFilterBar (line:1151).
+                DiscoverMixedFeedSection(
+                    cards: DiscoverMixedFeedDemo.sampleCards()
+                )
+                .padding(.top, Spacing.xl)
                 .padding(.bottom, Spacing.xxxl + 32)
             }
         }

@@ -12,6 +12,7 @@ struct XianxiaHomeView: View {
     @State private var showScanner = false
     @State private var selectedCategory: SceneCategory = .all
     @State private var searchText = ""
+    @StateObject private var scrollState = WaterfallScrollState()
 
     var body: some View {
         NavigationStack {
@@ -192,39 +193,73 @@ struct XianxiaHomeView: View {
         }
     }
 
+    private static let feedTopAnchor = "xianxia_feed_top"
+
     private func feedList(items: [SceneFeedItem], showCacheBanner: Bool) -> some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(spacing: 0) {
-                if showCacheBanner {
-                    CacheBanner()
+        ScrollViewReader { proxy in
+            ZStack(alignment: .bottomTrailing) {
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVStack(spacing: 0) {
+                        // Invisible scroll offset tracker + anchor
+                        GeometryReader { geo in
+                            Color.clear.preference(
+                                key: XianxiaScrollOffsetKey.self,
+                                value: geo.frame(in: .named("xianxiaFeedScroll")).minY
+                            )
+                        }
+                        .frame(height: 0)
+                        .id(Self.feedTopAnchor)
+
+                        if showCacheBanner {
+                            CacheBanner()
+                                .padding(.horizontal, Spacing.lg)
+                                .padding(.vertical, Spacing.sm)
+                        }
+
+                        FeedSectionHeader(
+                            title: "场景卡片流",
+                            subtitle: "\(items.count) 条内容",
+                            trailingLabel: nil
+                        )
+                        .padding(.top, Spacing.md)
+                        .padding(.bottom, Spacing.xs)
+
+                        WaterfallLayout(columns: 2, spacing: Spacing.md) {
+                            ForEach(items) { item in
+                                feedCard(for: item)
+                                    .transition(.asymmetric(
+                                        insertion: .scale(scale: 0.92).combined(with: .opacity),
+                                        removal: .opacity
+                                    ))
+                            }
+                        }
                         .padding(.horizontal, Spacing.lg)
-                        .padding(.vertical, Spacing.sm)
-                }
-
-                FeedSectionHeader(
-                    title: "场景卡片流",
-                    subtitle: "\(items.count) 条内容",
-                    trailingLabel: nil
-                )
-                .padding(.top, Spacing.md)
-                .padding(.bottom, Spacing.xs)
-
-                WaterfallLayout(columns: 2, spacing: Spacing.md) {
-                    ForEach(items) { item in
-                        feedCard(for: item)
-                            .transition(.asymmetric(
-                                insertion: .scale(scale: 0.92).combined(with: .opacity),
-                                removal: .opacity
-                            ))
+                        .padding(.top, Spacing.md)
+                        .padding(.bottom, Spacing.xxxl)
                     }
                 }
-                .padding(.horizontal, Spacing.lg)
-                .padding(.top, Spacing.md)
-                .padding(.bottom, Spacing.xxxl)
+                .coordinateSpace(name: "xianxiaFeedScroll")
+                .onPreferenceChange(XianxiaScrollOffsetKey.self) { offset in
+                    scrollState.offsetY = offset
+                    scrollState.isAtTop = offset > -40
+                }
+                .refreshable {
+                    await vm.refreshAsync()
+                }
+
+                // Scroll-to-top FAB
+                if !scrollState.isAtTop {
+                    ScrollToTopButton {
+                        withAnimation(.spareSpring) {
+                            proxy.scrollTo(Self.feedTopAnchor, anchor: .top)
+                        }
+                    }
+                    .padding(.trailing, Spacing.lg)
+                    .padding(.bottom, Spacing.xl)
+                    .transition(.scale.combined(with: .opacity))
+                }
             }
-        }
-        .refreshable {
-            await vm.refreshAsync()
+            .animation(.spareSpring, value: scrollState.isAtTop)
         }
     }
 
@@ -323,6 +358,15 @@ private struct CacheBanner: View {
         }
         .padding(Spacing.md)
         .background(Color(.systemYellow).opacity(0.12), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+    }
+}
+
+// MARK: - Scroll Offset Key
+
+private struct XianxiaScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 

@@ -310,3 +310,14 @@ struct ErrorStateView: View {
         .padding(Spacing.xxxl)
     }
 }
+
+// MARK: - CardPressStyle
+
+/// Reusable press-scale button style for tappable cards.
+struct CardPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.spareFast, value: configuration.isPressed)
+    }
+}

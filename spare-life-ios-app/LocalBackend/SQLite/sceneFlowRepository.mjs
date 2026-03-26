@@ -56,6 +56,27 @@ function parseCardRow(row) {
   };
 }
 
+function parseIntentRow(row) {
+  if (!row) {
+    return null;
+  }
+  return {
+    id: row.id,
+    sceneKey: row.scene_key,
+    initiatorUserId: row.initiator_user_id,
+    targetAgentId: row.target_agent_id,
+    title: row.title,
+    message: row.message,
+    chatMode: row.chat_mode,
+    sceneTags: fromJson(row.scene_tags_json, []),
+    route: row.route,
+    riskStatus: row.risk_status,
+    riskReason: row.risk_reason,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 export class SceneFlowRepository {
   constructor(dbPath) {
     mkdirSync(dirname(dbPath), { recursive: true });
@@ -367,7 +388,7 @@ export class SceneFlowRepository {
             cards.allows_agent_intro,
             cards.visibility_scope,
             cards.privacy_radius,
-            cards.trust_score,
+            presence.trust_score AS trust_score,
             presence.activity_score,
             presence.freshness_score,
             presence.match_score,
@@ -451,6 +472,84 @@ export class SceneFlowRepository {
       });
 
     return this.db.prepare('SELECT * FROM social_intents WHERE id = ?').get(draft.id);
+  }
+
+  listRecentIntentDrafts(initiatorUserId, limit = 12) {
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM social_intents
+         WHERE initiator_user_id = ?
+         ORDER BY updated_at DESC
+         LIMIT ?`
+      )
+      .all(initiatorUserId, limit)
+      .map((row) => parseIntentRow(row));
+  }
+
+  listRecentSceneHomeEntries(limit = 8) {
+    const rows = this.db
+      .prepare(
+        `SELECT
+            targets.id,
+            targets.scene_key,
+            targets.title,
+            targets.location_label,
+            targets.scene_tags_json,
+            targets.last_scanned_at,
+            feeds.scan_target_id,
+            feeds.summary_card_json,
+            feeds.hot_take_cards_json,
+            feeds.risk_cards_json,
+            feeds.clusters_json,
+            feeds.moderation_json,
+            feeds.expires_at,
+            feeds.updated_at,
+            (
+              SELECT COUNT(*)
+              FROM scene_scan_events
+              WHERE scene_key = targets.scene_key
+            ) AS scan_count,
+            (
+              SELECT COUNT(*)
+              FROM scene_agent_presence
+              WHERE scene_key = targets.scene_key
+            ) AS active_agent_count,
+            (
+              SELECT COUNT(*)
+              FROM social_intents
+              WHERE scene_key = targets.scene_key
+            ) AS intent_count
+         FROM scan_targets AS targets
+         LEFT JOIN scene_feeds AS feeds ON feeds.scene_key = targets.scene_key
+         ORDER BY targets.last_scanned_at DESC
+         LIMIT ?`
+      )
+      .all(limit);
+
+    return rows.map((row) => ({
+      id: row.id,
+      sceneKey: row.scene_key,
+      title: row.title,
+      locationLabel: row.location_label,
+      sceneTags: fromJson(row.scene_tags_json, []),
+      scanTargetId: row.scan_target_id ?? row.id,
+      route:
+        row.scan_target_id ?? row.id
+          ? `sparelife://scene/discussion?scene_key=${encodeURIComponent(row.scene_key)}&scan_target_id=${encodeURIComponent(row.scan_target_id ?? row.id)}`
+          : null,
+      summaryCard: fromJson(row.summary_card_json, {}),
+      hotTakeCards: fromJson(row.hot_take_cards_json, []),
+      riskCards: fromJson(row.risk_cards_json, []),
+      clusters: fromJson(row.clusters_json, []),
+      moderation: fromJson(row.moderation_json, {}),
+      expiresAt: row.expires_at,
+      updatedAt: row.updated_at,
+      lastScannedAt: row.last_scanned_at,
+      scanCount: Number(row.scan_count ?? 0),
+      activeAgentCount: Number(row.active_agent_count ?? 0),
+      intentCount: Number(row.intent_count ?? 0)
+    }));
   }
 
   logScanEvent({ sceneKey, scanTargetId, channel, sourceType, rawCode, usedCache, nowIso }) {

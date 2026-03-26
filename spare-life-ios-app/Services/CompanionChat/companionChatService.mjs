@@ -457,19 +457,23 @@ export function buildConversationContext({
   relationship = null,
   mask = null,
   rituals = [],
-  memories = []
+  memories = [],
+  messages = []
 }) {
+  const recentAssistantMessage = [...messages]
+    .reverse()
+    .find((message) => ['self_agent', 'counterpart_agent', 'tool_agent'].includes(message.actorRole));
+  const agentSummary = recentAssistantMessage?.content
+    ? clipText(recentAssistantMessage.content, 100)
+    : relationship?.latestSummary ??
+      group?.summary ??
+      collapseMemoryLayers(memories)[0]?.summary ??
+      conversation.lastMessagePreview ??
+      '这段关系的上下文还在继续积累。';
+
   return {
     conversation,
     contextCards: [
-      contact
-        ? {
-            cardType: 'mask',
-            title: '对人面具',
-            route: buildMaskRoute(contact.id),
-            payload: mask
-          }
-        : null,
       contact
         ? {
             cardType: 'relationship',
@@ -478,11 +482,30 @@ export function buildConversationContext({
             payload: relationship
           }
         : null,
+      contact
+        ? {
+            cardType: 'mask',
+            title: '对人面具',
+            route: buildMaskRoute(contact.id),
+            payload: mask
+          }
+        : null,
       {
         cardType: 'memory',
         title: group ? '群上下文摘要' : '跨会话记忆',
         route: conversation.route,
         payload: collapseMemoryLayers(memories)
+      },
+      {
+        cardType: 'agent_summary',
+        title: 'Agent 摘要',
+        route: conversation.route,
+        payload: {
+          summary: agentSummary,
+          sourceMessageId: recentAssistantMessage?.id ?? null,
+          unreadCount: conversation.unreadCount,
+          relationshipLevel: relationship?.level ?? null
+        }
       },
       rituals.length
         ? {

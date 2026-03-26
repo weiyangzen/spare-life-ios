@@ -335,7 +335,8 @@ export class CompanionChatExperienceUseCase {
         relationship,
         mask,
         rituals,
-        memories
+        memories,
+        messages
       }),
       messages,
       participants,

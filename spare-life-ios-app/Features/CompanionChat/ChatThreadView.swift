@@ -19,6 +19,8 @@ final class ChatThreadStore: ObservableObject {
     @Published var showContactMask = false
     @Published var showRelationship = false
     @Published var showQuadRole = false
+    @Published var showGroupPlay = false
+    @Published var showCrossSessionMemory = false
 
     init(thread: ConversationThread) {
         self.thread = thread
@@ -153,6 +155,14 @@ struct ChatThreadView: View {
             QuadRoleChatView(thread: thread)
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $store.showCrossSessionMemory) {
+            CrossSessionMemoryView(thread: thread)
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $store.showGroupPlay) {
+            GroupAgentPlayView(thread: thread)
+                .presentationDragIndicator(.visible)
+        }
     }
 
     // MARK: - Toolbar
@@ -166,6 +176,14 @@ struct ChatThreadView: View {
                 }
                 Button { store.showRelationship = true } label: {
                     Label("关系养成", systemImage: "heart.circle.fill")
+                }
+                Button { store.showCrossSessionMemory = true } label: {
+                    Label("跨会话记忆", systemImage: "brain")
+                }
+                if thread.kind == .group {
+                    Button { store.showGroupPlay = true } label: {
+                        Label("群聊玩法", systemImage: "person.3.fill")
+                    }
                 }
                 Button { store.showQuadRole = true } label: {
                     Label("开启四人场", systemImage: "person.3.fill")
@@ -199,6 +217,33 @@ struct ChatThreadView: View {
                         .padding(.horizontal, Spacing.sm)
                         .padding(.vertical, Spacing.xs)
                         .background(Color.blue.opacity(0.10), in: Capsule())
+                }
+
+                // Cross-session continuity entry
+                Button {
+                    store.showCrossSessionMemory = true
+                } label: {
+                    Label("记忆连续性", systemImage: "brain")
+                        .font(.spareMicro)
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, Spacing.xs)
+                        .background(Color.cardBackground, in: Capsule())
+                }
+                .buttonStyle(.plain)
+
+                if thread.kind == .group {
+                    Button {
+                        store.showGroupPlay = true
+                    } label: {
+                        Label("群聊玩法", systemImage: "person.3.fill")
+                            .font(.spareMicro)
+                            .foregroundColor(.primary)
+                            .padding(.horizontal, Spacing.sm)
+                            .padding(.vertical, Spacing.xs)
+                            .background(Color.cardBackground, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 // Agent aux toggle

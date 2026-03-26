@@ -122,40 +122,73 @@ struct MyProfileView: View {
 private struct ProfileScrollView: View {
     @ObservedObject var store: MyProfileStore
     let profile: UserProfile
+    @StateObject private var scrollState = WaterfallScrollState()
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 0) {
-                ProfileHeroSection(store: store, profile: profile)
-                    .padding(.bottom, Spacing.lg)
+        ScrollViewReader { proxy in
+            ZStack(alignment: .bottomTrailing) {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        // Scroll offset tracker + anchor
+                        GeometryReader { geo in
+                            Color.clear.preference(
+                                key: ProfileScrollOffsetKey.self,
+                                value: geo.frame(in: .named("profileScroll")).minY
+                            )
+                        }
+                        .frame(height: 0)
+                        .id("profile_top")
 
-                VStack(spacing: Spacing.md) {
-                    statsRow
+                        ProfileHeroSection(store: store, profile: profile)
+                            .padding(.bottom, Spacing.lg)
 
-                    if let avatar = store.avatarProfile {
-                        AvatarPublicProfileCard(avatar: avatar) {
-                            store.editingAvatar = true
+                        VStack(spacing: Spacing.md) {
+                            statsRow
+
+                            if let avatar = store.avatarProfile {
+                                AvatarPublicProfileCard(avatar: avatar) {
+                                    store.editingAvatar = true
+                                }
+                            }
+
+                            // Feature cards in waterfall grid – avoids degenerating
+                            // into a plain settings page (blueprint §7 line:1154).
+                            featureCardGrid
+
+                            actionButtons
+                        }
+                        .padding(.horizontal, Spacing.lg)
+
+                        // Cross-domain discover section – demonstrates mixed card
+                        // rendering with FeedSorter + FeedKindFilterBar (line:1151).
+                        DiscoverMixedFeedSection(
+                            cards: DiscoverMixedFeedDemo.sampleCards()
+                        )
+                        .padding(.top, Spacing.xl)
+                        .padding(.bottom, Spacing.xxxl + 32)
+                    }
+                }
+                .coordinateSpace(name: "profileScroll")
+                .onPreferenceChange(ProfileScrollOffsetKey.self) { offset in
+                    scrollState.offsetY = offset
+                    scrollState.isAtTop = offset > -40
+                }
+                .refreshable { store.reload() }
+
+                // Scroll-to-top FAB
+                if !scrollState.isAtTop {
+                    ScrollToTopButton {
+                        withAnimation(.spareSpring) {
+                            proxy.scrollTo("profile_top", anchor: .top)
                         }
                     }
-
-                    // Feature cards in waterfall grid – avoids degenerating
-                    // into a plain settings page (blueprint §7 line:1154).
-                    featureCardGrid
-
-                    actionButtons
+                    .padding(.trailing, Spacing.lg)
+                    .padding(.bottom, Spacing.xl)
+                    .transition(.scale.combined(with: .opacity))
                 }
-                .padding(.horizontal, Spacing.lg)
-
-                // Cross-domain discover section – demonstrates mixed card
-                // rendering with FeedSorter + FeedKindFilterBar (line:1151).
-                DiscoverMixedFeedSection(
-                    cards: DiscoverMixedFeedDemo.sampleCards()
-                )
-                .padding(.top, Spacing.xl)
-                .padding(.bottom, Spacing.xxxl + 32)
             }
+            .animation(.spareSpring, value: scrollState.isAtTop)
         }
-        .refreshable { store.reload() }
         .sheet(isPresented: $store.editingProfile) {
             EditProfileSheet(profile: profile)
                 .presentationDragIndicator(.visible)
@@ -317,6 +350,15 @@ private struct ProfileScrollView: View {
     private func daysSince(_ date: Date) -> String {
         let days = Calendar.current.dateComponents([.day], from: date, to: .now).day ?? 0
         return "\(days)"
+    }
+}
+
+// MARK: - Scroll Offset Key
+
+private struct ProfileScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 

@@ -7,6 +7,7 @@ import SwiftUI
 
 struct MasterHomeView: View {
     @StateObject private var store = MasterExperienceStore()
+    @StateObject private var scrollState = WaterfallScrollState()
     @State private var sourceSheetPresented = false
 
     var body: some View {
@@ -228,45 +229,77 @@ struct MasterHomeView: View {
                 }
             }
         } else {
-            ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(spacing: 0) {
-                    VStack(spacing: Spacing.md) {
-                        ReadOnlyCatalogBanner()
+            ScrollViewReader { proxy in
+                ZStack(alignment: .bottomTrailing) {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        LazyVStack(spacing: 0) {
+                            // Scroll offset tracker + anchor
+                            GeometryReader { geo in
+                                Color.clear.preference(
+                                    key: MasterScrollOffsetKey.self,
+                                    value: geo.frame(in: .named("masterFeedScroll")).minY
+                                )
+                            }
+                            .frame(height: 0)
+                            .id("master_feed_top")
 
-                        if store.showCacheBanner {
-                            CatalogStateBanner(
-                                icon: store.catalogSourceMode.icon,
-                                title: store.catalogSourceMode.title,
-                                message: store.degradedMessage ?? "当前展示本地缓存目录。"
+                            VStack(spacing: Spacing.md) {
+                                ReadOnlyCatalogBanner()
+
+                                if store.showCacheBanner {
+                                    CatalogStateBanner(
+                                        icon: store.catalogSourceMode.icon,
+                                        title: store.catalogSourceMode.title,
+                                        message: store.degradedMessage ?? "当前展示本地缓存目录。"
+                                    )
+                                }
+                            }
+                            .padding(.horizontal, Spacing.lg)
+                            .padding(.top, Spacing.md)
+
+                            FeedSectionHeader(
+                                title: "大师目录",
+                                subtitle: "\(store.homeCards.count) 位大师"
                             )
+                            .padding(.top, Spacing.md)
+                            .padding(.bottom, Spacing.xs)
+
+                            WaterfallLayout(columns: 2, spacing: Spacing.md) {
+                                ForEach(store.homeCards) { card in
+                                    homeCard(for: card)
+                                        .transition(.asymmetric(
+                                            insertion: .scale(scale: 0.92).combined(with: .opacity),
+                                            removal: .opacity
+                                        ))
+                                }
+                            }
+                            .padding(.horizontal, Spacing.lg)
+                            .padding(.top, Spacing.xs)
+                            .padding(.bottom, Spacing.xxxl)
                         }
                     }
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.top, Spacing.md)
-
-                    FeedSectionHeader(
-                        title: "大师目录",
-                        subtitle: "\(store.homeCards.count) 位大师"
-                    )
-                    .padding(.top, Spacing.md)
-                    .padding(.bottom, Spacing.xs)
-
-                    WaterfallLayout(columns: 2, spacing: Spacing.md) {
-                        ForEach(store.homeCards) { card in
-                            homeCard(for: card)
-                                .transition(.asymmetric(
-                                    insertion: .scale(scale: 0.92).combined(with: .opacity),
-                                    removal: .opacity
-                                ))
-                        }
+                    .coordinateSpace(name: "masterFeedScroll")
+                    .onPreferenceChange(MasterScrollOffsetKey.self) { offset in
+                        scrollState.offsetY = offset
+                        scrollState.isAtTop = offset > -40
                     }
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.top, Spacing.xs)
-                    .padding(.bottom, Spacing.xxxl)
+                    .refreshable {
+                        await store.refreshCatalog()
+                    }
+
+                    // Scroll-to-top FAB
+                    if !scrollState.isAtTop {
+                        ScrollToTopButton {
+                            withAnimation(.spareSpring) {
+                                proxy.scrollTo("master_feed_top", anchor: .top)
+                            }
+                        }
+                        .padding(.trailing, Spacing.lg)
+                        .padding(.bottom, Spacing.xl)
+                        .transition(.scale.combined(with: .opacity))
+                    }
                 }
-            }
-            .refreshable {
-                await store.refreshCatalog()
+                .animation(.spareSpring, value: scrollState.isAtTop)
             }
         }
     }
@@ -298,6 +331,15 @@ struct MasterHomeView: View {
                 store.presentConsultation()
             }
         }
+    }
+}
+
+// MARK: - Scroll Offset Key
+
+private struct MasterScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 

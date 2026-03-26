@@ -7,6 +7,7 @@ import SwiftUI
 
 struct EarnSocialHomeView: View {
     @StateObject private var store = EarnSocialExperienceStore()
+    @StateObject private var scrollState = WaterfallScrollState()
 
     var body: some View {
         NavigationStack {
@@ -25,21 +26,53 @@ struct EarnSocialHomeView: View {
                 VStack(spacing: 0) {
                     topBar
 
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: Spacing.lg) {
-                            heroCard
+                    ScrollViewReader { proxy in
+                        ZStack(alignment: .bottomTrailing) {
+                            ScrollView(.vertical, showsIndicators: false) {
+                                VStack(alignment: .leading, spacing: Spacing.lg) {
+                                    // Scroll offset tracker + anchor
+                                    GeometryReader { geo in
+                                        Color.clear.preference(
+                                            key: EarnSocialScrollOffsetKey.self,
+                                            value: geo.frame(in: .named("earnFeedScroll")).minY
+                                        )
+                                    }
+                                    .frame(height: 0)
+                                    .id("earn_feed_top")
 
-                            laneChipStrip
+                                    heroCard
 
-                            quickFilterStrip
+                                    laneChipStrip
 
-                            feedBody
+                                    quickFilterStrip
+
+                                    feedBody
+                                }
+                                .padding(.horizontal, Spacing.lg)
+                                .padding(.bottom, Spacing.xxxl)
+                            }
+                            .coordinateSpace(name: "earnFeedScroll")
+                            .onPreferenceChange(EarnSocialScrollOffsetKey.self) { offset in
+                                scrollState.offsetY = offset
+                                scrollState.isAtTop = offset > -40
+                            }
+                            .refreshable {
+                                await store.refresh()
+                            }
+
+                            // Scroll-to-top FAB
+                            if !scrollState.isAtTop {
+                                ScrollToTopButton {
+                                    withAnimation(.spareSpring) {
+                                        proxy.scrollTo("earn_feed_top", anchor: .top)
+                                    }
+                                }
+                                .padding(.trailing, Spacing.lg)
+                                .padding(.bottom, Spacing.xl)
+                                .transition(.scale.combined(with: .opacity))
+                            }
                         }
-                        .padding(.horizontal, Spacing.lg)
-                        .padding(.bottom, Spacing.xxxl)
-                    }
-                    .refreshable {
-                        await store.refresh()
+                        .animation(.spareSpring, value: scrollState.isAtTop)
                     }
                 }
             }
@@ -437,6 +470,15 @@ struct EarnSocialHomeView: View {
 }
 
 // MARK: - Home Components
+
+// MARK: - Scroll Offset Key
+
+private struct EarnSocialScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
 
 private struct EarnLaneChipButton: View {
     let chip: EarnSocialLaneChip

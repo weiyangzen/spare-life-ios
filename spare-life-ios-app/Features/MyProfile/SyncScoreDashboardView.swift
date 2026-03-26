@@ -267,7 +267,7 @@ private struct SyncGaugeCard: View {
 private struct ScoreInterpretationBanner: View {
     let score: Int
 
-    private var (icon, label, color): (String, String, Color) {
+    private var interpretation: (icon: String, label: String, color: Color) {
         switch score {
         case 85...:   return ("star.fill",             "非常接近我本人",   .green)
         case 70..<85: return ("checkmark.circle.fill", "大部分时间像我",   .blue)
@@ -278,16 +278,16 @@ private struct ScoreInterpretationBanner: View {
 
     var body: some View {
         HStack(spacing: Spacing.sm) {
-            Image(systemName: icon)
-                .foregroundColor(color)
-            Text(label)
+            Image(systemName: interpretation.icon)
+                .foregroundColor(interpretation.color)
+            Text(interpretation.label)
                 .font(.spareCaption)
-                .foregroundColor(color)
+                .foregroundColor(interpretation.color)
             Spacer()
         }
         .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.sm)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+        .background(interpretation.color.opacity(0.10), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
     }
 }
 

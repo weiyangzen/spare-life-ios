@@ -21,7 +21,7 @@ private let disclosureLabels = ["不透露", "极少", "适度", "较多", "全�
 final class ContactMaskStore: ObservableObject {
     @Published var config: ContactMaskConfig
     @Published private(set) var isSaving = false
-    @Published private(set) var saveSuccess = false
+    @Published var saveSuccess = false
 
     init(contactID: String, contactName: String) {
         config = ContactMaskConfig(

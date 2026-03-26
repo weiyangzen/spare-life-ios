@@ -397,13 +397,13 @@ struct OpenClawPluginView: View {
         VStack(spacing: Spacing.xs) {
             Image(systemName: icon)
                 .font(.title3)
-                .foregroundStyle(color)
+                .foregroundColor(color)
             Text(value)
                 .font(.spareTitle2)
-                .foregroundStyle(.primary)
+                .foregroundColor(.primary)
             Text(label)
                 .font(.spareCaption)
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, Spacing.md)
@@ -427,7 +427,7 @@ struct OpenClawPluginView: View {
                             .background(
                                 Capsule().fill(store.selectedTab == tab ? Color.spareYellow : Color.chipUnselected)
                             )
-                            .foregroundStyle(store.selectedTab == tab ? Color.spareDark : .secondary)
+                            .foregroundColor(store.selectedTab == tab ? Color.spareDark : .secondary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -482,7 +482,7 @@ struct OpenClawPluginView: View {
                         .frame(width: 40, height: 40)
                     Image(systemName: adapter.icon)
                         .font(.body)
-                        .foregroundStyle(adapter.accentColor)
+                        .foregroundColor(adapter.accentColor)
                 }
 
                 // Name + status
@@ -490,14 +490,14 @@ struct OpenClawPluginView: View {
                     HStack(spacing: Spacing.xs) {
                         Text(adapter.name)
                             .font(.spareBodySB)
-                            .foregroundStyle(.primary)
+                            .foregroundColor(.primary)
                         Circle()
                             .fill(adapter.isEnabled ? Color.green : Color.gray)
                             .frame(width: 6, height: 6)
                     }
                     Text("入 \(adapter.inboundCount) · 出 \(adapter.outboundCount)")
                         .font(.spareCaption)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
 
                 Spacer()
@@ -509,7 +509,7 @@ struct OpenClawPluginView: View {
 
                 Image(systemName: "chevron.right")
                     .font(.spareCaption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundColor(.gray)
             }
             .padding(Spacing.md)
             .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: CornerRadius.md))
@@ -565,28 +565,28 @@ struct OpenClawPluginView: View {
             HStack(spacing: Spacing.sm) {
                 Image(systemName: event.direction.icon)
                     .font(.caption)
-                    .foregroundStyle(event.direction.color)
+                    .foregroundColor(event.direction.color)
                 Text(event.adapterName)
                     .font(.spareCaptionSB)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                 Spacer()
                 Image(systemName: event.status.icon)
                     .font(.caption)
-                    .foregroundStyle(event.status.color)
+                    .foregroundColor(event.status.color)
                 Text(event.status.rawValue)
                     .font(.spareMicro)
-                    .foregroundStyle(event.status.color)
+                    .foregroundColor(event.status.color)
             }
             Text(event.eventType)
                 .font(.spareBodySB)
-                .foregroundStyle(.primary)
+                .foregroundColor(.primary)
             Text(event.payloadPreview)
                 .font(.spareCaption)
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
                 .lineLimit(2)
             Text(event.timestamp, style: .relative)
                 .font(.spareMicro)
-                .foregroundStyle(.tertiary)
+                .foregroundColor(.gray)
         }
         .padding(Spacing.md)
         .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: CornerRadius.md))
@@ -619,7 +619,7 @@ struct OpenClawPluginView: View {
             HStack {
                 Text(schema.name)
                     .font(.spareBodySB)
-                    .foregroundStyle(.primary)
+                    .foregroundColor(.primary)
                 Spacer()
                 PillTag(label: "v\(schema.version)", color: .blue)
             }
@@ -627,14 +627,14 @@ struct OpenClawPluginView: View {
             HStack(spacing: Spacing.lg) {
                 Label("\(schema.fieldCount) 字段", systemImage: "list.bullet")
                     .font(.spareCaption)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                 Label("\(schema.validationsPassed) 通过", systemImage: "checkmark")
                     .font(.spareCaption)
-                    .foregroundStyle(.green)
+                    .foregroundColor(.green)
                 if schema.validationsFailed > 0 {
                     Label("\(schema.validationsFailed) 失败", systemImage: "xmark")
                         .font(.spareCaption)
-                        .foregroundStyle(.red)
+                        .foregroundColor(.red)
                 }
             }
 
@@ -655,7 +655,7 @@ struct OpenClawPluginView: View {
                 .frame(height: 6)
                 Text(String(format: "%.1f%% 验证通过率", rate * 100))
                     .font(.spareMicro)
-                    .foregroundStyle(.tertiary)
+                    .foregroundColor(.gray)
             }
         }
         .padding(Spacing.md)
@@ -693,13 +693,13 @@ struct OpenClawPluginView: View {
                     .frame(width: 40, height: 40)
                 Image(systemName: handler.handlerType.icon)
                     .font(.body)
-                    .foregroundStyle(handler.isActive ? .spareYellow : .gray)
+                    .foregroundColor(handler.isActive ? .spareYellow : .gray)
             }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(handler.name)
                     .font(.spareBodySB)
-                    .foregroundStyle(.primary)
+                    .foregroundColor(.primary)
                     .lineLimit(1)
                 HStack(spacing: Spacing.sm) {
                     PillTag(label: handler.handlerType.rawValue, color: .spareYellow)
@@ -715,10 +715,10 @@ struct OpenClawPluginView: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(handler.processedCount)")
                     .font(.spareBodySB)
-                    .foregroundStyle(.primary)
+                    .foregroundColor(.primary)
                 Text("\(handler.avgLatencyMs)ms · \(String(format: "%.1f%%", handler.errorRate * 100)) err")
                     .font(.spareMicro)
-                    .foregroundStyle(handler.errorRate > 0.01 ? .red : .secondary)
+                    .foregroundColor(handler.errorRate > 0.01 ? .red : .secondary)
             }
         }
         .padding(Spacing.md)
@@ -737,7 +737,7 @@ struct OpenClawPluginView: View {
                 .background(
                     Capsule().fill(selected ? Color.spareYellow : Color.chipUnselected)
                 )
-                .foregroundStyle(selected ? Color.spareDark : .secondary)
+                .foregroundColor(selected ? Color.spareDark : .secondary)
         }
         .buttonStyle(.plain)
     }
@@ -785,7 +785,7 @@ struct AdapterDetailSheet: View {
                     .frame(width: 56, height: 56)
                 Image(systemName: adapter.icon)
                     .font(.title2)
-                    .foregroundStyle(adapter.accentColor)
+                    .foregroundColor(adapter.accentColor)
             }
 
             VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -797,14 +797,14 @@ struct AdapterDetailSheet: View {
                         .frame(width: 8, height: 8)
                     Text(adapter.isEnabled ? "运行中" : "已停用")
                         .font(.spareCaption)
-                        .foregroundStyle(adapter.isEnabled ? .green : .gray)
+                        .foregroundColor(adapter.isEnabled ? .green : .gray)
                 }
                 Text("最近活跃: ")
                     .font(.spareCaption)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                 + Text(adapter.lastActiveAt, style: .relative)
                     .font(.spareCaption)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
             }
 
             Spacer()
@@ -834,13 +834,13 @@ struct AdapterDetailSheet: View {
         VStack(spacing: Spacing.xs) {
             Image(systemName: icon)
                 .font(.title3)
-                .foregroundStyle(color)
+                .foregroundColor(color)
             Text(value)
                 .font(.spareTitle3)
-                .foregroundStyle(.primary)
+                .foregroundColor(.primary)
             Text(label)
                 .font(.spareMicro)
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, Spacing.md)
@@ -871,7 +871,7 @@ struct AdapterDetailSheet: View {
         HStack(spacing: Spacing.md) {
             Image(systemName: event.direction.icon)
                 .font(.body)
-                .foregroundStyle(event.direction.color)
+                .foregroundColor(event.direction.color)
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -882,11 +882,11 @@ struct AdapterDetailSheet: View {
                     Spacer()
                     Image(systemName: event.status.icon)
                         .font(.caption)
-                        .foregroundStyle(event.status.color)
+                        .foregroundColor(event.status.color)
                 }
                 Text(event.payloadPreview)
                     .font(.spareCaption)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                     .lineLimit(1)
             }
         }

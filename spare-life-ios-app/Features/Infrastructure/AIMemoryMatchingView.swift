@@ -7,7 +7,7 @@ import SwiftUI
 
 // MARK: - Models
 
-struct MemoryEntry: Identifiable {
+struct AIMemoryEntry: Identifiable {
     let id: String
     let type: MemoryType
     let content: String
@@ -85,11 +85,11 @@ enum AIMemoryLoadState {
 @MainActor
 final class AIMemoryMatchingStore: ObservableObject {
     @Published var loadState: AIMemoryLoadState = .idle
-    @Published var memories: [MemoryEntry] = []
+    @Published var memories: [AIMemoryEntry] = []
     @Published var recentMatches: [IntentMatch] = []
     @Published var promptTemplates: [PromptTemplate] = []
     @Published var selectedTab: Tab = .memories
-    @Published var filterType: MemoryEntry.MemoryType? = nil
+    @Published var filterType: AIMemoryEntry.MemoryType? = nil
     @Published var totalRecallRequests: Int = 0
     @Published var avgRecallLatencyMs: Double = 0
     @Published var recallHitRate: Double = 0
@@ -101,7 +101,7 @@ final class AIMemoryMatchingStore: ObservableObject {
         case prompts   = "Prompt"
     }
 
-    var filteredMemories: [MemoryEntry] {
+    var filteredMemories: [AIMemoryEntry] {
         guard let type = filterType else { return memories }
         return memories.filter { $0.type == type }
     }
@@ -119,14 +119,14 @@ final class AIMemoryMatchingStore: ObservableObject {
             memories = [
                 .init(id: "mem1", type: .conversation, content: "用户与小明讨论了周末爬山的计划，提到膝盖不太好", source: "聊天:小明", createdAt: date(-0.5), relevanceScore: 0.92, hasEmbedding: true),
                 .init(id: "mem2", type: .emotion, content: "用户在收到加薪通知后情绪积极，表达了对团队的感谢", source: "聊天:工作群", createdAt: date(-1), relevanceScore: 0.88, hasEmbedding: true),
-                .init(id: "mem3", type: .action, content: "用户完成了"每日冥想 10 分钟"任务，连续 7 天", source: "成长任务", createdAt: date(-0.3), relevanceScore: 0.95, hasEmbedding: true),
+                .init(id: "mem3", type: .action, content: "用户完成了「每日冥想 10 分钟」任务，连续 7 天", source: "成长任务", createdAt: date(-0.3), relevanceScore: 0.95, hasEmbedding: true),
                 .init(id: "mem4", type: .preference, content: "用户偏好晚上 9 点后不接收消息通知", source: "设置", createdAt: date(-5), relevanceScore: 0.76, hasEmbedding: true),
                 .init(id: "mem5", type: .conversation, content: "用户咨询了李大师关于职业规划的建议", source: "大师:李大师", createdAt: date(-2), relevanceScore: 0.84, hasEmbedding: true),
                 .init(id: "mem6", type: .emotion, content: "用户对陌生社交匹配结果表达了期待", source: "赚闲能:匹配", createdAt: date(-0.8), relevanceScore: 0.79, hasEmbedding: true),
                 .init(id: "mem7", type: .action, content: "用户在技能问答赛道发布了 Python 教学意图", source: "赚闲能:意图", createdAt: date(-3), relevanceScore: 0.91, hasEmbedding: true),
-                .init(id: "mem8", type: .preference, content: "用户将分身面具设为"轻松幽默"风格", source: "分身设置", createdAt: date(-10), relevanceScore: 0.68, hasEmbedding: true),
+                .init(id: "mem8", type: .preference, content: "用户将分身面具设为「轻松幽默」风格", source: "分身设置", createdAt: date(-10), relevanceScore: 0.68, hasEmbedding: true),
                 .init(id: "mem9", type: .conversation, content: "用户和张三在四人场聊天中讨论了旅行目的地", source: "四人场:张三", createdAt: date(-1.5), relevanceScore: 0.82, hasEmbedding: false),
-                .init(id: "mem10", type: .action, content: "用户与小红完成了"共同目标:读完一本书"的羁绊任务", source: "羁绊:小红", createdAt: date(-4), relevanceScore: 0.86, hasEmbedding: true),
+                .init(id: "mem10", type: .action, content: "用户与小红完成了「共同目标:读完一本书」的羁绊任务", source: "羁绊:小红", createdAt: date(-4), relevanceScore: 0.86, hasEmbedding: true),
             ]
 
             recentMatches = [
@@ -296,7 +296,7 @@ private struct MemoriesTab: View {
                     FilterChip(label: "全部", isSelected: store.filterType == nil) {
                         withAnimation(.spareEase) { store.filterType = nil }
                     }
-                    ForEach(MemoryEntry.MemoryType.allCases) { type in
+                    ForEach(AIMemoryEntry.MemoryType.allCases) { type in
                         FilterChip(
                             label: type.rawValue,
                             icon: type.icon,
@@ -318,7 +318,7 @@ private struct MemoriesTab: View {
                 .frame(minHeight: 200)
             } else {
                 ForEach(store.filteredMemories) { memory in
-                    MemoryEntryRow(memory: memory)
+                    AIMemoryEntryRow(memory: memory)
                 }
             }
         }
@@ -350,8 +350,8 @@ private struct FilterChip: View {
     }
 }
 
-private struct MemoryEntryRow: View {
-    let memory: MemoryEntry
+private struct AIMemoryEntryRow: View {
+    let memory: AIMemoryEntry
 
     var body: some View {
         HStack(alignment: .top, spacing: Spacing.md) {

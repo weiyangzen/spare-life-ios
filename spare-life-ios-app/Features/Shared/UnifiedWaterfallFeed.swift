@@ -40,6 +40,7 @@ struct UnifiedWaterfallFeed<Card: Identifiable, CardView: View>: View {
     var emptyActionLabel: String? = nil
     var emptyAction: (() -> Void)? = nil
     var onRefresh: (() async -> Void)? = nil
+    var onRetry: (() -> Void)? = nil
     var skeletonCount: Int = 6
     @ViewBuilder var cardView: (Card) -> CardView
 
@@ -65,16 +66,19 @@ struct UnifiedWaterfallFeed<Card: Identifiable, CardView: View>: View {
 
     private var skeletonBody: some View {
         let heights: [CGFloat] = [130, 175, 120, 165, 195, 140, 160, 115]
-        return ScrollView(.vertical, showsIndicators: false) {
-            WaterfallLayout(columns: 2, spacing: Spacing.md) {
-                ForEach(0..<skeletonCount, id: \.self) { i in
-                    SkeletonCard(height: heights[i % heights.count])
+        return GeometryReader { proxy in
+            let cols = WaterfallColumns.count(for: proxy.size.width)
+            ScrollView(.vertical, showsIndicators: false) {
+                ResponsiveMasonryLayout(columns: cols, spacing: Spacing.md) {
+                    ForEach(0..<skeletonCount, id: \.self) { i in
+                        SkeletonCard(height: heights[i % heights.count])
+                    }
                 }
+                .padding(.horizontal, Spacing.lg)
+                .padding(.top, Spacing.sm)
             }
-            .padding(.horizontal, Spacing.lg)
-            .padding(.top, Spacing.sm)
+            .allowsHitTesting(false)
         }
-        .allowsHitTesting(false)
     }
 
     // MARK: Empty
@@ -116,9 +120,11 @@ struct UnifiedWaterfallFeed<Card: Identifiable, CardView: View>: View {
 
     private var loadedBody: some View {
         GeometryReader { outer in
+            let cols = WaterfallColumns.count(for: outer.size.width)
+            let colWidth = columnWidth(proxy: outer, columns: cols)
+
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
-                    // Scroll tracking anchor
                     GeometryReader { inner in
                         Color.clear.preference(
                             key: ScrollOffsetKey.self,
@@ -127,10 +133,10 @@ struct UnifiedWaterfallFeed<Card: Identifiable, CardView: View>: View {
                     }
                     .frame(height: 0)
 
-                    WaterfallLayout(columns: 2, spacing: Spacing.md) {
+                    ResponsiveMasonryLayout(columns: cols, spacing: Spacing.md) {
                         ForEach(cards) { card in
                             cardView(card)
-                                .frame(width: columnWidth(proxy: outer))
+                                .frame(width: colWidth)
                         }
                     }
                     .padding(.horizontal, Spacing.lg)
@@ -148,18 +154,18 @@ struct UnifiedWaterfallFeed<Card: Identifiable, CardView: View>: View {
         }
     }
 
-    private func columnWidth(proxy: GeometryProxy) -> CGFloat {
+    private func columnWidth(proxy: GeometryProxy, columns: Int = 2) -> CGFloat {
         let total = proxy.size.width
-        let spacing = Spacing.md
         let horizontalPadding = Spacing.lg * 2
-        return (total - horizontalPadding - spacing) / 2
+        let totalSpacing = Spacing.md * CGFloat(columns - 1)
+        return max(120, floor((total - horizontalPadding - totalSpacing) / CGFloat(columns)))
     }
 }
 
 // MARK: - Scroll Offset Preference Key
 
 private struct ScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    nonisolated(unsafe) static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }

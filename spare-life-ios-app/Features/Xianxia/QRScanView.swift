@@ -26,6 +26,8 @@ struct QRScanView: View {
                         cameraLayer
                     case .denied, .restricted:
                         permissionDeniedView
+                    @unknown default:
+                        permissionDeniedView
                     }
                 }
 
@@ -74,7 +76,7 @@ struct QRScanView: View {
             .toolbarBackground(.clear, for: .navigationBar)
         }
         .onAppear { vm.requestPermission() }
-        .onChange(of: vm.scannedCode) { _, code in
+        .onChange(of: vm.scannedCode) { code in
             guard let code, !vm.didScan else { return }
             let target = ScanTarget.parse(from: code)
             // If the QR code doesn't resolve to a valid spare-life scene, show error toast
@@ -138,7 +140,7 @@ struct QRScanView: View {
                 }
 
                 // Hint label
-                Text("将"龙虾码"对准框内")
+                Text("将「龙虾码」对准框内")
                     .font(.spareCaption)
                     .foregroundColor(.white.opacity(0.8))
                     .position(x: centerX, y: centerY + frameSize / 2 + 24)
@@ -328,7 +330,7 @@ private struct InvalidQRToast: View {
 // MARK: - Camera Preview (UIViewRepresentable)
 
 struct CameraPreviewRepresentable: UIViewRepresentable {
-    let session: AVCaptureSession
+    nonisolated(unsafe) let session: AVCaptureSession
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
@@ -356,7 +358,7 @@ final class QRScanViewModel: NSObject, ObservableObject, AVCaptureMetadataOutput
     @Published var showInvalidQRToast = false
     @Published var permissionState: AVAuthorizationStatus = .notDetermined
 
-    let captureSession = AVCaptureSession()
+    nonisolated(unsafe) let captureSession = AVCaptureSession()
     private var metadataOutput: AVCaptureMetadataOutput?
 
     func requestPermission() {
@@ -439,8 +441,8 @@ extension ScanTarget {
            let sceneID = url.pathComponents.dropFirst().first {
             let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
             let params = Dictionary(
-                uniqueKeysWithValues: (comps?.queryItems ?? []).compactMap {
-                    $0.value.map { ($0.name, $0) }
+                uniqueKeysWithValues: (comps?.queryItems ?? []).compactMap { item in
+                    item.value.map { (item.name, $0) }
                 }
             )
             let name = params["name"] ?? sceneID

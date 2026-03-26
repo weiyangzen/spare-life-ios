@@ -128,6 +128,7 @@ struct MaskToneOption: Identifiable, Hashable {
 }
 
 struct ContactMaskConfig: Identifiable, Hashable {
+    var id: String { contactID }
     let contactID: String
     var maskName: String
     var tone: String          // e.g. "professional", "casual", "warm"

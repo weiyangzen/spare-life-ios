@@ -252,7 +252,9 @@ final class GroupAgentPlayStore: ObservableObject {
         let visible = visibleMessages
         guard !visible.isEmpty else { return }
 
-        let headline = "\(selectedAgentRole.label)纪要 · \(Date(), format: .dateTime.hour().minute())"
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let headline = "\(selectedAgentRole.label)纪要 · \(formatter.string(from: Date()))"
         let summary = GroupSummaryRecord(
             id: UUID().uuidString,
             headline: headline,

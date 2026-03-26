@@ -1,11 +1,7 @@
 // MainTabView.swift
-// Spare Life – Root tab bar connecting all 4 home feeds
-// Blueprint §7 统一 UI · [UIUX] 4个首页双列瀑布流 (line:1150)
-// UIUX lane – slot 2
-//
-// This is the app's primary navigation container. Each tab presents a
-// unified dual-column waterfall feed with consistent scroll-to-top FAB,
-// loading/empty/error states, and card flow design.
+// Spare Life – Root tab bar with 5 buttons (center prominent)
+// Blueprint §7 统一 UI · 4个首页双列瀑布流 (line:1150)
+// Design: yellow (#FFCF12) + white, light mode only
 
 import SwiftUI
 import UIKit
@@ -34,10 +30,10 @@ enum MainTab: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .xianxia:    return "qrcode.viewfinder"
-        case .master:     return "graduationcap.fill"
+        case .master:     return "graduationcap"
         case .earnSocial: return "bolt.circle.fill"
-        case .messages:   return "message.fill"
-        case .myProfile:  return "person.crop.circle.fill"
+        case .messages:   return "message"
+        case .myProfile:  return "person.crop.circle"
         }
     }
 
@@ -50,6 +46,9 @@ enum MainTab: String, CaseIterable, Identifiable {
         case .myProfile:  return "person.crop.circle.fill"
         }
     }
+
+    /// The center tab (赚闲能) is the prominent one with a larger icon.
+    var isProminent: Bool { self == .earnSocial }
 }
 
 // MARK: - Main Tab View
@@ -78,23 +77,31 @@ struct MainTabView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            // Custom tab bar
+            // Custom floating tab bar
             if tabBarVisible {
                 SpareTabBar(
                     selectedTab: $selectedTab,
                     badges: badgeStore.badges
                 )
+                .padding(.horizontal, Spacing.md)
+                .padding(.bottom, bottomSafeArea > 0 ? bottomSafeArea - 8 : Spacing.sm)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
     }
+
+    private var bottomSafeArea: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes
+        let windowScene = scenes.first as? UIWindowScene
+        return windowScene?.windows.first?.safeAreaInsets.bottom ?? 0
+    }
 }
 
-// MARK: - Custom Tab Bar
+// MARK: - Glass-Style Tab Bar
 
-/// A custom tab bar styled with Spare Life design tokens.
-/// Uses spareYellow accent, card background, and spring animations.
+/// Floating tab bar with glass morphism, yellow accent, and a prominent center button.
+/// Inspired by alphane-mobile-ios GlassTabBarView pattern.
 private struct SpareTabBar: View {
     @Binding var selectedTab: MainTab
     var badges: [MainTab: Int]
@@ -105,12 +112,16 @@ private struct SpareTabBar: View {
                 tabButton(tab)
             }
         }
-        .padding(.horizontal, Spacing.sm)
-        .padding(.top, Spacing.sm)
-        .padding(.bottom, bottomSafeArea)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 8)
         .background(
-            Color(.secondarySystemGroupedBackground)
-                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: -4)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white.opacity(0.92))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(Color.spareYellow.opacity(0.18), lineWidth: 0.8)
+                )
+                .shadow(color: Color.black.opacity(0.10), radius: 20, y: 8)
         )
     }
 
@@ -119,46 +130,85 @@ private struct SpareTabBar: View {
         let badge = badges[tab] ?? 0
 
         return Button {
-            if selectedTab == tab { return }
+            guard selectedTab != tab else { return }
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             withAnimation(.spareSpring) {
                 selectedTab = tab
             }
         } label: {
-            VStack(spacing: Spacing.xxs) {
+            VStack(spacing: 3) {
                 ZStack(alignment: .topTrailing) {
-                    Image(systemName: isSelected ? tab.selectedIcon : tab.icon)
-                        .font(.system(size: 20, weight: isSelected ? .bold : .regular))
-                        .foregroundColor(isSelected ? .spareYellow : .secondary)
-                        .symbolEffect(.bounce, value: isSelected)
+                    if tab.isProminent {
+                        prominentIcon(tab, isSelected: isSelected)
+                    } else {
+                        regularIcon(tab, isSelected: isSelected)
+                    }
 
                     if badge > 0 {
-                        Text(badge > 99 ? "99+" : "\(badge)")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, badge > 9 ? 4 : 3)
-                            .padding(.vertical, 1)
-                            .background(Color.emotionNegative, in: Capsule())
-                            .offset(x: 10, y: -6)
+                        badgeView(badge)
+                            .offset(x: tab.isProminent ? 8 : 6, y: tab.isProminent ? -4 : -3)
                     }
                 }
-                .frame(height: 24)
 
                 Text(tab.label)
-                    .font(.system(size: 10, weight: isSelected ? .bold : .regular))
-                    .foregroundColor(isSelected ? .spareYellow : .secondary)
+                    .font(.system(size: 10, weight: isSelected ? .semibold : .medium))
+                    .foregroundColor(isSelected ? .spareYellow : Color(.systemGray))
+                    .lineLimit(1)
+
+                if !tab.isProminent {
+                    Circle()
+                        .fill(isSelected ? Color.spareYellow : Color.clear)
+                        .frame(width: 4, height: 4)
+                }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, Spacing.xs)
+            .padding(.vertical, 2)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
-    private var bottomSafeArea: CGFloat {
-        let scenes = UIApplication.shared.connectedScenes
-        let windowScene = scenes.first as? UIWindowScene
-        return windowScene?.windows.first?.safeAreaInsets.bottom ?? 0
+    // Regular tab icon
+    private func regularIcon(_ tab: MainTab, isSelected: Bool) -> some View {
+        Image(systemName: isSelected ? tab.selectedIcon : tab.icon)
+            .font(.system(size: 20, weight: .medium))
+            .foregroundColor(isSelected ? .spareYellow : Color(.systemGray))
+            .frame(width: 36, height: 36)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isSelected ? Color.spareYellow.opacity(0.12) : Color.clear)
+            )
+    }
+
+    // Prominent center tab icon (larger, gradient background)
+    private func prominentIcon(_ tab: MainTab, isSelected: Bool) -> some View {
+        Image(systemName: tab.icon)
+            .font(.system(size: 20, weight: .bold))
+            .foregroundColor(.white)
+            .frame(width: 44, height: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.spareYellow, Color(red: 1.0, green: 0.72, blue: 0.0)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            )
+            .opacity(isSelected ? 1.0 : 0.80)
+            .scaleEffect(isSelected ? 1.05 : 1.0)
+            .shadow(color: Color.spareYellow.opacity(isSelected ? 0.40 : 0.20), radius: isSelected ? 14 : 8, y: 4)
+            .animation(.spareSpring, value: isSelected)
+    }
+
+    private func badgeView(_ count: Int) -> some View {
+        Text(count > 99 ? "99+" : "\(count)")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundColor(.white)
+            .padding(.horizontal, count > 9 ? 4 : 3)
+            .padding(.vertical, 1)
+            .background(Capsule().fill(Color.emotionNegative))
     }
 }
 

@@ -85,7 +85,7 @@ final class DiscoverFeedStore: ObservableObject {
                 id: "d-sum-2", sortPriority: 50, pinnedAt: nil,
                 createdAt: now - 7200,
                 title: "周末读书会 · AI 讨论",
-                excerpt: "围绕"AI 社交的边界"展开了 42 条观点碰撞。",
+                excerpt: "围绕「AI 社交的边界」展开了 42 条观点碰撞。",
                 thumbnailSeed: 7, tag: nil
             )),
             .summary(SummaryFeedCard(
@@ -100,7 +100,7 @@ final class DiscoverFeedStore: ObservableObject {
             .person(PersonFeedCard(
                 id: "d-per-1", sortPriority: 80, pinnedAt: nil,
                 createdAt: now - 900,
-                name: "王阳明",
+                personName: "王阳明",
                 tagline: "心即理，知行合一",
                 traits: ["哲学", "修行", "领导力", "自省"],
                 actionLabel: "请教"
@@ -108,7 +108,7 @@ final class DiscoverFeedStore: ObservableObject {
             .person(PersonFeedCard(
                 id: "d-per-2", sortPriority: 60, pinnedAt: nil,
                 createdAt: now - 5400,
-                name: "芒格",
+                personName: "芒格",
                 tagline: "多元思维模型的践行者",
                 traits: ["投资", "理性", "跨学科"],
                 actionLabel: "对话"
@@ -116,7 +116,7 @@ final class DiscoverFeedStore: ObservableObject {
             .person(PersonFeedCard(
                 id: "d-per-3", sortPriority: 45, pinnedAt: nil,
                 createdAt: now - 18000,
-                name: "苏格拉底",
+                personName: "苏格拉底",
                 tagline: "未经审视的人生不值得过",
                 traits: ["辩证", "伦理", "提问"],
                 actionLabel: "提问"

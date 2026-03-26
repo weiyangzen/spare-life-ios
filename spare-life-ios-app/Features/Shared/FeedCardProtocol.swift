@@ -59,6 +59,13 @@ struct SummaryFeedCard: FeedCard {
     let excerpt: String
     let tagLabel: String?
     let thumbnailSeed: Int
+
+    init(id: String, sortPriority: Int, pinnedAt: Date?, createdAt: Date,
+         title: String, excerpt: String, tagLabel: String? = nil, thumbnailSeed: Int = 0, tag: String? = nil) {
+        self.id = id; self.sortPriority = sortPriority; self.pinnedAt = pinnedAt
+        self.createdAt = createdAt; self.title = title; self.excerpt = excerpt
+        self.tagLabel = tagLabel ?? tag; self.thumbnailSeed = thumbnailSeed
+    }
 }
 
 struct PersonFeedCard: FeedCard {
@@ -72,6 +79,16 @@ struct PersonFeedCard: FeedCard {
     let traits: [String]
     let avatarSeed: Int
     let actionLabel: String?
+
+    init(id: String, sortPriority: Int, pinnedAt: Date? = nil, createdAt: Date = .now,
+         personName: String = "", tagline: String = "", traits: [String] = [],
+         avatarSeed: Int = 0, actionLabel: String? = nil,
+         name: String? = nil) {
+        self.id = id; self.sortPriority = sortPriority; self.pinnedAt = pinnedAt
+        self.createdAt = createdAt; self.personName = name ?? personName
+        self.tagline = tagline; self.traits = traits; self.avatarSeed = avatarSeed
+        self.actionLabel = actionLabel
+    }
 }
 
 struct ActionFeedCard: FeedCard {
@@ -85,6 +102,15 @@ struct ActionFeedCard: FeedCard {
     let ctaLabel: String
     let reward: String?
     var ctaTapped: Bool = false
+
+    init(id: String, sortPriority: Int, pinnedAt: Date? = nil, createdAt: Date = .now,
+         headline: String, subtext: String, ctaLabel: String,
+         reward: String? = nil, rewardBadge: String? = nil, ctaTapped: Bool = false) {
+        self.id = id; self.sortPriority = sortPriority; self.pinnedAt = pinnedAt
+        self.createdAt = createdAt; self.headline = headline; self.subtext = subtext
+        self.ctaLabel = ctaLabel; self.reward = reward ?? rewardBadge
+        self.ctaTapped = ctaTapped
+    }
 }
 
 struct StatusFeedCard: FeedCard {
@@ -108,6 +134,24 @@ struct StatusFeedCard: FeedCard {
             case .flat: return .emotionNeutral
             }
         }
+    }
+
+    init(id: String, sortPriority: Int, pinnedAt: Date? = nil, createdAt: Date = .now,
+         headline: String = "", value: String, unit: String,
+         trend: Trend, sparkline: [Double] = []) {
+        self.id = id; self.sortPriority = sortPriority; self.pinnedAt = pinnedAt
+        self.createdAt = createdAt; self.headline = headline; self.value = value
+        self.unit = unit; self.trend = trend; self.sparkline = sparkline
+    }
+
+    /// Convenience init accepting a Double trend value
+    init(id: String, sortPriority: Int, pinnedAt: Date? = nil, createdAt: Date = .now,
+         headline: String = "", value: String, unit: String,
+         trend trendValue: Double, sparkline: [Double] = []) {
+        let t: Trend = trendValue > 0 ? .up : (trendValue < 0 ? .down : .flat)
+        self.init(id: id, sortPriority: sortPriority, pinnedAt: pinnedAt,
+                  createdAt: createdAt, headline: headline, value: value,
+                  unit: unit, trend: t, sparkline: sparkline)
     }
 }
 
@@ -171,6 +215,9 @@ enum AnyFeedCard: Identifiable {
 /// 1. Pinned cards first (sorted by pinnedAt descending)
 /// 2. Then by score = sortPriority * recencyBoost
 enum FeedSorter {
+    static func sorted(_ cards: [AnyFeedCard]) -> [AnyFeedCard] {
+        sort(cards)
+    }
     static func sort(_ cards: [AnyFeedCard]) -> [AnyFeedCard] {
         let now = Date()
         let pinned  = cards.filter { $0.pinnedAt != nil }.sorted {
@@ -209,6 +256,15 @@ struct FeedCardEvent {
 struct MixedFeedCardView: View {
     let card: AnyFeedCard
     var onEvent: ((FeedCardEvent) -> Void)? = nil
+    var onTap: (() -> Void)? = nil
+
+    init(card: AnyFeedCard, onEvent: ((FeedCardEvent) -> Void)? = nil) {
+        self.card = card; self.onEvent = onEvent; self.onTap = nil
+    }
+
+    init(card: AnyFeedCard, onTap: @escaping () -> Void) {
+        self.card = card; self.onTap = onTap; self.onEvent = nil
+    }
 
     var body: some View {
         Group {
@@ -224,6 +280,7 @@ struct MixedFeedCardView: View {
             }
         }
         .onTapGesture {
+            onTap?()
             onEvent?(FeedCardEvent(cardID: card.id, kind: card.cardKind, action: .tap))
         }
         .onAppear {
@@ -437,7 +494,7 @@ private struct SparklineView: View {
 
 // MARK: - Kind Pill helper
 
-private func kindPill(_ kind: FeedCardKind) -> some View {
+func kindPill(_ kind: FeedCardKind) -> some View {
     Label(kind.rawValue, systemImage: kind.icon)
         .font(.spareMicro)
         .foregroundColor(kind.accentColor)
@@ -450,6 +507,17 @@ private func kindPill(_ kind: FeedCardKind) -> some View {
 
 struct FeedKindFilterBar: View {
     @Binding var selectedKind: FeedCardKind?
+    var counts: [FeedCardKind: Int] = [:]
+
+    init(selectedKind: Binding<FeedCardKind?>, counts: [FeedCardKind: Int] = [:]) {
+        self._selectedKind = selectedKind
+        self.counts = counts
+    }
+
+    init(selected: Binding<FeedCardKind?>, counts: [FeedCardKind: Int] = [:]) {
+        self._selectedKind = selected
+        self.counts = counts
+    }
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {

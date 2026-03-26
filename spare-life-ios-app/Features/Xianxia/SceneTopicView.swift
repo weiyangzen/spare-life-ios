@@ -303,14 +303,17 @@ struct SceneTopicView: View {
                     )
                     .padding(.top, Spacing.xxxl)
                 } else {
-                    WaterfallLayout(columns: 2, spacing: Spacing.md) {
-                        ForEach(items) { item in
-                            sceneCard(for: item)
+                    GeometryReader { proxy in
+                        WaterfallLayout(columns: WaterfallColumns.count(for: proxy.size.width), spacing: Spacing.md) {
+                            ForEach(items) { item in
+                                sceneCard(for: item)
+                            }
                         }
+                        .padding(.horizontal, Spacing.lg)
+                        .padding(.top, Spacing.md)
+                        .padding(.bottom, 100)   // leave room for FAB
                     }
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.top, Spacing.md)
-                    .padding(.bottom, 100)   // leave room for FAB
+                    .frame(minHeight: CGFloat(items.count / 2 + 1) * 200)
                 }
             }
         }

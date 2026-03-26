@@ -20,7 +20,7 @@ struct DiscoverMixedFeedSection: View {
 
     var body: some View {
         let filtered = filteredCards
-        let sorted = FeedSorter.sorted(filtered)
+        let sorted = FeedSorter.sort(filtered)
         let counts = Dictionary(grouping: cards, by: \.cardKind)
             .mapValues(\.count)
 
@@ -30,7 +30,7 @@ struct DiscoverMixedFeedSection: View {
                 subtitle: "来自全域的精选内容"
             )
 
-            FeedKindFilterBar(selected: $selectedKind, counts: counts)
+            FeedKindFilterBar(selectedKind: $selectedKind, counts: counts)
 
             if sorted.isEmpty {
                 EmptyStateView(
@@ -40,17 +40,20 @@ struct DiscoverMixedFeedSection: View {
                 )
                 .padding(.vertical, Spacing.lg)
             } else {
-                WaterfallLayout(columns: 2, spacing: Spacing.md) {
-                    ForEach(sorted) { card in
-                        MixedFeedCardView(card: card) {
-                            onCardTap?(card)
+                GeometryReader { proxy in
+                    WaterfallLayout(columns: WaterfallColumns.count(for: proxy.size.width), spacing: Spacing.md) {
+                        ForEach(sorted) { card in
+                            MixedFeedCardView(card: card) {
+                                onCardTap?(card)
+                            }
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.92).combined(with: .opacity),
+                                removal: .opacity
+                            ))
                         }
-                        .transition(.asymmetric(
-                            insertion: .scale(scale: 0.92).combined(with: .opacity),
-                            removal: .opacity
-                        ))
                     }
                 }
+                .frame(minHeight: CGFloat(sorted.count / 2 + 1) * 200)
             }
         }
         .padding(.horizontal, Spacing.lg)
@@ -79,7 +82,7 @@ enum DiscoverMixedFeedDemo {
             )),
             .person(PersonFeedCard(
                 id: "disc-p1", sortPriority: 70, pinnedAt: nil, createdAt: now - 7200,
-                name: "林小语", tagline: "INFP · 喜欢哲学和诗歌",
+                personName: "林小语", tagline: "INFP · 喜欢哲学和诗歌",
                 traits: ["哲学", "诗歌", "安静", "创意"],
                 actionLabel: "发起破冰"
             )),
@@ -102,7 +105,7 @@ enum DiscoverMixedFeedDemo {
             )),
             .person(PersonFeedCard(
                 id: "disc-p2", sortPriority: 65, pinnedAt: nil, createdAt: now - 14400,
-                name: "张大师", tagline: "职业规划 · 10年经验",
+                personName: "张大师", tagline: "职业规划 · 10年经验",
                 traits: ["职业", "规划", "指导"],
                 actionLabel: "查看详情"
             )),

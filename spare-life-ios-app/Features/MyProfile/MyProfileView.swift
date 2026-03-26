@@ -137,6 +137,10 @@ private struct ProfileScrollView: View {
                         }
                     }
 
+                    // Feature cards in waterfall grid – avoids degenerating
+                    // into a plain settings page (blueprint §7 line:1154).
+                    featureCardGrid
+
                     actionButtons
                 }
                 .padding(.horizontal, Spacing.lg)
@@ -181,6 +185,98 @@ private struct ProfileScrollView: View {
         }
     }
 
+    // MARK: - Feature Card Waterfall Grid
+
+    private var featureCardGrid: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            Text("我的面板")
+                .font(.spareTitle3)
+                .padding(.horizontal, Spacing.xs)
+
+            WaterfallLayout(columns: 2, spacing: Spacing.md) {
+                // Sync Score card
+                NavigationLink {
+                    SyncScoreDashboardView()
+                } label: {
+                    ProfileFeatureCard(
+                        icon: "gauge.open.with.lines.needle.33percent",
+                        iconColor: .emotionPositive,
+                        title: "同步度",
+                        value: "72%",
+                        subtitle: "3 个待训练任务",
+                        accentColor: .emotionPositive,
+                        height: 168
+                    )
+                }
+                .buttonStyle(.plain)
+
+                // Personality / Awakening card
+                NavigationLink {
+                    AwakeningPersonalityView()
+                } label: {
+                    ProfileFeatureCard(
+                        icon: "sparkles.rectangle.stack.fill",
+                        iconColor: .purple,
+                        title: "人格觉醒",
+                        value: "Lv.4",
+                        subtitle: "5 项特征 · 2 个面具",
+                        accentColor: .purple,
+                        height: 148
+                    )
+                }
+                .buttonStyle(.plain)
+
+                // Memory Palace card
+                NavigationLink {
+                    MemoryPalaceView()
+                } label: {
+                    ProfileFeatureCard(
+                        icon: "brain.head.profile",
+                        iconColor: .blue,
+                        title: "记忆宫殿",
+                        value: "42",
+                        subtitle: "对话 18 · 行动 12 · 情绪 12",
+                        accentColor: .blue,
+                        height: 156
+                    )
+                }
+                .buttonStyle(.plain)
+
+                // Privacy & Local Backend card
+                NavigationLink {
+                    PrivacyLocalBackendView()
+                } label: {
+                    ProfileFeatureCard(
+                        icon: "lock.shield.fill",
+                        iconColor: .secondary,
+                        title: "隐私后端",
+                        value: "本地",
+                        subtitle: "SQLite · 12.4 MB · 已加密",
+                        accentColor: .secondary,
+                        height: 140
+                    )
+                }
+                .buttonStyle(.plain)
+
+                // Growth Stats card
+                NavigationLink {
+                    GrowthStatsView()
+                } label: {
+                    ProfileFeatureCard(
+                        icon: "chart.line.uptrend.xyaxis",
+                        iconColor: .spareYellow,
+                        title: "成长回顾",
+                        value: "",
+                        subtitle: "近 7 天闲能 +340 · 社交分 +5",
+                        accentColor: .spareYellow,
+                        height: 130
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
     private var actionButtons: some View {
         VStack(spacing: Spacing.sm) {
             Button {
@@ -210,6 +306,61 @@ private struct ProfileScrollView: View {
     private func daysSince(_ date: Date) -> String {
         let days = Calendar.current.dateComponents([.day], from: date, to: .now).day ?? 0
         return "\(days)"
+    }
+}
+
+// MARK: - Profile Feature Card
+
+/// A rich, card-style entry point for each "我的" subsystem.
+/// Uses varied heights in the waterfall grid to avoid a flat settings feel.
+private struct ProfileFeatureCard: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let value: String
+    let subtitle: String
+    let accentColor: Color
+    var height: CGFloat = 150
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 22))
+                    .foregroundColor(iconColor)
+                Spacer()
+                if !value.isEmpty {
+                    Text(value)
+                        .font(.spareTitle2)
+                        .foregroundColor(.primary)
+                }
+            }
+
+            Spacer()
+
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                Text(title)
+                    .font(.spareBodySB)
+                    .foregroundColor(.primary)
+                Text(subtitle)
+                    .font(.spareCaption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+
+            // Subtle accent bar at bottom
+            RoundedRectangle(cornerRadius: 2)
+                .fill(accentColor.opacity(0.3))
+                .frame(height: 3)
+        }
+        .padding(Spacing.lg)
+        .frame(height: height)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: CornerRadius.lg)
+                .stroke(accentColor.opacity(0.15), lineWidth: 1)
+        )
+        .cardShadow()
     }
 }
 

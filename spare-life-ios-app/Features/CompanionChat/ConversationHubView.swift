@@ -101,7 +101,12 @@ struct ConversationHubView: View {
 
     private var loadedBody: some View {
         List {
-            // Kind filter chips
+            // Quick-access recent contacts strip
+            if store.searchQuery.isEmpty {
+                recentContactsStrip
+            }
+
+            // Kind filter chips + sort mode
             kindFilterSection
 
             // Pinned section
@@ -119,7 +124,7 @@ struct ConversationHubView: View {
             }
 
             // All / search results
-            let others = store.filteredThreads.filter { !$0.isPinned || !store.searchQuery.isEmpty }
+            let others = sortedThreads(store.filteredThreads.filter { !$0.isPinned || !store.searchQuery.isEmpty })
             Section {
                 if others.isEmpty {
                     noSearchResultRow
@@ -128,20 +133,95 @@ struct ConversationHubView: View {
                         threadRow(thread)
                     }
                     .onDelete { indexSet in
-                        // Deletion UX stub – production would call store.delete
                         _ = indexSet
                     }
                 }
             } header: {
                 if store.searchQuery.isEmpty {
-                    Text("最近聊天")
-                        .font(.spareCaptionSB)
-                        .foregroundColor(.secondary)
+                    HStack {
+                        Text("最近聊天")
+                            .font(.spareCaptionSB)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        sortModeMenu
+                    }
                 }
             }
         }
         .listStyle(.plain)
         .refreshable { await store.refresh() }
+    }
+
+    // MARK: - Recent Contacts Strip
+
+    private var recentContactsStrip: some View {
+        Section {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Spacing.md) {
+                    ForEach(store.recentContacts) { thread in
+                        NavigationLink {
+                            ChatThreadView(thread: thread)
+                        } label: {
+                            VStack(spacing: Spacing.xs) {
+                                ZStack(alignment: .topTrailing) {
+                                    AvatarView(name: thread.contactName, size: 52)
+                                    if thread.unreadCount > 0 {
+                                        Circle()
+                                            .fill(Color.emotionNegative)
+                                            .frame(width: 12, height: 12)
+                                            .overlay(
+                                                Circle()
+                                                    .stroke(Color(.systemGroupedBackground), lineWidth: 2)
+                                            )
+                                            .offset(x: 2, y: -2)
+                                    }
+                                }
+
+                                Text(thread.contactName)
+                                    .font(.spareMicro)
+                                    .foregroundColor(.primary)
+                                    .lineLimit(1)
+                                    .frame(width: 56)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, Spacing.xs)
+            }
+        }
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 0, leading: Spacing.lg, bottom: 0, trailing: Spacing.lg))
+    }
+
+    // MARK: - Sort Mode
+
+    @State private var sortMode: ConversationSortMode = .byTime
+
+    private var sortModeMenu: some View {
+        Menu {
+            ForEach(ConversationSortMode.allCases) { mode in
+                Button {
+                    sortMode = mode
+                } label: {
+                    Label(mode.label, systemImage: mode.icon)
+                }
+            }
+        } label: {
+            Label(sortMode.label, systemImage: "arrow.up.arrow.down")
+                .font(.spareMicro)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    private func sortedThreads(_ threads: [ConversationThread]) -> [ConversationThread] {
+        switch sortMode {
+        case .byTime:
+            return threads.sorted { $0.lastTimestamp > $1.lastTimestamp }
+        case .byUnread:
+            return threads.sorted { $0.unreadCount > $1.unreadCount }
+        }
     }
 
     // MARK: - Kind Filter Chips

@@ -195,48 +195,61 @@ struct ChatThreadView: View {
         }
     }
 
-    // MARK: - Context Strip
+    // MARK: - Context Strip (expanded cards + chips)
+
+    @State private var contextExpanded = true
 
     private var contextStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: Spacing.sm) {
-                // Relation temperature chip
-                Label(thread.relationTemperature.label,
-                      systemImage: thread.relationTemperature.icon)
-                    .font(.spareMicro)
-                    .foregroundColor(thread.relationTemperature.color)
-                    .padding(.horizontal, Spacing.sm)
-                    .padding(.vertical, Spacing.xs)
-                    .background(thread.relationTemperature.color.opacity(0.12), in: Capsule())
+        VStack(spacing: 0) {
+            // Expanded context cards – relationship, mask, memory
+            // (Blueprint §7 line:1153: show context cards before timeline)
+            if contextExpanded {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: Spacing.sm) {
+                        // Relationship context card
+                        RelationshipContextCard(
+                            contactName: thread.contactName,
+                            temperature: thread.relationTemperature,
+                            bondLevel: 68
+                        ) {
+                            store.showRelationship = true
+                        }
 
-                // Active mask chip
-                if let mask = thread.activeMaskName {
-                    Label(mask, systemImage: "theatermasks.fill")
-                        .font(.spareMicro)
-                        .foregroundColor(.blue)
-                        .padding(.horizontal, Spacing.sm)
-                        .padding(.vertical, Spacing.xs)
-                        .background(Color.blue.opacity(0.10), in: Capsule())
+                        // Mask context card
+                        MaskContextCard(
+                            maskName: thread.activeMaskName,
+                            disclosureLevel: 2
+                        ) {
+                            store.showContactMask = true
+                        }
+
+                        // Memory context card
+                        MemoryContextCard(
+                            contactName: thread.contactName
+                        ) {
+                            store.showCrossSessionMemory = true
+                        }
+
+                        // Group context card (if group)
+                        if thread.kind == .group {
+                            GroupContextCard {
+                                store.showGroupPlay = true
+                            }
+                        }
+                    }
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.vertical, Spacing.sm)
                 }
+            }
 
-                // Cross-session continuity entry
-                Button {
-                    store.showCrossSessionMemory = true
-                } label: {
-                    Label("记忆连续性", systemImage: "brain")
-                        .font(.spareMicro)
-                        .foregroundColor(.primary)
-                        .padding(.horizontal, Spacing.sm)
-                        .padding(.vertical, Spacing.xs)
-                        .background(Color.cardBackground, in: Capsule())
-                }
-                .buttonStyle(.plain)
-
-                if thread.kind == .group {
+            // Compact chip strip with agent toggle + collapse
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Spacing.sm) {
                     Button {
-                        store.showGroupPlay = true
+                        withAnimation(.spareSpring) { contextExpanded.toggle() }
                     } label: {
-                        Label("群聊玩法", systemImage: "person.3.fill")
+                        Label(contextExpanded ? "收起" : "上下文",
+                              systemImage: contextExpanded ? "chevron.up" : "chevron.down")
                             .font(.spareMicro)
                             .foregroundColor(.primary)
                             .padding(.horizontal, Spacing.sm)
@@ -244,29 +257,45 @@ struct ChatThreadView: View {
                             .background(Color.cardBackground, in: Capsule())
                     }
                     .buttonStyle(.plain)
-                }
 
-                // Agent aux toggle
-                Button {
-                    withAnimation(.spareSpring) {
-                        store.showAgentPanel.toggle()
-                    }
-                } label: {
-                    Label(store.showAgentPanel ? "隐藏助手" : "Agent 助手",
-                          systemImage: "sparkles")
+                    Label(thread.relationTemperature.label,
+                          systemImage: thread.relationTemperature.icon)
                         .font(.spareMicro)
-                        .foregroundColor(store.showAgentPanel ? .white : .primary)
+                        .foregroundColor(thread.relationTemperature.color)
                         .padding(.horizontal, Spacing.sm)
                         .padding(.vertical, Spacing.xs)
-                        .background(
-                            store.showAgentPanel ? Color.spareYellow : Color.cardBackground,
-                            in: Capsule()
-                        )
+                        .background(thread.relationTemperature.color.opacity(0.12), in: Capsule())
+
+                    if let mask = thread.activeMaskName {
+                        Label(mask, systemImage: "theatermasks.fill")
+                            .font(.spareMicro)
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, Spacing.sm)
+                            .padding(.vertical, Spacing.xs)
+                            .background(Color.blue.opacity(0.10), in: Capsule())
+                    }
+
+                    Button {
+                        withAnimation(.spareSpring) {
+                            store.showAgentPanel.toggle()
+                        }
+                    } label: {
+                        Label(store.showAgentPanel ? "隐藏助手" : "Agent 助手",
+                              systemImage: "sparkles")
+                            .font(.spareMicro)
+                            .foregroundColor(store.showAgentPanel ? .white : .primary)
+                            .padding(.horizontal, Spacing.sm)
+                            .padding(.vertical, Spacing.xs)
+                            .background(
+                                store.showAgentPanel ? Color.spareYellow : Color.cardBackground,
+                                in: Capsule()
+                            )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, Spacing.lg)
+                .padding(.vertical, Spacing.sm)
             }
-            .padding(.horizontal, Spacing.lg)
-            .padding(.vertical, Spacing.sm)
         }
         .background(Color(.secondarySystemGroupedBackground))
     }
@@ -481,5 +510,222 @@ struct ChatThreadView: View {
         }
         .padding(Spacing.md)
         .background(msg.senderRole.bubbleColor, in: RoundedRectangle(cornerRadius: CornerRadius.md))
+    }
+}
+
+// MARK: - Context Cards (Blueprint §7 line:1153 消息详情卡片化)
+
+/// Shows relationship status, bond progress, and days known.
+private struct RelationshipContextCard: View {
+    let contactName: String
+    let temperature: RelationTemperature
+    let bondLevel: Int
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: temperature.icon)
+                        .foregroundColor(temperature.color)
+                    Text("关系")
+                        .font(.spareCaptionSB)
+                        .foregroundColor(.secondary)
+                }
+
+                Text(temperature.label)
+                    .font(.spareTitle3)
+                    .foregroundColor(.primary)
+
+                // Bond progress
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    Text("亲密度 \(bondLevel)%")
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color(.systemGray5))
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(temperature.color)
+                                .frame(width: geo.size.width * CGFloat(bondLevel) / 100)
+                        }
+                    }
+                    .frame(height: 6)
+                }
+
+                Text("认识 32 天")
+                    .font(.spareMicro)
+                    .foregroundColor(.secondary)
+            }
+            .frame(width: 150)
+            .padding(Spacing.md)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+            .overlay(
+                RoundedRectangle(cornerRadius: CornerRadius.lg)
+                    .stroke(temperature.color.opacity(0.2), lineWidth: 1)
+            )
+            .cardShadow()
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Shows the active mask name, disclosure level, and topic filter summary.
+private struct MaskContextCard: View {
+    let maskName: String?
+    let disclosureLevel: Int
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "theatermasks.fill")
+                        .foregroundColor(.blue)
+                    Text("面具")
+                        .font(.spareCaptionSB)
+                        .foregroundColor(.secondary)
+                }
+
+                Text(maskName ?? "默认")
+                    .font(.spareTitle3)
+                    .foregroundColor(.primary)
+
+                HStack(spacing: Spacing.xs) {
+                    ForEach(0..<4) { i in
+                        Circle()
+                            .fill(i < disclosureLevel ? Color.blue : Color(.systemGray4))
+                            .frame(width: 8, height: 8)
+                    }
+                    Text("透露度")
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+                }
+
+                Text("话题管控已开启")
+                    .font(.spareMicro)
+                    .foregroundColor(.secondary)
+            }
+            .frame(width: 150)
+            .padding(Spacing.md)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+            .overlay(
+                RoundedRectangle(cornerRadius: CornerRadius.lg)
+                    .stroke(Color.blue.opacity(0.15), lineWidth: 1)
+            )
+            .cardShadow()
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Shows last conversation summary and topic suggestions.
+private struct MemoryContextCard: View {
+    let contactName: String
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "brain")
+                        .foregroundColor(.purple)
+                    Text("记忆")
+                        .font(.spareCaptionSB)
+                        .foregroundColor(.secondary)
+                }
+
+                Text("上次聊了")
+                    .font(.spareCaptionSB)
+                    .foregroundColor(.primary)
+                Text("关于时间感知的讨论")
+                    .font(.spareCaption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    Text("推荐话题")
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+                    Text("那本书读完了吗？")
+                        .font(.spareCaption)
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                }
+            }
+            .frame(width: 150)
+            .padding(Spacing.md)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+            .overlay(
+                RoundedRectangle(cornerRadius: CornerRadius.lg)
+                    .stroke(Color.purple.opacity(0.15), lineWidth: 1)
+            )
+            .cardShadow()
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Shows group member count, online agents, and group play availability.
+private struct GroupContextCard: View {
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "person.3.fill")
+                        .foregroundColor(.indigo)
+                    Text("群组")
+                        .font(.spareCaptionSB)
+                        .foregroundColor(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    HStack(spacing: Spacing.xs) {
+                        Text("5")
+                            .font(.spareTitle3)
+                            .foregroundColor(.primary)
+                        Text("成员")
+                            .font(.spareCaption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    HStack(spacing: Spacing.xs) {
+                        Text("3")
+                            .font(.spareBodySB)
+                            .foregroundColor(.indigo)
+                        Text("个 Agent 在线")
+                            .font(.spareMicro)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "gamecontroller.fill")
+                        .font(.spareMicro)
+                        .foregroundColor(.spareYellow)
+                    Text("群玩法可用")
+                        .font(.spareMicro)
+                        .foregroundColor(.spareYellow)
+                }
+                .padding(.horizontal, Spacing.sm)
+                .padding(.vertical, Spacing.xs)
+                .background(Color.spareYellow.opacity(0.12), in: Capsule())
+            }
+            .frame(width: 150)
+            .padding(Spacing.md)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+            .overlay(
+                RoundedRectangle(cornerRadius: CornerRadius.lg)
+                    .stroke(Color.indigo.opacity(0.15), lineWidth: 1)
+            )
+            .cardShadow()
+        }
+        .buttonStyle(.plain)
     }
 }

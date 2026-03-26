@@ -202,6 +202,29 @@ struct RelationshipProfile: Identifiable, Hashable {
     var memoryThread: [MemorySnippet]
 }
 
+// MARK: - Sort Mode
+
+enum ConversationSortMode: String, CaseIterable, Identifiable {
+    case byTime   = "by_time"
+    case byUnread = "by_unread"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .byTime:   return "按时间"
+        case .byUnread: return "按未读"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .byTime:   return "clock"
+        case .byUnread: return "envelope.badge"
+        }
+    }
+}
+
 // MARK: - Conversation Hub Store (IM首页)
 
 enum ConversationHubLoadState {
@@ -214,6 +237,16 @@ final class ConversationHubStore: ObservableObject {
     @Published private(set) var threads: [ConversationThread] = []
     @Published var searchQuery: String = ""
     @Published var selectedKind: ConversationKind? = nil
+
+    /// The most recently active contacts, shown as a quick-access horizontal
+    /// avatar strip at the top of the IM hub (Blueprint line:1152).
+    var recentContacts: [ConversationThread] {
+        Array(
+            threads
+                .sorted { $0.lastTimestamp > $1.lastTimestamp }
+                .prefix(8)
+        )
+    }
 
     var filteredThreads: [ConversationThread] {
         var result = threads

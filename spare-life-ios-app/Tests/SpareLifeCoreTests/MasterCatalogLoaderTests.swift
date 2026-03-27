@@ -23,6 +23,7 @@ final class MasterCatalogLoaderTests: XCTestCase {
     func testMasterCatalogMappingUsesMatchedLocalAssets() throws {
         let snapshot = try MasterCatalogLoader.load()
         let fileManager = FileManager.default
+        let expectedImageFiles = Set(["avatar.png", "image.png", "background.jpg"])
 
         for master in snapshot.masters {
             XCTAssertEqual(master.imageSet.assetID, master.id)
@@ -33,13 +34,26 @@ final class MasterCatalogLoaderTests: XCTestCase {
             )
             XCTAssertTrue(master.assetBundle.characterAssetPath.hasSuffix("/assets/char/\(master.id).json"))
             XCTAssertTrue(master.assetBundle.imageDirectoryPath.hasSuffix("/assets/assets/char/\(master.id)"))
-            XCTAssertEqual(Set(master.assetBundle.mappedImageFiles), Set(["avatar.png", "image.png", "background.jpg"]))
+            XCTAssertEqual(Set(master.assetBundle.mappedImageFiles), expectedImageFiles)
 
             XCTAssertTrue(fileManager.fileExists(atPath: master.assetBundle.directoryManifestPath))
             XCTAssertTrue(fileManager.fileExists(atPath: master.assetBundle.characterAssetPath))
             XCTAssertTrue(fileManager.fileExists(atPath: master.imageSet.avatarPath))
             XCTAssertTrue(fileManager.fileExists(atPath: master.imageSet.portraitPath))
             XCTAssertTrue(fileManager.fileExists(atPath: master.imageSet.backgroundPath))
+
+            let actualImageFiles = Set<String>(
+                try fileManager.contentsOfDirectory(
+                    at: URL(fileURLWithPath: master.assetBundle.imageDirectoryPath),
+                    includingPropertiesForKeys: [.isRegularFileKey],
+                    options: [.skipsHiddenFiles]
+                )
+                .compactMap { url in
+                    guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { return nil }
+                    return url.lastPathComponent
+                }
+            )
+            XCTAssertEqual(actualImageFiles, expectedImageFiles)
 
             let data = try Data(contentsOf: URL(fileURLWithPath: master.assetBundle.characterAssetPath))
             let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -60,6 +74,9 @@ final class MasterCatalogLoaderTests: XCTestCase {
         )
         XCTAssertTrue(coverage.characterRootPath.hasSuffix("/assets/char"))
         XCTAssertTrue(coverage.imageRootPath.hasSuffix("/assets/assets/char"))
+        XCTAssertEqual(coverage.fieldSourceDisplayPath, "./assets/char")
+        XCTAssertEqual(coverage.imageSourceDisplayPath, "./assets/assets")
+        XCTAssertEqual(coverage.imageIndexDisplayPath, "./assets/assets/char")
         XCTAssertEqual(Set(coverage.mappedImageFiles), Set(["avatar.png", "image.png", "background.jpg"]))
     }
 
@@ -108,16 +125,16 @@ final class MasterCatalogLoaderTests: XCTestCase {
 
         XCTAssertEqual(store.masters.count, 8)
         XCTAssertEqual(store.masterIndex.count, 8)
-        XCTAssertEqual(store.homeCards.count, store.masters.count)
+        XCTAssertEqual(store.directoryMasters.count, store.masters.count)
         XCTAssertEqual(store.directoryManifestName, "master_service_directory.json")
         XCTAssertEqual(store.resourceMappingSummary, "8/8 已匹配")
         XCTAssertEqual(store.catalogCoverage?.fieldSourceDisplayPath, "./assets/char")
-        XCTAssertEqual(store.catalogCoverage?.imageSourceDisplayPath, "./assets/assets/char")
-        XCTAssertTrue(store.homeCards.allSatisfy { card in
-            if case .master = card {
-                return true
-            }
-            return false
-        })
+        XCTAssertEqual(store.catalogCoverage?.imageSourceDisplayPath, "./assets/assets")
+        XCTAssertEqual(store.catalogCoverage?.imageIndexDisplayPath, "./assets/assets/char")
+        XCTAssertEqual(store.directoryMasters.map(\.id), store.masters.map(\.id))
+
+        store.selectedDomainID = "discovery"
+        XCTAssertEqual(store.directoryMasters.count, 4)
+        XCTAssertTrue(store.directoryMasters.allSatisfy { $0.domainID == "discovery" })
     }
 }

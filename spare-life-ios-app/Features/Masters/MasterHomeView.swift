@@ -29,7 +29,7 @@ struct MasterHomeView: View {
                 .ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    topBar
+                    directoryHeader
 
                     filterPanel
                         .padding(.horizontal, Spacing.lg)
@@ -56,8 +56,8 @@ struct MasterHomeView: View {
         }
     }
 
-    private var topBar: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+    private var directoryHeader: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text("大师")
                     .font(.spareTitle1)
@@ -67,76 +67,88 @@ struct MasterHomeView: View {
                     .foregroundColor(.secondary)
             }
 
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: Spacing.sm),
-                    GridItem(.flexible(), spacing: Spacing.sm)
-                ],
-                spacing: Spacing.sm
-            ) {
-                CatalogSourceCard(
-                    title: "服务端目录",
-                    detail: store.directoryManifestName,
-                    systemImage: "server.rack"
-                )
-                CatalogSourceCard(
-                    title: "字段源",
-                    detail: store.catalogCoverage?.fieldSourceDisplayPath ?? "./assets/char",
-                    systemImage: "doc.text.fill"
-                )
-                CatalogSourceCard(
-                    title: "图片源",
-                    detail: store.catalogCoverage?.imageSourceDisplayPath ?? "./assets/assets/char",
-                    systemImage: "photo.stack.fill"
-                )
-                CatalogSourceCard(
-                    title: "资源映射",
-                    detail: store.resourceMappingSummary,
-                    systemImage: "checkmark.seal.fill",
-                    tint: .emotionPositive
-                )
-            }
-
-            Text("目录索引会把服务端目录中的 8 个 asset_id 与本地字段/图片资源一一建立索引，再进入目录卡片。")
-                .font(.spareMicro)
-                .foregroundColor(.secondary)
+            DirectorySnapshotPanel(
+                masterCount: store.masters.count,
+                domainCount: store.domains.count,
+                manifestName: store.directoryManifestName,
+                fieldSourcePath: store.catalogCoverage?.fieldSourceDisplayPath ?? "./assets/char",
+                imageSourcePath: store.catalogCoverage?.imageSourceDisplayPath ?? "./assets/assets",
+                imageIndexPath: store.catalogCoverage?.imageIndexDisplayPath ?? "./assets/assets/char",
+                mappingSummary: store.resourceMappingSummary
+            )
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.top, Spacing.lg)
         .padding(.bottom, Spacing.sm)
     }
 
-    private struct CatalogSourceCard: View {
-        let title: String
-        let detail: String
-        let systemImage: String
-        var tint: Color = .secondary
+    private struct DirectorySnapshotPanel: View {
+        let masterCount: Int
+        let domainCount: Int
+        let manifestName: String
+        let fieldSourcePath: String
+        let imageSourcePath: String
+        let imageIndexPath: String
+        let mappingSummary: String
 
         var body: some View {
-            HStack(alignment: .top, spacing: Spacing.sm) {
-                Image(systemName: systemImage)
-                    .foregroundColor(tint)
-                    .padding(.top, 2)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.spareMicro)
-                        .foregroundColor(.secondary)
-                    Text(detail)
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+                    Label("\(masterCount)/8 位已装载", systemImage: "books.vertical.fill")
                         .font(.spareCaptionSB)
                         .foregroundColor(.primary)
-                        .lineLimit(2)
+                    Text("\(domainCount) 个领域")
+                        .font(.spareCaption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(mappingSummary)
+                        .font(.spareCaptionSB)
+                        .foregroundColor(.emotionPositive)
+                }
+
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    DirectorySourceRow(label: "服务端目录", value: manifestName, systemImage: "server.rack")
+                    DirectorySourceRow(label: "字段固定来源", value: fieldSourcePath, systemImage: "doc.text.fill")
+                    DirectorySourceRow(label: "图片固定来源", value: imageSourcePath, systemImage: "photo.stack.fill")
+                    DirectorySourceRow(label: "图片索引子目录", value: imageIndexPath, systemImage: "photo.on.rectangle.angled")
                 }
 
                 Spacer(minLength: 0)
+
+                Text("目录索引只把服务端目录中的 8 个 asset_id 映射到本地字段和图片资源，再进入目录卡片。首页不混入最近聊过、会诊或导向动作入口。")
+                    .font(.spareMicro)
+                    .foregroundColor(.secondary)
             }
             .padding(Spacing.md)
-            .frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading)
             .background(Color.white.opacity(0.88), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
             .overlay(
                 RoundedRectangle(cornerRadius: CornerRadius.lg)
                     .stroke(Color.cardStroke, lineWidth: 1)
             )
+        }
+    }
+
+    private struct DirectorySourceRow: View {
+        let label: String
+        let value: String
+        let systemImage: String
+
+        var body: some View {
+            HStack(alignment: .top, spacing: Spacing.sm) {
+                Image(systemName: systemImage)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(label)
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+                    Text(value)
+                        .font(.spareCaptionSB)
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 0)
+            }
         }
     }
 
@@ -210,7 +222,7 @@ struct MasterHomeView: View {
                     .padding(.top, Spacing.xxxl)
                 }
             }
-        } else if store.homeCards.isEmpty {
+        } else if store.directoryMasters.isEmpty {
             ScrollView {
                 VStack(spacing: Spacing.md) {
                     ReadOnlyCatalogBanner()
@@ -252,15 +264,17 @@ struct MasterHomeView: View {
 
                             FeedSectionHeader(
                                 title: "大师目录",
-                                subtitle: "\(store.homeCards.count) 位大师"
+                                subtitle: "\(store.directoryMasters.count) 位大师"
                             )
                             .padding(.top, Spacing.md)
                             .padding(.bottom, Spacing.xs)
 
                             GeometryReader { proxy in
                                 WaterfallLayout(columns: WaterfallColumns.count(for: proxy.size.width), spacing: Spacing.md) {
-                                    ForEach(store.homeCards) { card in
-                                        homeCard(for: card)
+                                    ForEach(store.directoryMasters) { profile in
+                                        MasterProfileCard(profile: profile) {
+                                            store.openConversation(for: profile)
+                                        }
                                             .transition(.asymmetric(
                                                 insertion: .scale(scale: 0.92).combined(with: .opacity),
                                                 removal: .opacity
@@ -271,7 +285,7 @@ struct MasterHomeView: View {
                                 .padding(.top, Spacing.xs)
                                 .padding(.bottom, Spacing.xxxl)
                             }
-                            .frame(minHeight: CGFloat(store.homeCards.count / 2 + 1) * 200)
+                            .frame(minHeight: CGFloat(store.directoryMasters.count / 2 + 1) * 200)
                         }
                     }
                     .coordinateSpace(name: "masterFeedScroll")
@@ -297,18 +311,6 @@ struct MasterHomeView: View {
                 }
                 .animation(.spareSpring, value: scrollState.isAtTop)
             }
-        }
-    }
-
-    @ViewBuilder
-    private func homeCard(for card: MasterHomeFeedCard) -> some View {
-        switch card {
-        case .master(let profile):
-            MasterProfileCard(profile: profile) {
-                store.openConversation(for: profile)
-            }
-        case .resume, .template, .consultation:
-            EmptyView()
         }
     }
 }

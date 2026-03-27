@@ -44,9 +44,6 @@ struct MasterHomeView: View {
             .sheet(item: $store.conversation) { _ in
                 MasterConversationView(store: store)
             }
-            .sheet(item: $store.routePreview) { preview in
-                MasterRoutePreviewSheet(store: store, preview: preview)
-            }
             .task {
                 store.loadIfNeeded()
             }
@@ -68,10 +65,14 @@ struct MasterHomeView: View {
                 masterCount: store.masters.count,
                 domainCount: store.domains.count,
                 manifestName: store.directoryManifestName,
+                serviceDirectoryAssetCount: store.catalogCoverage?.serviceDirectoryAssetCount ?? 0,
                 fieldSourcePath: store.catalogCoverage?.fieldSourceDisplayPath ?? "./assets/char",
+                fieldAssetCount: store.catalogCoverage?.localCharacterAssetCount ?? 0,
                 imageSourcePath: store.catalogCoverage?.imageSourceDisplayPath ?? "./assets/assets",
+                imageAssetCount: store.catalogCoverage?.localImageAssetCount ?? 0,
                 imageIndexPath: store.catalogCoverage?.imageIndexDisplayPath ?? "./assets/assets/char",
-                mappingSummary: store.resourceMappingSummary
+                mappingSummary: store.resourceMappingSummary,
+                indexCoverageSummary: store.catalogCoverage?.indexCoverageSummary ?? "目录0 · 字段0 · 图片0"
             )
         }
         .padding(.horizontal, Spacing.lg)
@@ -83,10 +84,14 @@ struct MasterHomeView: View {
         let masterCount: Int
         let domainCount: Int
         let manifestName: String
+        let serviceDirectoryAssetCount: Int
         let fieldSourcePath: String
+        let fieldAssetCount: Int
         let imageSourcePath: String
+        let imageAssetCount: Int
         let imageIndexPath: String
         let mappingSummary: String
+        let indexCoverageSummary: String
 
         var body: some View {
             VStack(alignment: .leading, spacing: Spacing.md) {
@@ -98,15 +103,32 @@ struct MasterHomeView: View {
                         .font(.spareCaption)
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text(mappingSummary)
-                        .font(.spareCaptionSB)
-                        .foregroundColor(.emotionPositive)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(mappingSummary)
+                            .font(.spareCaptionSB)
+                            .foregroundColor(.emotionPositive)
+                        Text(indexCoverageSummary)
+                            .font(.spareMicro)
+                            .foregroundColor(.secondary)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: Spacing.sm) {
-                    DirectorySourceRow(label: "服务端目录", value: manifestName, systemImage: "server.rack")
-                    DirectorySourceRow(label: "字段固定来源", value: fieldSourcePath, systemImage: "doc.text.fill")
-                    DirectorySourceRow(label: "图片固定来源", value: imageSourcePath, systemImage: "photo.stack.fill")
+                    DirectorySourceRow(
+                        label: "服务端目录",
+                        value: "\(manifestName) · \(serviceDirectoryAssetCount) 个 asset_id",
+                        systemImage: "server.rack"
+                    )
+                    DirectorySourceRow(
+                        label: "字段固定来源",
+                        value: "\(fieldSourcePath) · \(fieldAssetCount) 个 JSON",
+                        systemImage: "doc.text.fill"
+                    )
+                    DirectorySourceRow(
+                        label: "图片固定来源",
+                        value: "\(imageSourcePath) · \(imageAssetCount) 组角色图片",
+                        systemImage: "photo.stack.fill"
+                    )
                     DirectorySourceRow(label: "图片索引子目录", value: imageIndexPath, systemImage: "photo.on.rectangle.angled")
                 }
 
@@ -1322,6 +1344,9 @@ struct MasterConversationView: View {
                     ErrorStateView(message: "当前会话已失效。", retry: nil)
                 }
             }
+        }
+        .sheet(item: $store.routePreview) { preview in
+            MasterRoutePreviewSheet(store: store, preview: preview)
         }
     }
 

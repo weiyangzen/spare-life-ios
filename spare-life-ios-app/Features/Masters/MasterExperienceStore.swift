@@ -298,6 +298,9 @@ struct MasterCatalogCoverage: Hashable {
     let directoryManifestPath: String
     let characterRootPath: String
     let imageRootPath: String
+    let serviceDirectoryAssetIDs: [String]
+    let localCharacterAssetIDs: [String]
+    let localImageAssetIDs: [String]
     let matchedAssetIDs: [String]
     let mappedImageFiles: [String]
 
@@ -321,8 +324,30 @@ struct MasterCatalogCoverage: Hashable {
         matchedAssetIDs.count
     }
 
+    var serviceDirectoryAssetCount: Int {
+        serviceDirectoryAssetIDs.count
+    }
+
+    var localCharacterAssetCount: Int {
+        localCharacterAssetIDs.count
+    }
+
+    var localImageAssetCount: Int {
+        localImageAssetIDs.count
+    }
+
+    var hasExactStage1Coverage: Bool {
+        serviceDirectoryAssetIDs == matchedAssetIDs &&
+        localCharacterAssetIDs == matchedAssetIDs &&
+        localImageAssetIDs == matchedAssetIDs
+    }
+
+    var indexCoverageSummary: String {
+        "目录\(serviceDirectoryAssetCount) · 字段\(localCharacterAssetCount) · 图片\(localImageAssetCount)"
+    }
+
     var mappingSummary: String {
-        "\(matchedAssetCount)/8 已匹配"
+        "\(matchedAssetCount)/\(serviceDirectoryAssetCount) 已匹配"
     }
 }
 
@@ -951,6 +976,12 @@ struct MasterCatalogSnapshot {
     let sessions: [MasterRecentSession]
 }
 
+private struct MasterDirectoryIndexCoverage {
+    let serviceDirectoryAssetIDs: [String]
+    let localCharacterAssetIDs: [String]
+    let localImageAssetIDs: [String]
+}
+
 enum MasterCatalogLoader {
     private static let stage1MasterAssetIDs: Set<String> = [
         "001546",
@@ -969,7 +1000,7 @@ enum MasterCatalogLoader {
         let serviceDirectory = try MasterServiceDirectory.load()
         let domainLookup = Dictionary(uniqueKeysWithValues: serviceDirectory.domains.map { ($0.id, $0) })
         let decoder = JSONDecoder()
-        try validateStage1AssetCoverage(serviceDirectory: serviceDirectory, roots: roots)
+        let indexCoverage = try validateStage1AssetCoverage(serviceDirectory: serviceDirectory, roots: roots)
 
         let masters = try serviceDirectory.entries
             .sorted { $0.sortOrder < $1.sortOrder }
@@ -1031,6 +1062,9 @@ enum MasterCatalogLoader {
                 directoryManifestPath: serviceDirectory.sourceURL.path,
                 characterRootPath: roots.charDirectory.path,
                 imageRootPath: roots.imageDirectory.path,
+                serviceDirectoryAssetIDs: indexCoverage.serviceDirectoryAssetIDs,
+                localCharacterAssetIDs: indexCoverage.localCharacterAssetIDs,
+                localImageAssetIDs: indexCoverage.localImageAssetIDs,
                 matchedAssetIDs: masters.map(\.id).sorted(),
                 mappedImageFiles: requiredImageFiles
             ),
@@ -1041,36 +1075,39 @@ enum MasterCatalogLoader {
     private static func validateStage1AssetCoverage(
         serviceDirectory: MasterServiceDirectory.DirectorySnapshot,
         roots: MasterAssetRoots
-    ) throws {
-        let directoryAssetIDs = Set(serviceDirectory.entries.map(\.assetID))
-        guard directoryAssetIDs == stage1MasterAssetIDs else {
+    ) throws -> MasterDirectoryIndexCoverage {
+        let directoryAssetIDs = serviceDirectory.entries.map(\.assetID).sorted()
+        let directoryAssetIDSet = Set(directoryAssetIDs)
+        guard directoryAssetIDSet == stage1MasterAssetIDs else {
             throw MasterCatalogLoadError.directory(
                 mismatchMessage(
                     title: "大师目录索引必须固定命中 Stage 1 的 8 位大师",
                     expected: stage1MasterAssetIDs,
-                    actual: directoryAssetIDs
+                    actual: directoryAssetIDSet
                 )
             )
         }
 
-        let localCharacterAssetIDs = try resourceFileIDs(in: roots.charDirectory, pathExtension: "json")
-        guard localCharacterAssetIDs == stage1MasterAssetIDs else {
+        let localCharacterAssetIDs = Array(try resourceFileIDs(in: roots.charDirectory, pathExtension: "json")).sorted()
+        let localCharacterAssetIDSet = Set(localCharacterAssetIDs)
+        guard localCharacterAssetIDSet == stage1MasterAssetIDs else {
             throw MasterCatalogLoadError.directory(
                 mismatchMessage(
                     title: "./assets/char 与 Stage 1 大师目录不一致",
                     expected: stage1MasterAssetIDs,
-                    actual: localCharacterAssetIDs
+                    actual: localCharacterAssetIDSet
                 )
             )
         }
 
-        let localImageAssetIDs = try resourceDirectoryIDs(in: roots.imageDirectory)
-        guard localImageAssetIDs == stage1MasterAssetIDs else {
+        let localImageAssetIDs = Array(try resourceDirectoryIDs(in: roots.imageDirectory)).sorted()
+        let localImageAssetIDSet = Set(localImageAssetIDs)
+        guard localImageAssetIDSet == stage1MasterAssetIDs else {
             throw MasterCatalogLoadError.directory(
                 mismatchMessage(
                     title: "./assets/assets/char 与 Stage 1 大师目录不一致",
                     expected: stage1MasterAssetIDs,
-                    actual: localImageAssetIDs
+                    actual: localImageAssetIDSet
                 )
             )
         }
@@ -1079,6 +1116,12 @@ enum MasterCatalogLoader {
             let imageDirectory = roots.imageDirectory.appendingPathComponent(assetID, isDirectory: true)
             try validateImageDirectory(at: imageDirectory, assetID: assetID)
         }
+
+        return MasterDirectoryIndexCoverage(
+            serviceDirectoryAssetIDs: directoryAssetIDs,
+            localCharacterAssetIDs: localCharacterAssetIDs,
+            localImageAssetIDs: localImageAssetIDs
+        )
     }
 
     private static func resolveAssetRoots() throws -> MasterAssetRoots {

@@ -16,7 +16,12 @@ final class MasterCatalogLoaderTests: XCTestCase {
         XCTAssertEqual(snapshot.sessions.count, 0)
         XCTAssertEqual(snapshot.domains.count, 4)
         XCTAssertEqual(snapshot.catalogCoverage.directoryManifestName, "master_service_directory.json")
+        XCTAssertEqual(snapshot.catalogCoverage.serviceDirectoryAssetIDs, expectedIDs)
+        XCTAssertEqual(snapshot.catalogCoverage.localCharacterAssetIDs, expectedIDs)
+        XCTAssertEqual(snapshot.catalogCoverage.localImageAssetIDs, expectedIDs)
         XCTAssertEqual(snapshot.catalogCoverage.matchedAssetIDs, expectedIDs)
+        XCTAssertTrue(snapshot.catalogCoverage.hasExactStage1Coverage)
+        XCTAssertEqual(snapshot.catalogCoverage.indexCoverageSummary, "目录8 · 字段8 · 图片8")
         XCTAssertEqual(snapshot.catalogCoverage.mappingSummary, "8/8 已匹配")
     }
 
@@ -77,6 +82,11 @@ final class MasterCatalogLoaderTests: XCTestCase {
         XCTAssertEqual(coverage.fieldSourceDisplayPath, "./assets/char")
         XCTAssertEqual(coverage.imageSourceDisplayPath, "./assets/assets")
         XCTAssertEqual(coverage.imageIndexDisplayPath, "./assets/assets/char")
+        XCTAssertEqual(coverage.serviceDirectoryAssetIDs, ["001546", "001550", "001560", "001565", "001567", "001570", "001572", "001580"])
+        XCTAssertEqual(coverage.localCharacterAssetIDs, ["001546", "001550", "001560", "001565", "001567", "001570", "001572", "001580"])
+        XCTAssertEqual(coverage.localImageAssetIDs, ["001546", "001550", "001560", "001565", "001567", "001570", "001572", "001580"])
+        XCTAssertTrue(coverage.hasExactStage1Coverage)
+        XCTAssertEqual(coverage.indexCoverageSummary, "目录8 · 字段8 · 图片8")
         XCTAssertEqual(Set(coverage.mappedImageFiles), Set(["avatar.png", "image.png", "background.jpg"]))
     }
 
@@ -131,6 +141,11 @@ final class MasterCatalogLoaderTests: XCTestCase {
         XCTAssertEqual(store.catalogCoverage?.fieldSourceDisplayPath, "./assets/char")
         XCTAssertEqual(store.catalogCoverage?.imageSourceDisplayPath, "./assets/assets")
         XCTAssertEqual(store.catalogCoverage?.imageIndexDisplayPath, "./assets/assets/char")
+        XCTAssertEqual(store.catalogCoverage?.indexCoverageSummary, "目录8 · 字段8 · 图片8")
+        XCTAssertEqual(store.catalogCoverage?.serviceDirectoryAssetCount, 8)
+        XCTAssertEqual(store.catalogCoverage?.localCharacterAssetCount, 8)
+        XCTAssertEqual(store.catalogCoverage?.localImageAssetCount, 8)
+        XCTAssertEqual(store.catalogCoverage?.hasExactStage1Coverage, true)
         XCTAssertEqual(store.directoryMasters.map(\.id), store.masters.map(\.id))
 
         store.selectedDomainID = "discovery"

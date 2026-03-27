@@ -6,6 +6,8 @@ final class MasterCatalogLoaderTests: XCTestCase {
         let snapshot = try MasterCatalogLoader.load()
 
         XCTAssertEqual(snapshot.masters.count, 8)
+        XCTAssertEqual(snapshot.masterIndex.count, 8)
+        XCTAssertEqual(snapshot.domainIndex.count, 4)
         XCTAssertEqual(
             Set(snapshot.masters.map(\.id)),
             Set(["001546", "001550", "001560", "001565", "001567", "001570", "001572", "001580"])
@@ -34,6 +36,12 @@ final class MasterCatalogLoaderTests: XCTestCase {
             XCTAssertTrue(fileManager.fileExists(atPath: master.imageSet.avatarPath))
             XCTAssertTrue(fileManager.fileExists(atPath: master.imageSet.portraitPath))
             XCTAssertTrue(fileManager.fileExists(atPath: master.imageSet.backgroundPath))
+
+            let data = try Data(contentsOf: URL(fileURLWithPath: master.assetBundle.characterAssetPath))
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let metadata = try XCTUnwrap(json["metadata"] as? [String: Any])
+            let internalID = try XCTUnwrap(metadata["id"] as? Int)
+            XCTAssertEqual(String(format: "%06d", internalID), master.id)
         }
     }
 
@@ -81,7 +89,9 @@ final class MasterCatalogLoaderTests: XCTestCase {
         await store.refreshCatalog()
 
         XCTAssertEqual(store.masters.count, 8)
+        XCTAssertEqual(store.masterIndex.count, 8)
         XCTAssertEqual(store.homeCards.count, store.masters.count)
+        XCTAssertEqual(store.directoryManifestName, "master_service_directory.json")
         XCTAssertTrue(store.homeCards.allSatisfy { card in
             if case .master = card {
                 return true

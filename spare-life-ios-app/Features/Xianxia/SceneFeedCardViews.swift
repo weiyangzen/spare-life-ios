@@ -5,6 +5,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - SceneSummaryCardView
 // Displays the AI-generated scene summary with emotion indicator and topic cluster pills.
@@ -360,5 +363,130 @@ private struct ActivityScoreBadge: View {
                     .frame(width: 5, height: 5)
             }
         }
+    }
+}
+
+// MARK: - TopicFeedCardView
+
+struct TopicFeedCardView: View {
+    let topic: XianxiaTopic
+    var onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    HStack(spacing: Spacing.sm) {
+                        Text("Topic")
+                            .font(.spareMicro)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        if topic.shardCount > 0 {
+                            PillTag(label: "\(topic.shardCount) shards", color: .emotionNeutral)
+                        }
+                    }
+
+                    Text(topic.title)
+                        .font(.spareBodySB)
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
+
+                    Text(topic.summaryText)
+                        .font(.spareCaption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(5)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                HStack(spacing: Spacing.xs) {
+                    Image(systemName: "number")
+                        .font(.spareMicro)
+                    Text(topic.messageCount.formatted())
+                        .font(.spareMicro)
+                    Text("消息")
+                        .font(.spareMicro)
+                    Spacer()
+                    if let updatedAt = topic.updatedAt {
+                        Text(XianxiaRelativeTime.string(for: updatedAt))
+                            .font(.spareMicro)
+                    }
+                }
+                .foregroundColor(.secondary)
+
+                Text(topic.topicPath)
+                    .font(.spareMicro)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(Spacing.md)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color.cardBackground,
+                        Color.spareYellow.opacity(0.08)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+            .overlay(
+                RoundedRectangle(cornerRadius: CornerRadius.md)
+                    .strokeBorder(Color.cardStroke, lineWidth: 0.5)
+            )
+            .cardShadow()
+        }
+        .buttonStyle(CardPressStyle())
+    }
+}
+
+// MARK: - TopicShardCardView
+
+struct TopicShardCardView: View {
+    let shard: XianxiaTopicShard
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            HStack(spacing: Spacing.sm) {
+                PillTag(
+                    label: shard.ordinalLabel,
+                    color: shard.isCanonical ? .spareYellow : .secondary
+                )
+                Spacer()
+                if let updatedAt = shard.updatedAt {
+                    Text(XianxiaRelativeTime.string(for: updatedAt))
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Text(shard.summaryText)
+                .font(.spareBody)
+                .foregroundColor(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: Spacing.sm) {
+                Label("\(shard.messageCount) 条消息", systemImage: "text.bubble")
+                    .font(.spareMicro)
+                    .foregroundColor(.secondary)
+
+                if shard.status != "active" {
+                    PillTag(label: shard.status, color: .emotionSplit)
+                }
+            }
+
+            Text(shard.topicId)
+                .font(.spareMicro)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+        }
+        .padding(Spacing.md)
+        .background(Color.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: CornerRadius.md)
+                .strokeBorder(Color.cardStroke, lineWidth: 0.5)
+        )
+        .cardShadow()
     }
 }

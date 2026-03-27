@@ -911,11 +911,23 @@ struct MasterCatalogSnapshot {
 }
 
 enum MasterCatalogLoader {
+    private static let stage1MasterAssetIDs: Set<String> = [
+        "001546",
+        "001550",
+        "001560",
+        "001565",
+        "001567",
+        "001570",
+        "001572",
+        "001580"
+    ]
+
     static func load() throws -> MasterCatalogSnapshot {
         let roots = try resolveAssetRoots()
         let serviceDirectory = try MasterServiceDirectory.load()
         let domainLookup = Dictionary(uniqueKeysWithValues: serviceDirectory.domains.map { ($0.id, $0) })
         let decoder = JSONDecoder()
+        try validateStage1AssetCoverage(serviceDirectory: serviceDirectory, roots: roots)
 
         let masters = try serviceDirectory.entries
             .sorted { $0.sortOrder < $1.sortOrder }
@@ -971,6 +983,44 @@ enum MasterCatalogLoader {
         )
     }
 
+    private static func validateStage1AssetCoverage(
+        serviceDirectory: MasterServiceDirectory.DirectorySnapshot,
+        roots: MasterAssetRoots
+    ) throws {
+        let directoryAssetIDs = Set(serviceDirectory.entries.map(\.assetID))
+        guard directoryAssetIDs == stage1MasterAssetIDs else {
+            throw MasterCatalogLoadError.directory(
+                mismatchMessage(
+                    title: "大师目录索引必须固定命中 Stage 1 的 8 位大师",
+                    expected: stage1MasterAssetIDs,
+                    actual: directoryAssetIDs
+                )
+            )
+        }
+
+        let localCharacterAssetIDs = try resourceFileIDs(in: roots.charDirectory, pathExtension: "json")
+        guard localCharacterAssetIDs == stage1MasterAssetIDs else {
+            throw MasterCatalogLoadError.directory(
+                mismatchMessage(
+                    title: "./assets/char 与 Stage 1 大师目录不一致",
+                    expected: stage1MasterAssetIDs,
+                    actual: localCharacterAssetIDs
+                )
+            )
+        }
+
+        let localImageAssetIDs = try resourceDirectoryIDs(in: roots.imageDirectory)
+        guard localImageAssetIDs == stage1MasterAssetIDs else {
+            throw MasterCatalogLoadError.directory(
+                mismatchMessage(
+                    title: "./assets/assets/char 与 Stage 1 大师目录不一致",
+                    expected: stage1MasterAssetIDs,
+                    actual: localImageAssetIDs
+                )
+            )
+        }
+    }
+
     private static func resolveAssetRoots() throws -> MasterAssetRoots {
         let fileManager = FileManager.default
         let bundleCandidates: [MasterAssetRoots] = [
@@ -1011,6 +1061,38 @@ enum MasterCatalogLoader {
         }
 
         return sourceRoots
+    }
+
+    private static func resourceFileIDs(in directory: URL, pathExtension: String) throws -> Set<String> {
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )
+
+        return Set(contents.compactMap { url in
+            guard url.pathExtension.lowercased() == pathExtension.lowercased() else { return nil }
+            return url.deletingPathExtension().lastPathComponent
+        })
+    }
+
+    private static func resourceDirectoryIDs(in directory: URL) throws -> Set<String> {
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        )
+
+        return Set(contents.compactMap { url in
+            guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { return nil }
+            return url.lastPathComponent
+        })
+    }
+
+    private static func mismatchMessage(title: String, expected: Set<String>, actual: Set<String>) -> String {
+        let expectedList = expected.sorted().joined(separator: ", ")
+        let actualList = actual.sorted().joined(separator: ", ")
+        return "\(title)。expected=[\(expectedList)] actual=[\(actualList)]"
     }
 
     private static func makeProfile(

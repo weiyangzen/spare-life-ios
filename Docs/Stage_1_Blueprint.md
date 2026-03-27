@@ -205,6 +205,9 @@ Stage 1 默认验证设备矩阵：
 
 验证记录（2026-03-27）：
 `swift test --package-path spare-life-ios-app --filter XianxiaTopicRepositoryTests` 与 `swift build --package-path spare-life-ios-app` 通过；`SpareLifePreviewHost` 在 `iPhone 16 Pro (iOS 18.6)` 与 `iPad Air 11-inch (M2, iOS 18.3.1)` 上通过 `SIMCTL_CHILD_XIANXIA_TOPICS_BASE_URL=http://100.82.60.69:17880` 启动，截图显示首页仅保留 topic feed；两端容器均写出 `Library/Application Support/SpareLife/XianxiaTopics/xianxia-fc9253545836f48d.json`，其中 iPhone 快照为 `items=1080,nextCursor=1080`，iPad 快照为 `items=600,nextCursor=600`。缓存回退与跨实例复用继续由 `XianxiaTopicRepositoryTests` 覆盖。
+
+本轮复核（2026-03-27）：
+`swift test --package-path spare-life-ios-app --filter XianxiaTopicRepositoryTests` 通过；`rg -n "QRScanView|SceneAvatarRadarView|SceneSocialIntentView|SceneClusterOverviewView|SceneSummaryCardView|HotTakeCardView|AvatarRadarCardView|SceneSocialPromptCardView" spare-life-ios-app/Features/Xianxia/XianxiaHomeView.swift spare-life-ios-app/App/MainTabView.swift` 未命中，确认 Stage 1 首页未接入扫码、雷达或陌生社交残留视图引用。
 - [ ] topic 卡片双列瀑布流：每个 topic 一张卡片，以双列瀑布流方式呈现，不混入其他卡片类型。
 - [ ] topic shards 详情承接：点击任意 topic 后，能读取并展示对应 topic shards，并把 shards 写入本地存储。
 - [ ] 咸虾本机验证通过：在 iPhone 15 Pro 上完成 topics 拉取、卡片浏览、进入 topic detail、分页读取 shards、离线回退缓存的主路径。

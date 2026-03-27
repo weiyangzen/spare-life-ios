@@ -1,0 +1,102 @@
+{
+  "domains": [
+    {
+      "id": "theory",
+      "title": "理论与公理",
+      "description": "先澄清定义、结构和范式，再进入判断。",
+      "symbol": "sum"
+    },
+    {
+      "id": "discovery",
+      "title": "实验与发现",
+      "description": "从证据、实验和现象出发做判断。",
+      "symbol": "flask.fill"
+    },
+    {
+      "id": "invention",
+      "title": "发明与代价",
+      "description": "同时看技术收益、风险和社会后果。",
+      "symbol": "gearshape.2.fill"
+    },
+    {
+      "id": "humanity",
+      "title": "文学与自省",
+      "description": "围绕处境、表达与价值做对话。",
+      "symbol": "text.book.closed.fill"
+    }
+  ],
+  "entries": [
+    {
+      "asset_id": "001546",
+      "domain_id": "theory",
+      "sort_order": 1,
+      "decision_style": "steady_execution",
+      "risk_appetite": "steady",
+      "portrait_symbol": "sum",
+      "palette_hex": ["#21293D", "#D1B37A"]
+    },
+    {
+      "asset_id": "001550",
+      "domain_id": "theory",
+      "sort_order": 2,
+      "decision_style": "act_then_reflect",
+      "risk_appetite": "experimental",
+      "portrait_symbol": "atom",
+      "palette_hex": ["#1A304A", "#B8D6E6"]
+    },
+    {
+      "asset_id": "001560",
+      "domain_id": "discovery",
+      "sort_order": 3,
+      "decision_style": "steady_execution",
+      "risk_appetite": "steady",
+      "portrait_symbol": "radiowaves.left.and.right",
+      "palette_hex": ["#243342", "#D6E6C7"]
+    },
+    {
+      "asset_id": "001567",
+      "domain_id": "discovery",
+      "sort_order": 4,
+      "decision_style": "steady_execution",
+      "risk_appetite": "steady",
+      "portrait_symbol": "leaf",
+      "palette_hex": ["#293833", "#C4DBB3"]
+    },
+    {
+      "asset_id": "001570",
+      "domain_id": "discovery",
+      "sort_order": 5,
+      "decision_style": "small_bets_profit",
+      "risk_appetite": "steady",
+      "portrait_symbol": "cross.vial.fill",
+      "palette_hex": ["#2E2B3D", "#DBCC9E"]
+    },
+    {
+      "asset_id": "001572",
+      "domain_id": "discovery",
+      "sort_order": 6,
+      "decision_style": "act_then_reflect",
+      "risk_appetite": "experimental",
+      "portrait_symbol": "dna",
+      "palette_hex": ["#1A2E40", "#BFDBED"]
+    },
+    {
+      "asset_id": "001565",
+      "domain_id": "invention",
+      "sort_order": 7,
+      "decision_style": "small_bets_profit",
+      "risk_appetite": "balanced",
+      "portrait_symbol": "burst.fill",
+      "palette_hex": ["#3B2924", "#E3BD7A"]
+    },
+    {
+      "asset_id": "001580",
+      "domain_id": "humanity",
+      "sort_order": 8,
+      "decision_style": "resilient_expression",
+      "risk_appetite": "balanced",
+      "portrait_symbol": "text.book.closed.fill",
+      "palette_hex": ["#2B2B38", "#D4BFA3"]
+    }
+  ]
+}

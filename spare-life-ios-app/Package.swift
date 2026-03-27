@@ -29,7 +29,8 @@ let package = Package(
                 "Domain/Models/myContracts.mjs",
                 "Domain/Models/sceneContracts.mjs",
                 "Domain/Models/unifiedUIContracts.mjs",
-                "Domain/UseCases"
+                "Domain/UseCases",
+                "Features/Masters/Support"
             ],
             sources: [
                 "App",

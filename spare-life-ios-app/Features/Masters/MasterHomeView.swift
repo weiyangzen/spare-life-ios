@@ -1130,6 +1130,20 @@ private struct MasterAssetBundleSheet: View {
                     AssetFieldGroup(title: "Manifest 字段", fields: profile.assetBundle.manifestFields)
 
                     VStack(alignment: .leading, spacing: Spacing.sm) {
+                        Text("目录索引来源")
+                            .font(.spareBodySB)
+                        Text(profile.assetBundle.directoryManifestPath)
+                            .font(.spareCaption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(Spacing.md)
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: CornerRadius.lg)
+                            .stroke(Color.cardStroke, lineWidth: 1)
+                    )
+
+                    VStack(alignment: .leading, spacing: Spacing.sm) {
                         Text("portrait 资源")
                             .font(.spareBodySB)
                         Text(profile.assetBundle.portraitPackage)

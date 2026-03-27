@@ -55,6 +55,28 @@ enum MasterCatalogSourceMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum MasterCatalogAccessPolicy: String, Equatable {
+    case browseAndChatOnly
+
+    var title: String {
+        switch self {
+        case .browseAndChatOnly:
+            return "大师目录只读"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .browseAndChatOnly:
+            return "Stage 1 只允许浏览目录并进入一对一对话。字段固定来自 ./assets/char，图片固定来自 ./assets/assets；不能在端侧新建、删除或编辑大师资产。"
+        }
+    }
+
+    var allowsMasterMutation: Bool {
+        false
+    }
+}
+
 enum MasterConversationMode: String, CaseIterable, Identifiable, Hashable {
     case storyFirst = "故事优先"
     case adviceFirst = "建议优先"
@@ -282,6 +304,7 @@ struct MasterConversationDraft: Identifiable, Hashable {
     var session: MasterRecentSession
     var mode: MasterConversationMode
     var memoryScope: MasterMemoryScope
+    var serviceStatus: MasterConversationServiceStatus
     var messages: [MasterMessage]
     var prefilledPrompt: String
     var isReplying: Bool
@@ -353,6 +376,8 @@ struct MasterCatalogCoverage: Hashable {
 
 @MainActor
 final class MasterExperienceStore: ObservableObject {
+    private static let directoryPageSize = 8
+
     @Published var query = ""
     @Published var selectedDomainID: String? = nil
     @Published var catalogSourceMode: MasterCatalogSourceMode = .synced
@@ -365,16 +390,28 @@ final class MasterExperienceStore: ObservableObject {
     @Published private(set) var masterIndex: [String: Int] = [:]
     @Published private(set) var catalogCoverage: MasterCatalogCoverage? = nil
     @Published private(set) var recentSessions: [MasterRecentSession] = []
-    @Published var selectedMasterID: String? = nil
+    @Published private(set) var conversationServiceStatus: MasterConversationServiceStatus = .fallback(
+        detail: "当前还没有加载到大师对话服务状态。"
+    )
+    @Published private(set) var visibleDirectoryMasterCount = 0
     @Published var conversation: MasterConversationDraft? = nil
     @Published var consultation: MasterConsultationDraft? = nil
     @Published var routePreview: MasterRoutePreview? = nil
 
     private var hasLoaded = false
     private let catalogLoader: () throws -> MasterCatalogSnapshot
+    private let conversationService: MasterConversationReplying
+    let catalogAccessPolicy: MasterCatalogAccessPolicy = .browseAndChatOnly
+    private var sessionTranscripts: [String: [MasterMessage]] = [:]
 
-    init(catalogLoader: @escaping () throws -> MasterCatalogSnapshot = { try MasterCatalogLoader.load() }) {
+    init(
+        catalogLoader: @escaping () throws -> MasterCatalogSnapshot = { try MasterCatalogLoader.load() },
+        conversationService: MasterConversationReplying? = nil
+    ) {
         self.catalogLoader = catalogLoader
+        let resolvedConversationService = conversationService ?? AnthropicMasterConversationService()
+        self.conversationService = resolvedConversationService
+        self.conversationServiceStatus = resolvedConversationService.status
     }
 
     var filteredMasters: [MasterProfile] {
@@ -416,6 +453,14 @@ final class MasterExperienceStore: ObservableObject {
         filteredMasters
     }
 
+    var visibleDirectoryMasters: [MasterProfile] {
+        Array(filteredMasters.prefix(visibleDirectoryMasterCount))
+    }
+
+    var hasMoreDirectoryMastersToLoad: Bool {
+        visibleDirectoryMasterCount < filteredMasters.count
+    }
+
     var recentStripSessions: [MasterRecentSession] {
         Array(prioritizedSessions.prefix(6))
     }
@@ -455,16 +500,31 @@ final class MasterExperienceStore: ObservableObject {
         isLoading = true
         degradedMessage = nil
         fatalErrorMessage = nil
+        conversationServiceStatus = conversationService.status
+
+        let previousMasters = Dictionary(uniqueKeysWithValues: masters.map { ($0.id, $0) })
+        let previousSessions = recentSessions
 
         do {
             let snapshot = try catalogLoader()
             catalogSourceMode = .synced
             domains = snapshot.domains
             domainIndex = snapshot.domainIndex
-            masters = snapshot.masters
-            masterIndex = snapshot.masterIndex
+            let mergedMasters = snapshot.masters.map { incoming -> MasterProfile in
+                guard let existing = previousMasters[incoming.id] else { return incoming }
+                var merged = incoming
+                if !existing.memoryNotes.isEmpty {
+                    merged.memoryNotes = existing.memoryNotes
+                }
+                if !existing.goalSnapshots.isEmpty {
+                    merged.goalSnapshots = existing.goalSnapshots
+                }
+                return merged
+            }
+            masters = mergedMasters
+            masterIndex = Dictionary(uniqueKeysWithValues: mergedMasters.enumerated().map { ($1.id, $0) })
             catalogCoverage = snapshot.catalogCoverage
-            recentSessions = snapshot.sessions
+            recentSessions = snapshot.sessions.isEmpty ? previousSessions : snapshot.sessions
         } catch {
             catalogSourceMode = .unavailable
             domains = []
@@ -473,12 +533,15 @@ final class MasterExperienceStore: ObservableObject {
             masterIndex = [:]
             catalogCoverage = nil
             recentSessions = []
+            visibleDirectoryMasterCount = 0
             fatalErrorMessage = error.localizedDescription
         }
 
         if let selectedDomainID, domainIndex[selectedDomainID] == nil {
             self.selectedDomainID = nil
         }
+
+        resetDirectoryPagination()
 
         isLoading = false
     }
@@ -494,8 +557,20 @@ final class MasterExperienceStore: ObservableObject {
         syncConversationSession(recentSessions[index])
     }
 
-    func openMaster(_ profile: MasterProfile) {
-        selectedMasterID = profile.id
+    func resetDirectoryPagination() {
+        visibleDirectoryMasterCount = min(filteredMasters.count, Self.directoryPageSize)
+    }
+
+    func loadNextDirectoryBatchIfNeeded(after profile: MasterProfile) {
+        guard hasMoreDirectoryMastersToLoad,
+              visibleDirectoryMasters.last?.id == profile.id else {
+            return
+        }
+
+        visibleDirectoryMasterCount = min(
+            filteredMasters.count,
+            visibleDirectoryMasterCount + Self.directoryPageSize
+        )
     }
 
     func openConversation(for profile: MasterProfile, template: MasterQuestionTemplate? = nil) {
@@ -537,7 +612,8 @@ final class MasterExperienceStore: ObservableObject {
             session: session,
             mode: template?.mode ?? .storyFirst,
             memoryScope: .masterOnly,
-            messages: session.seedMessages,
+            serviceStatus: conversationServiceStatus,
+            messages: sessionTranscripts[session.id] ?? session.seedMessages,
             prefilledPrompt: template?.prompt ?? "",
             isReplying: false,
             inlineError: nil
@@ -552,7 +628,8 @@ final class MasterExperienceStore: ObservableObject {
             session: session,
             mode: .storyFirst,
             memoryScope: .masterOnly,
-            messages: session.seedMessages,
+            serviceStatus: conversationServiceStatus,
+            messages: sessionTranscripts[session.id] ?? session.seedMessages,
             prefilledPrompt: "",
             isReplying: false,
             inlineError: nil
@@ -576,6 +653,9 @@ final class MasterExperienceStore: ObservableObject {
                     ctas: []
                 )
             )
+            if let conversation {
+                sessionTranscripts[conversation.session.id] = conversation.messages
+            }
         }
     }
 
@@ -659,6 +739,7 @@ final class MasterExperienceStore: ObservableObject {
             )
         )
         self.conversation = conversation
+        sessionTranscripts[conversation.session.id] = conversation.messages
 
         try? await Task.sleep(nanoseconds: 420_000_000)
 
@@ -669,12 +750,45 @@ final class MasterExperienceStore: ObservableObject {
             return
         }
 
-        let reply = composeReply(
-            for: profile,
-            message: text,
-            mode: conversation.mode,
-            memoryScope: conversation.memoryScope
-        )
+        let relevantStories = rankedStories(for: profile, query: text)
+        let authorizedMemories = Array(profile.memoryNotes.prefix(conversation.memoryScope == .sessionOnly ? 0 : 3))
+        let reply: MasterMessage
+        do {
+            let remoteReply = try await conversationService.generateReply(
+                for: MasterConversationRequest(
+                    profile: profile,
+                    mode: conversation.mode,
+                    memoryScope: conversation.memoryScope,
+                    authorizedMemories: authorizedMemories,
+                    relevantStories: relevantStories,
+                    recentMessages: conversation.messages
+                )
+            )
+            conversation.serviceStatus = remoteReply.status
+            conversationServiceStatus = remoteReply.status
+            reply = MasterMessage(
+                id: "assistant-\(UUID().uuidString)",
+                role: .assistant,
+                text: remoteReply.text,
+                timestamp: "刚刚",
+                referencedStoryTitles: relevantStories.map(\.title),
+                referencedMemoryLabels: authorizedMemories.map(\.label),
+                ctas: recommendedActions(for: profile, message: text)
+            )
+        } catch {
+            let fallbackStatus = MasterConversationServiceStatus.fallback(
+                detail: "实时大师服务这轮不可用，已回退到本地故事与记忆引擎继续回复。原因：\(error.localizedDescription)"
+            )
+            conversation.serviceStatus = fallbackStatus
+            conversationServiceStatus = fallbackStatus
+            reply = composeReply(
+                for: profile,
+                message: text,
+                mode: conversation.mode,
+                memoryScope: conversation.memoryScope
+            )
+        }
+
         conversation.messages.append(reply)
         conversation.session.topic = clip(text, limit: 18)
         conversation.session.preview = reply.text
@@ -689,6 +803,7 @@ final class MasterExperienceStore: ObservableObject {
         }
 
         self.conversation = conversation
+        sessionTranscripts[conversation.session.id] = conversation.messages
     }
 
     func presentRoutePreview(_ action: MasterActionRecommendation, sourceTitle: String) {

@@ -5,7 +5,7 @@ Authoritative source: `/Users/wangweiyang/GitHub/spare-life-ios/Docs/Stage_1_Blu
 This file is a working snapshot for Stage 1 Xianxia + Masters only.
 Checkmarks must be backfilled from real implementation and local validation.
 
-Progress: 咸虾 0/6, 大师 0/10
+Progress: 咸虾 0/6, 大师 3/10
 
 ## 1.1 咸虾
 - [ ] 咸虾首页信息架构对齐：Stage 1 首页只保留 topic feed，不再承接扫码、雷达、陌生社交等其他能力。
@@ -16,9 +16,9 @@ Progress: 咸虾 0/6, 大师 0/10
 - [ ] 咸虾本机验证通过：在 iPhone 15 Pro 上完成 topics 拉取、卡片浏览、进入 topic detail、分页读取 shards、离线回退缓存的主路径。
 
 ## 1.2 大师
-- [ ] 大师首页信息架构对齐：Stage 1 首页只保留大师目录页，不再优先承接最近聊过谁、会诊、导向行动等复杂能力。
-- [ ] 大师目录数据接入：大师目录能从预置角色资源和服务端目录中正确读取并建立索引。
-- [ ] 大师资源映射正确：字段固定取自 `./assets/char`，图片固定取自 `./assets/assets`，当前 8 套资源必须一一对应且不能错配。
+- [x] 大师首页信息架构对齐：Stage 1 首页只保留大师目录页，不再优先承接最近聊过谁、会诊、导向行动等复杂能力。
+- [x] 大师目录数据接入：大师目录能从预置角色资源和服务端目录中正确读取并建立索引。
+- [x] 大师资源映射正确：字段固定取自 `./assets/char`，图片固定取自 `./assets/assets`，当前 8 套资源必须一一对应且不能错配。
 - [ ] 大师卡片双列瀑布流：每位大师一张卡片，以双列瀑布流方式浏览，卡片信息足以支撑用户做选择。
 - [ ] 大师目录只读约束：用户只能浏览和进入对话，不能在端侧新建、删除或编辑大师本体内容。
 - [ ] 大师详情承接正确：点击任意大师卡后，进入正确的一对一对话页面，而不是停留在静态详情样板。

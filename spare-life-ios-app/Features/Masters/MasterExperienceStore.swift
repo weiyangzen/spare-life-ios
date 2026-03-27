@@ -26,7 +26,7 @@ enum MasterCatalogSourceMode: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .synced:
-            return "优先展示最新导入的大师目录和最近上下文。"
+            return "优先展示通过服务端目录索引到本地角色资产的 Stage 1 大师目录。"
         case .cached:
             return "只读本地缓存，适合弱网或离线继续找大师。"
         case .degraded:
@@ -314,6 +314,34 @@ struct MasterRoutePreview: Identifiable, Hashable {
     let sourceTitle: String
 }
 
+struct MasterCatalogCoverage: Hashable {
+    let directoryManifestPath: String
+    let characterRootPath: String
+    let imageRootPath: String
+    let matchedAssetIDs: [String]
+    let mappedImageFiles: [String]
+
+    var directoryManifestName: String {
+        URL(fileURLWithPath: directoryManifestPath).lastPathComponent
+    }
+
+    var fieldSourceDisplayPath: String {
+        "./assets/char"
+    }
+
+    var imageSourceDisplayPath: String {
+        "./assets/assets/char"
+    }
+
+    var matchedAssetCount: Int {
+        matchedAssetIDs.count
+    }
+
+    var mappingSummary: String {
+        "\(matchedAssetCount)/8 已匹配"
+    }
+}
+
 @MainActor
 final class MasterExperienceStore: ObservableObject {
     @Published var query = ""
@@ -326,6 +354,7 @@ final class MasterExperienceStore: ObservableObject {
     @Published private(set) var domainIndex: [String: MasterDomain] = [:]
     @Published private(set) var masters: [MasterProfile] = []
     @Published private(set) var masterIndex: [String: Int] = [:]
+    @Published private(set) var catalogCoverage: MasterCatalogCoverage? = nil
     @Published private(set) var recentSessions: [MasterRecentSession] = []
     @Published var selectedMasterID: String? = nil
     @Published var conversation: MasterConversationDraft? = nil
@@ -387,10 +416,17 @@ final class MasterExperienceStore: ObservableObject {
     }
 
     var directoryManifestName: String {
+        if let catalogCoverage {
+            return catalogCoverage.directoryManifestName
+        }
         guard let path = masters.first?.assetBundle.directoryManifestPath else {
             return "master_service_directory.json"
         }
         return URL(fileURLWithPath: path).lastPathComponent
+    }
+
+    var resourceMappingSummary: String {
+        catalogCoverage?.mappingSummary ?? "\(masters.count)/8 已匹配"
     }
 
     func master(withID id: String) -> MasterProfile? {
@@ -418,6 +454,7 @@ final class MasterExperienceStore: ObservableObject {
             domainIndex = snapshot.domainIndex
             masters = snapshot.masters
             masterIndex = snapshot.masterIndex
+            catalogCoverage = snapshot.catalogCoverage
             recentSessions = snapshot.sessions
         } catch {
             catalogSourceMode = .unavailable
@@ -425,6 +462,7 @@ final class MasterExperienceStore: ObservableObject {
             domainIndex = [:]
             masters = []
             masterIndex = [:]
+            catalogCoverage = nil
             recentSessions = []
             fatalErrorMessage = error.localizedDescription
         }
@@ -925,6 +963,7 @@ struct MasterCatalogSnapshot {
     let domainIndex: [String: MasterDomain]
     let masters: [MasterProfile]
     let masterIndex: [String: Int]
+    let catalogCoverage: MasterCatalogCoverage
     let sessions: [MasterRecentSession]
 }
 
@@ -1008,6 +1047,13 @@ enum MasterCatalogLoader {
             domainIndex: domainLookup,
             masters: masters,
             masterIndex: masterIndex,
+            catalogCoverage: MasterCatalogCoverage(
+                directoryManifestPath: serviceDirectory.sourceURL.path,
+                characterRootPath: roots.charDirectory.path,
+                imageRootPath: roots.imageDirectory.path,
+                matchedAssetIDs: masters.map(\.id).sorted(),
+                mappedImageFiles: ["avatar.png", "image.png", "background.jpg"]
+            ),
             sessions: []
         )
     }

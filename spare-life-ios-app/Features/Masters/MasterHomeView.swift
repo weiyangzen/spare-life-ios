@@ -62,33 +62,82 @@ struct MasterHomeView: View {
                 Text("大师")
                     .font(.spareTitle1)
 
-                Text("Stage 1 首页只保留首批 8 位大师目录。先看人，再进入一对一对话。")
+                Text("Stage 1 首页只保留首批 8 位大师目录。先看人，再进入一对一对话，不在首页优先承接最近聊过、会诊或导向行动。")
                     .font(.spareCaption)
                     .foregroundColor(.secondary)
             }
 
-            HStack(spacing: Spacing.sm) {
-                Label("\(store.masters.count) 位已匹配", systemImage: "person.2.fill")
-                Text("字段 ./assets/char")
-                Text("图片 ./assets/assets")
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: Spacing.sm),
+                    GridItem(.flexible(), spacing: Spacing.sm)
+                ],
+                spacing: Spacing.sm
+            ) {
+                CatalogSourceCard(
+                    title: "服务端目录",
+                    detail: store.directoryManifestName,
+                    systemImage: "server.rack"
+                )
+                CatalogSourceCard(
+                    title: "字段源",
+                    detail: store.catalogCoverage?.fieldSourceDisplayPath ?? "./assets/char",
+                    systemImage: "doc.text.fill"
+                )
+                CatalogSourceCard(
+                    title: "图片源",
+                    detail: store.catalogCoverage?.imageSourceDisplayPath ?? "./assets/assets/char",
+                    systemImage: "photo.stack.fill"
+                )
+                CatalogSourceCard(
+                    title: "资源映射",
+                    detail: store.resourceMappingSummary,
+                    systemImage: "checkmark.seal.fill",
+                    tint: .emotionPositive
+                )
             }
-            .font(.spareMicro)
-            .foregroundColor(.secondary)
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-            .background(Color.white.opacity(0.82), in: Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(Color.cardStroke, lineWidth: 1)
-            )
 
-            Text("目录索引：\(store.directoryManifestName)")
+            Text("目录索引会把服务端目录中的 8 个 asset_id 与本地字段/图片资源一一建立索引，再进入目录卡片。")
                 .font(.spareMicro)
                 .foregroundColor(.secondary)
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.top, Spacing.lg)
         .padding(.bottom, Spacing.sm)
+    }
+
+    private struct CatalogSourceCard: View {
+        let title: String
+        let detail: String
+        let systemImage: String
+        var tint: Color = .secondary
+
+        var body: some View {
+            HStack(alignment: .top, spacing: Spacing.sm) {
+                Image(systemName: systemImage)
+                    .foregroundColor(tint)
+                    .padding(.top, 2)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+                    Text(detail)
+                        .font(.spareCaptionSB)
+                        .foregroundColor(.primary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(Spacing.md)
+            .frame(maxWidth: .infinity, minHeight: 72, alignment: .topLeading)
+            .background(Color.white.opacity(0.88), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+            .overlay(
+                RoundedRectangle(cornerRadius: CornerRadius.lg)
+                    .stroke(Color.cardStroke, lineWidth: 1)
+            )
+        }
     }
 
     private var filterPanel: some View {

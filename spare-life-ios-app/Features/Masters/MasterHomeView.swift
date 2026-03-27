@@ -4,11 +4,16 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
+#if canImport(AppKit) && !canImport(UIKit)
+import AppKit
+#endif
 
 struct MasterHomeView: View {
     @StateObject private var store = MasterExperienceStore()
     @StateObject private var scrollState = WaterfallScrollState()
-    @State private var sourceSheetPresented = false
 
     var body: some View {
         NavigationStack {
@@ -30,25 +35,12 @@ struct MasterHomeView: View {
                         .padding(.horizontal, Spacing.lg)
                         .padding(.bottom, Spacing.sm)
 
-                    recentStrip
-                        .padding(.bottom, Spacing.sm)
-
                     Divider()
 
                     feedBody
                 }
             }
-            .navigationBarHidden(true)
-            .sheet(isPresented: Binding(
-                get: { store.selectedMasterID != nil },
-                set: { if !$0 { store.selectedMasterID = nil } }
-            )) {
-                if let masterID = store.selectedMasterID {
-                    NavigationStack {
-                        MasterProfileView(store: store, masterID: masterID)
-                    }
-                }
-            }
+            .spareNavigationBarHidden(true)
             .sheet(item: $store.conversation) { _ in
                 MasterConversationView(store: store)
             }
@@ -58,9 +50,6 @@ struct MasterHomeView: View {
             .sheet(item: $store.routePreview) { preview in
                 MasterRoutePreviewSheet(store: store, preview: preview)
             }
-            .sheet(isPresented: $sourceSheetPresented) {
-                MasterCatalogSourceSheet(store: store)
-            }
             .task {
                 store.loadIfNeeded()
             }
@@ -68,37 +57,30 @@ struct MasterHomeView: View {
     }
 
     private var topBar: some View {
-        HStack(alignment: .top, spacing: Spacing.md) {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text("大师")
                     .font(.spareTitle1)
 
-                Text("今天我该找谁聊，先在这里做决定。")
+                Text("Stage 1 首页只保留首批 8 位大师目录。先看人，再进入一对一对话。")
                     .font(.spareCaption)
                     .foregroundColor(.secondary)
             }
 
-            Spacer()
-
-            Button {
-                sourceSheetPresented = true
-            } label: {
-                HStack(spacing: Spacing.xs) {
-                    Image(systemName: store.catalogSourceMode.icon)
-                        .foregroundColor(store.catalogSourceMode.tint)
-                    Text(store.catalogSourceMode.title)
-                        .font(.spareMicro)
-                        .foregroundColor(.primary)
-                }
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.sm)
-                .background(Color.white.opacity(0.82), in: Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(Color.cardStroke, lineWidth: 1)
-                )
+            HStack(spacing: Spacing.sm) {
+                Label("\(store.masters.count) 位已匹配", systemImage: "person.2.fill")
+                Text("字段 ./assets/char")
+                Text("图片 ./assets/assets")
             }
-            .buttonStyle(.plain)
+            .font(.spareMicro)
+            .foregroundColor(.secondary)
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
+            .background(Color.white.opacity(0.82), in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.cardStroke, lineWidth: 1)
+            )
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.top, Spacing.lg)
@@ -157,47 +139,6 @@ struct MasterHomeView: View {
     }
 
     @ViewBuilder
-    private var recentStrip: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack {
-                Text("最近聊过谁")
-                    .font(.spareCaptionSB)
-                    .foregroundColor(.secondary)
-
-                Spacer()
-
-                if !store.recentStripSessions.isEmpty {
-                    Button("发起会诊") {
-                        store.presentConsultation()
-                    }
-                    .font(.spareMicro)
-                    .buttonStyle(.plain)
-                    .foregroundColor(.primary)
-                }
-            }
-            .padding(.horizontal, Spacing.lg)
-
-            if store.recentStripSessions.isEmpty {
-                EmptyRecentStrip()
-                    .padding(.horizontal, Spacing.lg)
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: Spacing.md) {
-                        ForEach(store.recentStripSessions) { session in
-                            RecentMasterPill(session: session) {
-                                store.restoreSession(session)
-                            } pinAction: {
-                                store.togglePinned(session)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, Spacing.lg)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
     private var feedBody: some View {
         if store.isLoading {
             WaterfallSkeleton(count: 8)
@@ -226,7 +167,7 @@ struct MasterHomeView: View {
                     EmptyStateView(
                         icon: "book.closed",
                         title: "这组筛选里还没有合适的大师",
-                        message: "试试切换领域、放宽搜索词，或者直接从最近会话恢复熟悉上下文。",
+                        message: "试试切换领域或放宽搜索词。当前首页不会混入最近聊过、会诊或其他卡片。",
                         actionLabel: "清空筛选",
                         action: {
                             store.query = ""
@@ -252,14 +193,6 @@ struct MasterHomeView: View {
 
                             VStack(spacing: Spacing.md) {
                                 ReadOnlyCatalogBanner()
-
-                                if store.showCacheBanner {
-                                    CatalogStateBanner(
-                                        icon: store.catalogSourceMode.icon,
-                                        title: store.catalogSourceMode.title,
-                                        message: store.degradedMessage ?? "当前展示本地缓存目录。"
-                                    )
-                                }
                             }
                             .padding(.horizontal, Spacing.lg)
                             .padding(.top, Spacing.md)
@@ -319,27 +252,10 @@ struct MasterHomeView: View {
         switch card {
         case .master(let profile):
             MasterProfileCard(profile: profile) {
-                store.openMaster(profile)
-            } chatAction: {
                 store.openConversation(for: profile)
             }
-        case .resume(let session):
-            ResumeConversationCard(session: session) {
-                store.restoreSession(session)
-            } pinAction: {
-                store.togglePinned(session)
-            }
-        case .template(let masterID, let template):
-            if let master = store.master(withID: masterID) {
-                MasterTemplateCard(master: master, template: template) {
-                    store.openConversation(for: master, template: template)
-                }
-            }
-        case .consultation(let featuredMasterIDs):
-            let featured = featuredMasterIDs.compactMap(store.master(withID:))
-            ConsultationLaunchCard(masters: featured) {
-                store.presentConsultation()
-            }
+        case .resume, .template, .consultation:
+            EmptyView()
         }
     }
 }
@@ -485,7 +401,7 @@ private struct ReadOnlyCatalogBanner: View {
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text("大师目录只读")
                     .font(.spareBodySB)
-                Text("你可以浏览、聊天、收藏最近聊过、发起会诊和清空与某位大师的记忆；不能在端侧新建、删除或编辑大师资产。")
+                Text("Stage 1 首页只承接目录浏览与进入对话。字段固定来自 ./assets/char，图片固定来自 ./assets/assets；不能在端侧新建、删除或编辑大师资产。")
                     .font(.spareCaption)
                     .foregroundColor(.secondary)
             }
@@ -497,6 +413,40 @@ private struct ReadOnlyCatalogBanner: View {
             RoundedRectangle(cornerRadius: CornerRadius.lg)
                 .stroke(Color.cardStroke, lineWidth: 1)
         )
+    }
+}
+
+private enum MasterPlatformImageLoader {
+    static func image(at path: String) -> Image? {
+        #if canImport(UIKit)
+        guard let image = UIImage(contentsOfFile: path) else { return nil }
+        return Image(uiImage: image)
+        #elseif canImport(AppKit) && !canImport(UIKit)
+        guard let image = NSImage(contentsOfFile: path) else { return nil }
+        return Image(nsImage: image)
+        #else
+        return nil
+        #endif
+    }
+}
+
+private struct MasterImageView: View {
+    let path: String
+
+    var body: some View {
+        Group {
+            if let image = MasterPlatformImageLoader.image(at: path) {
+                image
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                LinearGradient(
+                    colors: [Color(.systemGray5), Color(.systemGray6)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        }
     }
 }
 
@@ -531,93 +481,104 @@ private struct CatalogStateBanner: View {
 
 private struct MasterProfileCard: View {
     let profile: MasterProfile
-    let openAction: () -> Void
     let chatAction: () -> Void
 
-    init(profile: MasterProfile, openAction: @escaping () -> Void, chatAction: @escaping () -> Void) {
-        self.profile = profile
-        self.openAction = openAction
-        self.chatAction = chatAction
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            ZStack(alignment: .bottomTrailing) {
-                RoundedRectangle(cornerRadius: CornerRadius.xl)
-                    .fill(
-                        LinearGradient(colors: profile.palette, startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
-                    .frame(height: 168)
+        Button(action: chatAction) {
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                ZStack(alignment: .bottomTrailing) {
+                    MasterImageView(path: profile.imageSet.backgroundPath)
+                        .frame(height: 196)
+                        .clipped()
+                        .overlay(
+                            LinearGradient(
+                                colors: [Color.black.opacity(0.06), Color.black.opacity(0.62)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.xl))
 
-                VStack(alignment: .leading, spacing: Spacing.md) {
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: Spacing.xs) {
-                            PillTag(label: profile.domainTitle, color: .white, filled: false)
-                            Text(profile.sourceLabel)
+                    VStack(alignment: .leading, spacing: Spacing.md) {
+                        HStack(alignment: .top, spacing: Spacing.sm) {
+                            VStack(alignment: .leading, spacing: Spacing.xs) {
+                                PillTag(label: profile.domainTitle, color: .white, filled: false)
+                                HStack(spacing: Spacing.xs) {
+                                    Text(profile.sourceLabel)
+                                    Text("#\(profile.imageSet.assetID)")
+                                }
                                 .font(.spareMicro)
-                                .foregroundColor(.white.opacity(0.78))
+                                .foregroundColor(.white.opacity(0.82))
+                            }
+
+                            Spacer()
+
+                            Image(systemName: profile.portraitSymbol)
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundColor(.white.opacity(0.92))
                         }
 
                         Spacer()
 
-                        Image(systemName: profile.portraitSymbol)
-                            .font(.system(size: 28, weight: .semibold))
-                            .foregroundColor(.white.opacity(0.92))
+                        HStack(alignment: .bottom, spacing: Spacing.md) {
+                            VStack(alignment: .leading, spacing: Spacing.xs) {
+                                Text(profile.displayName)
+                                    .font(.spareTitle2)
+                                    .foregroundColor(.white)
+                                Text(profile.title)
+                                    .font(.spareCaptionSB)
+                                    .foregroundColor(.white.opacity(0.82))
+                                Text(profile.headline)
+                                    .font(.spareCaption)
+                                    .foregroundColor(.white.opacity(0.82))
+                                    .lineLimit(2)
+                            }
+
+                            Spacer(minLength: 0)
+
+                            MasterImageView(path: profile.imageSet.avatarPath)
+                                .frame(width: 56, height: 56)
+                                .clipShape(Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.92), lineWidth: 2)
+                                )
+                        }
                     }
+                    .padding(Spacing.lg)
+                }
+
+                Text(profile.tagline)
+                    .font(.spareBody)
+                    .foregroundColor(.primary)
+                    .lineLimit(4)
+
+                FlowTagWrap(tags: Array((profile.expertiseTags + profile.focusTags).prefix(5)))
+
+                HStack(spacing: Spacing.sm) {
+                    Label("进入对话", systemImage: "bubble.left.and.bubble.right.fill")
+                        .font(.spareCaptionSB)
+                        .foregroundColor(.spareDark)
+                        .padding(.horizontal, Spacing.md)
+                        .padding(.vertical, Spacing.sm)
+                        .background(Color.spareYellow, in: Capsule())
 
                     Spacer()
 
-                    VStack(alignment: .leading, spacing: Spacing.xs) {
-                        Text(profile.displayName)
-                            .font(.spareTitle2)
-                            .foregroundColor(.white)
-                        Text(profile.title)
-                            .font(.spareCaptionSB)
-                            .foregroundColor(.white.opacity(0.82))
-                        Text(profile.headline)
-                            .font(.spareCaption)
-                            .foregroundColor(.white.opacity(0.82))
-                            .lineLimit(2)
-                    }
+                    Text("已固定映射")
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
                 }
-                .padding(Spacing.lg)
             }
-
-            Text(profile.tagline)
-                .font(.spareBody)
-                .foregroundColor(.primary)
-
-            FlowTagWrap(tags: Array((profile.expertiseTags + profile.focusTags).prefix(5)))
-
-            HStack(spacing: Spacing.sm) {
-                Button("看详情") {
-                    openAction()
-                }
-                .buttonStyle(.borderless)
-                .font(.spareCaptionSB)
-                .foregroundColor(.primary)
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.sm)
-                .background(Color(.systemGray6), in: Capsule())
-
-                Button("立即开聊") {
-                    chatAction()
-                }
-                .buttonStyle(.plain)
-                .font(.spareCaptionSB)
-                .foregroundColor(.spareDark)
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.sm)
-                .background(Color.spareYellow, in: Capsule())
-            }
+            .padding(Spacing.md)
+            .background(Color.white.opacity(0.9), in: RoundedRectangle(cornerRadius: CornerRadius.xl))
+            .overlay(
+                RoundedRectangle(cornerRadius: CornerRadius.xl)
+                    .stroke(Color.cardStroke, lineWidth: 1)
+            )
+            .cardShadow(prominent: true)
         }
-        .padding(Spacing.md)
-        .background(Color.white.opacity(0.9), in: RoundedRectangle(cornerRadius: CornerRadius.xl))
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.xl)
-                .stroke(Color.cardStroke, lineWidth: 1)
-        )
-        .cardShadow(prominent: true)
+        .buttonStyle(.plain)
     }
 }
 
@@ -830,9 +791,9 @@ struct MasterProfileView: View {
                 }
                 .background(Color(.systemGroupedBackground))
                 .navigationTitle(profile.displayName)
-                .navigationBarTitleDisplayMode(.inline)
+                .spareNavigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
+                    ToolbarItem(placement: .spareTopBarTrailing) {
                         Button("资产包") {
                             showingAssetSheet = true
                         }
@@ -1189,9 +1150,9 @@ private struct MasterAssetBundleSheet: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("资产包")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .spareTopBarTrailing) {
                     Button("关闭") { dismiss() }
                 }
             }
@@ -1275,9 +1236,9 @@ struct MasterConversationView: View {
                         composer(profile: profile, conversation: conversation)
                     }
                     .navigationTitle(profile.displayName)
-                    .navigationBarTitleDisplayMode(.inline)
+                    .spareNavigationBarTitleDisplayMode(.inline)
                     .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
+                        ToolbarItem(placement: .spareTopBarTrailing) {
                             Button("关闭") { dismiss() }
                         }
                     }
@@ -1627,9 +1588,9 @@ struct MasterConsultationView: View {
                 }
             }
             .navigationTitle("多大师会诊")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .spareTopBarTrailing) {
                     Button("关闭") { dismiss() }
                 }
             }
@@ -1848,9 +1809,9 @@ private struct MasterRoutePreviewSheet: View {
             .padding(Spacing.lg)
             .background(Color(.systemGroupedBackground))
             .navigationTitle("导向行动")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .spareTopBarTrailing) {
                     Button("关闭") { dismiss() }
                 }
             }
@@ -1900,9 +1861,9 @@ private struct MasterCatalogSourceSheet: View {
                 }
             }
             .navigationTitle("内容状态")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .spareTopBarTrailing) {
                     Button("关闭") { dismiss() }
                 }
             }

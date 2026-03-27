@@ -7,6 +7,37 @@ final class XianxiaTopicRepositoryTests: XCTestCase {
         XCTAssertEqual(MainTab.xianxia.selectedIcon, "rectangle.grid.1x2.fill")
     }
 
+    func testWaterfallColumnsUseTwoColumnsForPhoneWidths() {
+        XCTAssertEqual(WaterfallColumns.count(for: 393), 2)
+        XCTAssertEqual(WaterfallColumns.count(for: 430), 2)
+    }
+
+    func testWaterfallColumnsExpandOnlyOnWideLandscapeWidths() {
+        XCTAssertEqual(WaterfallColumns.count(for: 834), 2)
+        XCTAssertEqual(WaterfallColumns.count(for: 1024), 5)
+    }
+
+    @MainActor
+    func testHomeViewModelOpenSetsActiveTopicForDetailRoute() {
+        let cacheRoot = makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: cacheRoot) }
+
+        let topic = makeTopic(
+            id: "group:open::topic-001",
+            path: "group/open/topic-001",
+            summary: "打开详情承接",
+            shardCount: 2
+        )
+
+        let vm = XianxiaHomeViewModel(repository: makeRepository(cacheRoot: cacheRoot, transport: MockClawdbTransport()))
+
+        XCTAssertNil(vm.activeTopic)
+
+        vm.open(topic)
+
+        XCTAssertEqual(vm.activeTopic, topic)
+    }
+
     @MainActor
     func testHomeViewModelLoadsPaginatedTopicsAndPersistsMergedCache() async throws {
         let cacheRoot = makeTemporaryCacheRoot()

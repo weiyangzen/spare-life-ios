@@ -37,6 +37,43 @@ final class MasterCatalogLoaderTests: XCTestCase {
         }
     }
 
+    func testMasterCatalogIDsMatchLocalCharacterAndImageDirectoriesExactly() throws {
+        let snapshot = try MasterCatalogLoader.load()
+        let expectedIDs = Set(snapshot.masters.map(\.id))
+        let fileManager = FileManager.default
+
+        let firstMaster = try XCTUnwrap(snapshot.masters.first)
+        let characterDirectory = URL(fileURLWithPath: firstMaster.assetBundle.characterAssetPath).deletingLastPathComponent()
+        let imageRootDirectory = URL(fileURLWithPath: firstMaster.assetBundle.imageDirectoryPath).deletingLastPathComponent()
+
+        let localCharacterIDs = Set<String>(
+            try fileManager.contentsOfDirectory(
+                at: characterDirectory,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            )
+            .compactMap { url in
+                guard url.pathExtension == "json" else { return nil }
+                return url.deletingPathExtension().lastPathComponent
+            }
+        )
+
+        let localImageIDs = Set<String>(
+            try fileManager.contentsOfDirectory(
+                at: imageRootDirectory,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+            .compactMap { url in
+                guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { return nil }
+                return url.lastPathComponent
+            }
+        )
+
+        XCTAssertEqual(localCharacterIDs, expectedIDs)
+        XCTAssertEqual(localImageIDs, expectedIDs)
+    }
+
     @MainActor
     func testMasterHomeCardsStayDirectoryOnly() async throws {
         let store = MasterExperienceStore()

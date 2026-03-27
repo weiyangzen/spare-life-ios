@@ -28,7 +28,6 @@ Progress: 咸虾 0/6, 大师 3/10
 - [ ] 大师本机验证通过：在 iPhone 15 Pro 上完成 8 位大师的目录浏览、卡片正确展示、进入任意大师、发送多轮消息、得到稳定回复、退出再进入继续聊天的主路径。
 
 验证日期：2026-03-27
-验证环境：本地 Swift Package 测试（macOS CLI）
+验证环境：本地 Swift Package 定向测试
 入口路径：`swift test --package-path spare-life-ios-app --filter MasterCatalogLoaderTests`
-验证结果：3 个定向测试全部通过，覆盖首页目录收敛、8 位大师目录加载、字段和图片资源一一映射。
-残留问题：设备侧人工走查尚未执行，因此 `大师本机验证通过` 继续保持未勾选。
+验证结果：4 个定向测试通过，覆盖首页目录只返回大师卡、目录索引固定读取 8 位大师、字段与图片资源严格命中 `./assets/char` 和 `./assets/assets/char/<id>`。

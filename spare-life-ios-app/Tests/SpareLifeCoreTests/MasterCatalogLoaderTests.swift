@@ -20,10 +20,16 @@ final class MasterCatalogLoaderTests: XCTestCase {
 
         for master in snapshot.masters {
             XCTAssertEqual(master.imageSet.assetID, master.id)
+            XCTAssertTrue(
+                master.assetBundle.directoryManifestPath.hasSuffix(
+                    "/spare-life-ios-app/Features/Masters/Support/master_service_directory.json"
+                )
+            )
             XCTAssertTrue(master.assetBundle.characterAssetPath.hasSuffix("/assets/char/\(master.id).json"))
             XCTAssertTrue(master.assetBundle.imageDirectoryPath.hasSuffix("/assets/assets/char/\(master.id)"))
             XCTAssertEqual(Set(master.assetBundle.mappedImageFiles), Set(["avatar.png", "image.png", "background.jpg"]))
 
+            XCTAssertTrue(fileManager.fileExists(atPath: master.assetBundle.directoryManifestPath))
             XCTAssertTrue(fileManager.fileExists(atPath: master.assetBundle.characterAssetPath))
             XCTAssertTrue(fileManager.fileExists(atPath: master.imageSet.avatarPath))
             XCTAssertTrue(fileManager.fileExists(atPath: master.imageSet.portraitPath))

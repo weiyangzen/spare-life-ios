@@ -166,6 +166,7 @@ struct MasterAssetBundleInfo: Hashable {
     let bundleID: String
     let version: String
     let portraitPackage: String
+    let directoryManifestPath: String
     let characterFields: [String]
     let storyFields: [String]
     let manifestFields: [String]
@@ -912,10 +913,11 @@ struct MasterCatalogSnapshot {
 enum MasterCatalogLoader {
     static func load() throws -> MasterCatalogSnapshot {
         let roots = try resolveAssetRoots()
-        let domainLookup = Dictionary(uniqueKeysWithValues: MasterServiceDirectory.domains.map { ($0.id, $0) })
+        let serviceDirectory = try MasterServiceDirectory.load()
+        let domainLookup = Dictionary(uniqueKeysWithValues: serviceDirectory.domains.map { ($0.id, $0) })
         let decoder = JSONDecoder()
 
-        let masters = try MasterServiceDirectory.entries
+        let masters = try serviceDirectory.entries
             .sorted { $0.sortOrder < $1.sortOrder }
             .map { entry -> MasterProfile in
                 guard let domain = domainLookup[entry.domainID] else {
@@ -952,6 +954,7 @@ enum MasterCatalogLoader {
                     document: document,
                     characterURL: characterURL,
                     imageDirectory: imageDirectory,
+                    directoryManifestPath: serviceDirectory.sourceURL.path,
                     imageSet: MasterImageSet(
                         assetID: entry.assetID,
                         avatarPath: avatarPath,
@@ -962,7 +965,7 @@ enum MasterCatalogLoader {
             }
 
         return MasterCatalogSnapshot(
-            domains: MasterServiceDirectory.domains,
+            domains: serviceDirectory.domains,
             masters: masters,
             sessions: []
         )
@@ -1016,6 +1019,7 @@ enum MasterCatalogLoader {
         document: MasterCharacterResourceDocument,
         characterURL: URL,
         imageDirectory: URL,
+        directoryManifestPath: String,
         imageSet: MasterImageSet
     ) -> MasterProfile {
         let description = cleanText(document.metadata.description)
@@ -1075,6 +1079,7 @@ enum MasterCatalogLoader {
                 bundleID: "masters_stage1_local_assets",
                 version: "2026-03-27",
                 portraitPackage: imageDirectory.path,
+                directoryManifestPath: directoryManifestPath,
                 characterFields: [
                     "Simplified Chinese.name.full_name",
                     "metadata.description",
@@ -1398,105 +1403,132 @@ private enum MasterServiceDirectory {
         let palette: [Color]
     }
 
-    static let domains: [MasterDomain] = [
-        MasterDomain(
-            id: "theory",
-            title: "理论与公理",
-            description: "先澄清定义、结构和范式，再进入判断。",
-            symbol: "sum"
-        ),
-        MasterDomain(
-            id: "discovery",
-            title: "实验与发现",
-            description: "从证据、实验和现象出发做判断。",
-            symbol: "flask.fill"
-        ),
-        MasterDomain(
-            id: "invention",
-            title: "发明与代价",
-            description: "同时看技术收益、风险和社会后果。",
-            symbol: "gearshape.2.fill"
-        ),
-        MasterDomain(
-            id: "humanity",
-            title: "文学与自省",
-            description: "围绕处境、表达与价值做对话。",
-            symbol: "text.book.closed.fill"
-        )
-    ]
+    struct DirectorySnapshot {
+        let sourceURL: URL
+        let domains: [MasterDomain]
+        let entries: [Entry]
+    }
 
-    static let entries: [Entry] = [
-        Entry(
-            assetID: "001546",
-            domainID: "theory",
-            sortOrder: 1,
-            decisionStyle: "steady_execution",
-            riskAppetite: "steady",
-            portraitSymbol: "sum",
-            palette: [Color(red: 0.13, green: 0.16, blue: 0.24), Color(red: 0.82, green: 0.70, blue: 0.48)]
-        ),
-        Entry(
-            assetID: "001550",
-            domainID: "theory",
-            sortOrder: 2,
-            decisionStyle: "act_then_reflect",
-            riskAppetite: "experimental",
-            portraitSymbol: "atom",
-            palette: [Color(red: 0.10, green: 0.19, blue: 0.29), Color(red: 0.72, green: 0.84, blue: 0.90)]
-        ),
-        Entry(
-            assetID: "001560",
-            domainID: "discovery",
-            sortOrder: 3,
-            decisionStyle: "steady_execution",
-            riskAppetite: "steady",
-            portraitSymbol: "radiowaves.left.and.right",
-            palette: [Color(red: 0.14, green: 0.20, blue: 0.26), Color(red: 0.84, green: 0.90, blue: 0.78)]
-        ),
-        Entry(
-            assetID: "001567",
-            domainID: "discovery",
-            sortOrder: 4,
-            decisionStyle: "steady_execution",
-            riskAppetite: "steady",
-            portraitSymbol: "leaf",
-            palette: [Color(red: 0.16, green: 0.22, blue: 0.20), Color(red: 0.77, green: 0.86, blue: 0.70)]
-        ),
-        Entry(
-            assetID: "001570",
-            domainID: "discovery",
-            sortOrder: 5,
-            decisionStyle: "small_bets_profit",
-            riskAppetite: "steady",
-            portraitSymbol: "cross.vial.fill",
-            palette: [Color(red: 0.18, green: 0.17, blue: 0.24), Color(red: 0.86, green: 0.80, blue: 0.62)]
-        ),
-        Entry(
-            assetID: "001572",
-            domainID: "discovery",
-            sortOrder: 6,
-            decisionStyle: "act_then_reflect",
-            riskAppetite: "experimental",
-            portraitSymbol: "dna",
-            palette: [Color(red: 0.10, green: 0.18, blue: 0.25), Color(red: 0.75, green: 0.86, blue: 0.93)]
-        ),
-        Entry(
-            assetID: "001565",
-            domainID: "invention",
-            sortOrder: 7,
-            decisionStyle: "small_bets_profit",
-            riskAppetite: "balanced",
-            portraitSymbol: "burst.fill",
-            palette: [Color(red: 0.23, green: 0.16, blue: 0.14), Color(red: 0.89, green: 0.74, blue: 0.48)]
-        ),
-        Entry(
-            assetID: "001580",
-            domainID: "humanity",
-            sortOrder: 8,
-            decisionStyle: "resilient_expression",
-            riskAppetite: "balanced",
-            portraitSymbol: "text.book.closed.fill",
-            palette: [Color(red: 0.17, green: 0.17, blue: 0.22), Color(red: 0.83, green: 0.75, blue: 0.64)]
+    static func load() throws -> DirectorySnapshot {
+        let url = try resolveDirectoryURL()
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            throw MasterCatalogLoadError.directory("读取大师目录索引失败：\(url.lastPathComponent)，\(error.localizedDescription)")
+        }
+
+        let document: MasterServiceDirectoryDocument
+        do {
+            document = try JSONDecoder().decode(MasterServiceDirectoryDocument.self, from: data)
+        } catch {
+            throw MasterCatalogLoadError.directory("解析大师目录索引失败：\(url.lastPathComponent)，\(error.localizedDescription)")
+        }
+
+        let domains = document.domains.map(\.domain)
+        let domainIDs = Set(domains.map(\.id))
+        guard domainIDs.count == domains.count else {
+            throw MasterCatalogLoadError.directory("大师目录索引存在重复 domain_id。")
+        }
+
+        var seenAssetIDs = Set<String>()
+        let entries = try document.entries.map { entryRecord -> Entry in
+            guard domainIDs.contains(entryRecord.domainID) else {
+                throw MasterCatalogLoadError.directory("大师目录索引引用了未知领域：\(entryRecord.domainID)")
+            }
+            guard seenAssetIDs.insert(entryRecord.assetID).inserted else {
+                throw MasterCatalogLoadError.directory("大师目录索引存在重复 asset_id：\(entryRecord.assetID)")
+            }
+            return try entryRecord.entry
+        }
+
+        return DirectorySnapshot(
+            sourceURL: url,
+            domains: domains,
+            entries: entries
         )
-    ]
+    }
+
+    private static func resolveDirectoryURL() throws -> URL {
+        if let bundled = Bundle.main.url(forResource: "master_service_directory", withExtension: "json") {
+            return bundled
+        }
+
+        let supportPath = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Support/master_service_directory.json")
+        guard FileManager.default.fileExists(atPath: supportPath.path) else {
+            throw MasterCatalogLoadError.directory("未找到大师目录索引：Features/Masters/Support/master_service_directory.json")
+        }
+        return supportPath
+    }
+}
+
+private struct MasterServiceDirectoryDocument: Decodable {
+    let domains: [DomainRecord]
+    let entries: [EntryRecord]
+
+    struct DomainRecord: Decodable {
+        let id: String
+        let title: String
+        let description: String
+        let symbol: String
+
+        var domain: MasterDomain {
+            MasterDomain(
+                id: id,
+                title: title,
+                description: description,
+                symbol: symbol
+            )
+        }
+    }
+
+    struct EntryRecord: Decodable {
+        let assetID: String
+        let domainID: String
+        let sortOrder: Int
+        let decisionStyle: String
+        let riskAppetite: String
+        let portraitSymbol: String
+        let paletteHex: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case assetID = "asset_id"
+            case domainID = "domain_id"
+            case sortOrder = "sort_order"
+            case decisionStyle = "decision_style"
+            case riskAppetite = "risk_appetite"
+            case portraitSymbol = "portrait_symbol"
+            case paletteHex = "palette_hex"
+        }
+
+        var entry: MasterServiceDirectory.Entry {
+            get throws {
+                MasterServiceDirectory.Entry(
+                    assetID: assetID,
+                    domainID: domainID,
+                    sortOrder: sortOrder,
+                    decisionStyle: decisionStyle,
+                    riskAppetite: riskAppetite,
+                    portraitSymbol: portraitSymbol,
+                    palette: try paletteHex.map(Self.color(fromHex:))
+                )
+            }
+        }
+
+        private static func color(fromHex hex: String) throws -> Color {
+            let normalized = hex
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "#", with: "")
+            guard normalized.count == 6, let value = Int(normalized, radix: 16) else {
+                throw MasterCatalogLoadError.directory("大师目录索引存在非法 palette_hex：\(hex)")
+            }
+
+            let red = Double((value >> 16) & 0xFF) / 255.0
+            let green = Double((value >> 8) & 0xFF) / 255.0
+            let blue = Double(value & 0xFF) / 255.0
+            return Color(red: red, green: green, blue: blue)
+        }
+    }
 }

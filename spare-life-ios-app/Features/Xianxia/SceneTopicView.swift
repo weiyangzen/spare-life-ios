@@ -687,10 +687,14 @@ actor XianxiaTopicRepository {
         }
 
         var merged = existing
-        var knownIDs = Set(existing.map(\.id))
-        for item in incoming where !knownIDs.contains(item.id) {
-            merged.append(item)
-            knownIDs.insert(item.id)
+        var indexByID = Dictionary(uniqueKeysWithValues: merged.enumerated().map { ($1.id, $0) })
+        for item in incoming {
+            if let existingIndex = indexByID[item.id] {
+                merged[existingIndex] = item
+            } else {
+                indexByID[item.id] = merged.count
+                merged.append(item)
+            }
         }
         return merged
     }
@@ -705,10 +709,14 @@ actor XianxiaTopicRepository {
         }
 
         var merged = existing
-        var knownIDs = Set(existing.map(\.id))
-        for item in incoming where !knownIDs.contains(item.id) {
-            merged.append(item)
-            knownIDs.insert(item.id)
+        var indexByID = Dictionary(uniqueKeysWithValues: merged.enumerated().map { ($1.id, $0) })
+        for item in incoming {
+            if let existingIndex = indexByID[item.id] {
+                merged[existingIndex] = item
+            } else {
+                indexByID[item.id] = merged.count
+                merged.append(item)
+            }
         }
         return merged
     }

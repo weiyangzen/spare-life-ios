@@ -29,7 +29,7 @@ enum MainTab: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
-        case .xianxia:    return "qrcode.viewfinder"
+        case .xianxia:    return "rectangle.grid.1x2"
         case .master:     return "graduationcap"
         case .earnSocial: return "bolt.circle.fill"
         case .messages:   return "message"
@@ -39,7 +39,7 @@ enum MainTab: String, CaseIterable, Identifiable {
 
     var selectedIcon: String {
         switch self {
-        case .xianxia:    return "qrcode.viewfinder"
+        case .xianxia:    return "rectangle.grid.1x2.fill"
         case .master:     return "graduationcap.fill"
         case .earnSocial: return "bolt.circle.fill"
         case .messages:   return "message.fill"

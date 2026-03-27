@@ -2,6 +2,11 @@ import XCTest
 @testable import SpareLifeCore
 
 final class XianxiaTopicRepositoryTests: XCTestCase {
+    func testXianxiaTabUsesTopicFeedIconography() {
+        XCTAssertEqual(MainTab.xianxia.icon, "rectangle.grid.1x2")
+        XCTAssertEqual(MainTab.xianxia.selectedIcon, "rectangle.grid.1x2.fill")
+    }
+
     @MainActor
     func testHomeViewModelLoadsPaginatedTopicsAndPersistsMergedCache() async throws {
         let cacheRoot = makeTemporaryCacheRoot()
@@ -141,6 +146,58 @@ final class XianxiaTopicRepositoryTests: XCTestCase {
     }
 
     @MainActor
+    func testHomeViewModelUpsertsOverlappingTopicsDuringPagination() async throws {
+        let cacheRoot = makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: cacheRoot) }
+
+        let transport = MockClawdbTransport()
+        await transport.setTopicBatch(
+            cursor: nil,
+            batch: XianxiaTopicBatch(
+                items: [
+                    makeTopic(id: "group:epsilon::topic-001", path: "group/epsilon/topic-001", summary: "分页话题摘要 A", shardCount: 1),
+                    makeTopic(id: "group:epsilon::topic-002", path: "group/epsilon/topic-002", summary: "旧摘要", shardCount: 2)
+                ],
+                nextCursor: "2",
+                total: 3,
+                batchSize: 2,
+                tenantId: "default"
+            )
+        )
+        await transport.setTopicBatch(
+            cursor: "2",
+            batch: XianxiaTopicBatch(
+                items: [
+                    makeTopic(id: "group:epsilon::topic-002", path: "group/epsilon/topic-002", summary: "新摘要", shardCount: 4),
+                    makeTopic(id: "group:epsilon::topic-003", path: "group/epsilon/topic-003", summary: "分页话题摘要 C", shardCount: 0)
+                ],
+                nextCursor: nil,
+                total: 3,
+                batchSize: 2,
+                tenantId: "default"
+            )
+        )
+
+        let repository = makeRepository(cacheRoot: cacheRoot, transport: transport)
+        let vm = XianxiaHomeViewModel(repository: repository)
+
+        await vm.loadInitial()
+        await vm.loadMore()
+
+        XCTAssertEqual(vm.topics.map(\.topicId), [
+            "group:epsilon::topic-001",
+            "group:epsilon::topic-002",
+            "group:epsilon::topic-003"
+        ])
+        XCTAssertEqual(vm.topics[1].summaryText, "新摘要")
+        XCTAssertEqual(vm.topics[1].shardCount, 4)
+
+        let snapshot = try await repository.cachedTopics()
+        XCTAssertEqual(snapshot?.items[1].summaryText, "新摘要")
+        XCTAssertEqual(snapshot?.items[1].shardCount, 4)
+    }
+
+    @MainActor
     func testSceneTopicViewModelFallsBackToCachedShardsAfterFailure() async throws {
         let cacheRoot = makeTemporaryCacheRoot()
         defer { try? FileManager.default.removeItem(at: cacheRoot) }
@@ -184,6 +241,67 @@ final class XianxiaTopicRepositoryTests: XCTestCase {
 
         let snapshot = try await repository.cachedShards(topicId: topic.topicId)
         XCTAssertEqual(snapshot?.items.count, 2)
+    }
+
+    @MainActor
+    func testSceneTopicViewModelUpsertsOverlappingShardsDuringPagination() async throws {
+        let cacheRoot = makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: cacheRoot) }
+
+        let topic = makeTopic(
+            id: "group:zeta::topic-001",
+            path: "group/zeta/topic-001",
+            summary: "Shard 分页测试",
+            shardCount: 3
+        )
+
+        let transport = MockClawdbTransport()
+        await transport.setShardBatch(
+            topicId: topic.topicId,
+            cursor: nil,
+            batch: XianxiaTopicShardBatch(
+                items: [
+                    makeShard(topicId: "group:zeta::topic-001::shard:3", canonicalId: topic.topicId, summary: "最新 shard", shardOrdinal: 3),
+                    makeShard(topicId: "group:zeta::topic-001::shard:2", canonicalId: topic.topicId, summary: "旧 shard 摘要", shardOrdinal: 2)
+                ],
+                nextCursor: "2",
+                total: 3,
+                batchSize: 2,
+                tenantId: "default",
+                topicId: topic.topicId
+            )
+        )
+        await transport.setShardBatch(
+            topicId: topic.topicId,
+            cursor: "2",
+            batch: XianxiaTopicShardBatch(
+                items: [
+                    makeShard(topicId: "group:zeta::topic-001::shard:2", canonicalId: topic.topicId, summary: "更新后的 shard 摘要", shardOrdinal: 2),
+                    makeShard(topicId: "group:zeta::topic-001::shard:1", canonicalId: topic.topicId, summary: "更早 shard", shardOrdinal: 1)
+                ],
+                nextCursor: nil,
+                total: 3,
+                batchSize: 2,
+                tenantId: "default",
+                topicId: topic.topicId
+            )
+        )
+
+        let repository = makeRepository(cacheRoot: cacheRoot, transport: transport)
+        let vm = SceneTopicViewModel(topic: topic, repository: repository)
+
+        await vm.loadInitial()
+        await vm.loadMore()
+
+        XCTAssertEqual(vm.shards.map(\.topicId), [
+            "group:zeta::topic-001::shard:3",
+            "group:zeta::topic-001::shard:2",
+            "group:zeta::topic-001::shard:1"
+        ])
+        XCTAssertEqual(vm.shards[1].summaryText, "更新后的 shard 摘要")
+
+        let snapshot = try await repository.cachedShards(topicId: topic.topicId)
+        XCTAssertEqual(snapshot?.items[1].summaryText, "更新后的 shard 摘要")
     }
 
     private func makeRepository(

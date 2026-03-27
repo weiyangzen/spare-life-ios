@@ -96,6 +96,51 @@ final class XianxiaTopicRepositoryTests: XCTestCase {
     }
 
     @MainActor
+    func testHomeViewModelReusesPersistedTopicsAcrossFreshRepositoryInstance() async throws {
+        let cacheRoot = makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: cacheRoot) }
+
+        let warmTransport = MockClawdbTransport()
+        await warmTransport.setTopicBatch(
+            cursor: nil,
+            batch: XianxiaTopicBatch(
+                items: [
+                    makeTopic(id: "group:delta::topic-001", path: "group/delta/topic-001", summary: "持久化话题摘要 1", shardCount: 1),
+                    makeTopic(id: "group:delta::topic-002", path: "group/delta/topic-002", summary: "持久化话题摘要 2", shardCount: 4)
+                ],
+                nextCursor: nil,
+                total: 2,
+                batchSize: 20,
+                tenantId: "default"
+            )
+        )
+
+        let warmRepository = makeRepository(cacheRoot: cacheRoot, transport: warmTransport)
+        let warmViewModel = XianxiaHomeViewModel(repository: warmRepository)
+
+        await warmViewModel.loadInitial()
+        XCTAssertEqual(warmViewModel.feedState, .loaded)
+        XCTAssertEqual(warmViewModel.topics.map(\.topicId), [
+            "group:delta::topic-001",
+            "group:delta::topic-002"
+        ])
+
+        let coldTransport = MockClawdbTransport()
+        await coldTransport.setFailTopics(true)
+
+        let coldRepository = makeRepository(cacheRoot: cacheRoot, transport: coldTransport)
+        let coldViewModel = XianxiaHomeViewModel(repository: coldRepository)
+
+        await coldViewModel.loadInitial()
+        XCTAssertEqual(coldViewModel.feedState, .loadedFromCache)
+        XCTAssertEqual(coldViewModel.topics.map(\.topicId), [
+            "group:delta::topic-001",
+            "group:delta::topic-002"
+        ])
+        XCTAssertEqual(coldViewModel.topics.last?.summaryText, "持久化话题摘要 2")
+    }
+
+    @MainActor
     func testSceneTopicViewModelFallsBackToCachedShardsAfterFailure() async throws {
         let cacheRoot = makeTemporaryCacheRoot()
         defer { try? FileManager.default.removeItem(at: cacheRoot) }

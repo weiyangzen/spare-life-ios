@@ -47,9 +47,14 @@ struct XianxiaHomeView: View {
                     vm.handleScanTarget(target)
                 }
             }
-            .navigationDestination(item: $vm.activeScene) { scene in
-                SceneTopicView(scene: scene,
-                               isFromScan: vm.scannedSceneIDs.contains(scene.id))
+            .navigationDestination(isPresented: Binding(
+                get: { vm.activeScene != nil },
+                set: { if !$0 { vm.activeScene = nil } }
+            )) {
+                if let scene = vm.activeScene {
+                    SceneTopicView(scene: scene,
+                                   isFromScan: vm.scannedSceneIDs.contains(scene.id))
+                }
             }
         }
     }
@@ -163,7 +168,7 @@ struct XianxiaHomeView: View {
                 EmptyStateView(
                     icon: "qrcode.viewfinder",
                     title: "扫码探索周边场景",
-                    message: "扫一扫"龙虾码"，进入餐厅、活动、品牌等场景，看大家都在说什么。",
+                    message: "扫一扫「龙虾码」，进入餐厅、活动、品牌等场景，看大家都在说什么。",
                     actionLabel: "扫码试试",
                     action: { showScanner = true }
                 )
@@ -224,18 +229,21 @@ struct XianxiaHomeView: View {
                         .padding(.top, Spacing.md)
                         .padding(.bottom, Spacing.xs)
 
-                        WaterfallLayout(columns: 2, spacing: Spacing.md) {
-                            ForEach(items) { item in
-                                feedCard(for: item)
-                                    .transition(.asymmetric(
-                                        insertion: .scale(scale: 0.92).combined(with: .opacity),
-                                        removal: .opacity
-                                    ))
+                        GeometryReader { proxy in
+                            WaterfallLayout(columns: WaterfallColumns.count(for: proxy.size.width), spacing: Spacing.md) {
+                                ForEach(items) { item in
+                                    feedCard(for: item)
+                                        .transition(.asymmetric(
+                                            insertion: .scale(scale: 0.92).combined(with: .opacity),
+                                            removal: .opacity
+                                        ))
+                                }
                             }
+                            .padding(.horizontal, Spacing.lg)
+                            .padding(.top, Spacing.md)
+                            .padding(.bottom, Spacing.xxxl)
                         }
-                        .padding(.horizontal, Spacing.lg)
-                        .padding(.top, Spacing.md)
-                        .padding(.bottom, Spacing.xxxl)
+                        .frame(minHeight: CGFloat(items.count / 2 + 1) * 200)
                     }
                 }
                 .coordinateSpace(name: "xianxiaFeedScroll")
@@ -249,7 +257,7 @@ struct XianxiaHomeView: View {
 
                 // Scroll-to-top FAB
                 if !scrollState.isAtTop {
-                    ScrollToTopButton {
+                    ScrollToTopButton(isVisible: true) {
                         withAnimation(.spareSpring) {
                             proxy.scrollTo(Self.feedTopAnchor, anchor: .top)
                         }
@@ -276,7 +284,7 @@ struct XianxiaHomeView: View {
 
         case .avatarRadar(let card):
             AvatarRadarCardView(card: card) {
-                vm.initiateStrangerSocial(from: card.sceneID)
+                vm.initiateStrangerSocial(from: card.agentID)
             }
 
         case .socialPrompt(let card):
@@ -364,7 +372,7 @@ private struct CacheBanner: View {
 // MARK: - Scroll Offset Key
 
 private struct XianxiaScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    nonisolated(unsafe) static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }

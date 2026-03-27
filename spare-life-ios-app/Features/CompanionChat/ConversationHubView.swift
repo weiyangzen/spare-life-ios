@@ -6,20 +6,6 @@
 
 import SwiftUI
 
-// MARK: - Sort Mode
-
-enum ConversationSortMode: String, CaseIterable {
-    case byTime   = "按时间"
-    case byUnread = "按未读"
-
-    var icon: String {
-        switch self {
-        case .byTime:   return "clock.fill"
-        case .byUnread: return "bell.badge.fill"
-        }
-    }
-}
-
 struct ConversationHubView: View {
     @StateObject private var store = ConversationHubStore()
     @State private var sortMode: ConversationSortMode = .byTime
@@ -70,7 +56,7 @@ struct ConversationHubView: View {
                     Button {
                         withAnimation(.spareSpring) { sortMode = mode }
                     } label: {
-                        Label(mode.rawValue, systemImage: mode.icon)
+                        Label(mode.label, systemImage: mode.icon)
                     }
                 }
             } label: {
@@ -190,7 +176,7 @@ struct ConversationHubView: View {
                                 .foregroundColor(.emotionNegative)
                         }
                         Spacer()
-                        Text(sortMode.rawValue)
+                        Text(sortMode.label)
                             .font(.spareMicro)
                             .foregroundColor(.spareYellow)
                     }

@@ -203,7 +203,7 @@ final class SecurityRiskControlStore: ObservableObject {
             auditLogs = [
                 .init(id: "a1", action: .access,  description: "分身代理访问消息上下文 (聊天:小明)", actor: "分身代理", timestamp: date(-0.01), severity: .info),
                 .init(id: "a2", action: .block,   description: "拦截敏感关键词: 用户发送内容触发风控规则 #K3", actor: "风控引擎", timestamp: date(-0.05), severity: .warning),
-                .init(id: "a3", action: .modify,  description: "用户修改分身面具: 从"严肃"改为"轻松幽默"", actor: "用户", timestamp: date(-0.1), severity: .info),
+                .init(id: "a3", action: .modify,  description: "用户修改分身面具: 从「严肃」改为「轻松幽默」", actor: "用户", timestamp: date(-0.1), severity: .info),
                 .init(id: "a4", action: .grant,   description: "用户授权 AI 记忆摘要 读写记忆表", actor: "用户", timestamp: date(-0.3), severity: .info),
                 .init(id: "a5", action: .report,  description: "用户举报陌生社交匹配对象发送不当内容", actor: "用户", timestamp: date(-0.5), severity: .warning),
                 .init(id: "a6", action: .block,   description: "阈值规则触发: 10 分钟内 15 条消息被自动限速", actor: "风控引擎", timestamp: date(-0.8), severity: .warning),

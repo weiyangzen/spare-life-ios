@@ -226,14 +226,17 @@ private struct SQLiteDashboardContent: View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             FeedSectionHeader(title: "Domain Repositories", subtitle: "按领域聚合的数据仓库")
 
-            WaterfallLayout(columns: 2, spacing: Spacing.md) {
-                ForEach(store.repositories) { repo in
-                    RepoCard(repo: repo) {
-                        store.selectedRepo = repo
-                        store.showRepoDetail = true
+            GeometryReader { proxy in
+                WaterfallLayout(columns: WaterfallColumns.count(for: proxy.size.width), spacing: Spacing.md) {
+                    ForEach(store.repositories) { repo in
+                        RepoCard(repo: repo) {
+                            store.selectedRepo = repo
+                            store.showRepoDetail = true
+                        }
                     }
                 }
             }
+            .frame(minHeight: CGFloat(store.repositories.count / 2 + 1) * 200)
         }
     }
 
@@ -314,7 +317,7 @@ private struct RepoCard: View {
                 HStack(spacing: Spacing.xs) {
                     Label("\(repo.rowCount)", systemImage: "arrow.down.doc")
                     Spacer()
-                    Label(repo.lastWrite, format: .relative(presentation: .named))
+                    Text(repo.lastWrite, style: .relative)
                 }
                 .font(.spareMicro)
                 .foregroundColor(.secondary)
@@ -509,14 +512,17 @@ private struct SQLiteDashboardSkeleton: View {
                         .fill(Color(.systemGray5)).frame(height: 80).shimmer()
                 }
             }
-            WaterfallLayout(columns: 2, spacing: Spacing.md) {
-                ForEach(0..<6, id: \.self) { i in
-                    RoundedRectangle(cornerRadius: CornerRadius.md)
-                        .fill(Color(.systemGray5))
-                        .frame(height: CGFloat([140, 160, 150, 140, 165, 145][i]))
-                        .shimmer()
+            GeometryReader { proxy in
+                WaterfallLayout(columns: WaterfallColumns.count(for: proxy.size.width), spacing: Spacing.md) {
+                    ForEach(0..<6, id: \.self) { i in
+                        RoundedRectangle(cornerRadius: CornerRadius.md)
+                            .fill(Color(.systemGray5))
+                            .frame(height: CGFloat([140, 160, 150, 140, 165, 145][i]))
+                            .shimmer()
+                    }
                 }
             }
+            .frame(minHeight: 400)
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.top, Spacing.lg)

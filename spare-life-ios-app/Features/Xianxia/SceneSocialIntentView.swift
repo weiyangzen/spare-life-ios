@@ -47,7 +47,7 @@ struct SceneSocialIntentView: View {
                 }
             }
             .interactiveDismissDisabled(vm.submitState == .submitting)
-            .onChange(of: vm.submitState) { _, state in
+            .onChange(of: vm.submitState) { state in
                 // Reset spring scales so animation replays if user retries.
                 if case .submitting = state {
                     successCheckScale = 0.3
@@ -61,7 +61,7 @@ struct SceneSocialIntentView: View {
         if let avatar = targetAvatar {
             return "向 \(avatar.displayName) 发起社交"
         }
-        return "在"\(scene.name)"发起社交"
+        return "在「\(scene.name)」发起社交"
     }
 
     // MARK: - Form Body
@@ -559,7 +559,7 @@ private struct IntentNoteEditor: View {
             )
             .font(.spareBody)
             .lineLimit(3...6)
-            .onChange(of: note) { _, newValue in
+            .onChange(of: note) { newValue in
                 if newValue.count > maxLength {
                     note = String(newValue.prefix(maxLength))
                 }

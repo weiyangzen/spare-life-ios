@@ -39,8 +39,15 @@ struct MasterHomeView: View {
                 }
             }
             .navigationBarHidden(true)
-            .navigationDestination(item: $store.selectedMasterID) { masterID in
-                MasterProfileView(store: store, masterID: masterID)
+            .sheet(isPresented: Binding(
+                get: { store.selectedMasterID != nil },
+                set: { if !$0 { store.selectedMasterID = nil } }
+            )) {
+                if let masterID = store.selectedMasterID {
+                    NavigationStack {
+                        MasterProfileView(store: store, masterID: masterID)
+                    }
+                }
             }
             .sheet(item: $store.conversation) { _ in
                 MasterConversationView(store: store)
@@ -264,18 +271,21 @@ struct MasterHomeView: View {
                             .padding(.top, Spacing.md)
                             .padding(.bottom, Spacing.xs)
 
-                            WaterfallLayout(columns: 2, spacing: Spacing.md) {
-                                ForEach(store.homeCards) { card in
-                                    homeCard(for: card)
-                                        .transition(.asymmetric(
-                                            insertion: .scale(scale: 0.92).combined(with: .opacity),
-                                            removal: .opacity
-                                        ))
+                            GeometryReader { proxy in
+                                WaterfallLayout(columns: WaterfallColumns.count(for: proxy.size.width), spacing: Spacing.md) {
+                                    ForEach(store.homeCards) { card in
+                                        homeCard(for: card)
+                                            .transition(.asymmetric(
+                                                insertion: .scale(scale: 0.92).combined(with: .opacity),
+                                                removal: .opacity
+                                            ))
+                                    }
                                 }
+                                .padding(.horizontal, Spacing.lg)
+                                .padding(.top, Spacing.xs)
+                                .padding(.bottom, Spacing.xxxl)
                             }
-                            .padding(.horizontal, Spacing.lg)
-                            .padding(.top, Spacing.xs)
-                            .padding(.bottom, Spacing.xxxl)
+                            .frame(minHeight: CGFloat(store.homeCards.count / 2 + 1) * 200)
                         }
                     }
                     .coordinateSpace(name: "masterFeedScroll")
@@ -289,7 +299,7 @@ struct MasterHomeView: View {
 
                     // Scroll-to-top FAB
                     if !scrollState.isAtTop {
-                        ScrollToTopButton {
+                        ScrollToTopButton(isVisible: true) {
                             withAnimation(.spareSpring) {
                                 proxy.scrollTo("master_feed_top", anchor: .top)
                             }
@@ -337,7 +347,7 @@ struct MasterHomeView: View {
 // MARK: - Scroll Offset Key
 
 private struct MasterScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    nonisolated(unsafe) static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }

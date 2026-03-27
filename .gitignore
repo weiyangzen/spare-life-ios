@@ -1,1 +1,2 @@
 # Keep product documentation versioned in this repository.
+.build/

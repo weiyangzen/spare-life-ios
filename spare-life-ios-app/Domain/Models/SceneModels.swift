@@ -51,7 +51,7 @@ struct ScanTarget: Identifiable, Equatable {
 
 // MARK: - Scene Model
 
-struct Scene: Identifiable, Equatable {
+struct Scene: Identifiable, Equatable, Hashable {
     let id: String
     let name: String
     let category: SceneCategory

@@ -101,7 +101,7 @@ enum LeadResultLoadState {
 final class LeadResultStore: ObservableObject {
     @Published private(set) var loadState: LeadResultLoadState = .idle
     @Published private(set) var result: LeadResultSnapshot?
-    @Published private(set) var showReviewSheet = false
+    @Published var showReviewSheet = false
     @Published var draftReviewText: String = ""
     @Published var draftRating: Int = 0
 
@@ -702,18 +702,22 @@ struct LeadResultsListView: View {
     private static func buildMockList(lane: EarnSocialLaneID) -> [LeadResultSnapshot] {
         let statuses: [LeadOutcomeStatus] = [.completed, .matched, .inProgress, .disputed, .cancelled]
         let names = ["李雪", "陈明", "王芳", "张伟", "刘洋"]
-        return (0..<5).map { i in
-            LeadResultSnapshot(
+        let energies: [Int] = [80, -10, 0, 40, 15]
+        let summary: String = "双方 Agent 对齐了\(lane.shortcut)核心条件，\(lane.savedSteps)。"
+        return (0..<5).map { i -> LeadResultSnapshot in
+            let matchedAt: Date = Date().addingTimeInterval(-Double(i + 1) * 3600)
+            let completedAt: Date? = statuses[i] == .completed ? Date().addingTimeInterval(-Double(i) * 1800) : nil
+            return LeadResultSnapshot(
                 id: "lead-\(i)",
                 lane: lane,
                 counterpartName: names[i],
                 counterpartAvatarSeed: i * 3,
                 status: statuses[i],
-                matchedAt: Date() - Double(i + 1) * 3600,
-                completedAt: statuses[i] == .completed ? Date() - Double(i) * 1800 : nil,
-                agentSummary: "双方 Agent 对齐了\(lane.shortcut)核心条件，\(lane.savedSteps)。",
+                matchedAt: matchedAt,
+                completedAt: completedAt,
+                agentSummary: summary,
                 agreedTerms: ["条款 A", "条款 B"],
-                earnedEnergy: [80, -10, 0, 40, 15][i],
+                earnedEnergy: energies[i],
                 auditTrail: []
             )
         }

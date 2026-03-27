@@ -4,6 +4,7 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+import UIKit
 
 struct EarnSocialHomeView: View {
     @StateObject private var store = EarnSocialExperienceStore()
@@ -62,7 +63,7 @@ struct EarnSocialHomeView: View {
 
                             // Scroll-to-top FAB
                             if !scrollState.isAtTop {
-                                ScrollToTopButton {
+                                ScrollToTopButton(isVisible: true) {
                                     withAnimation(.spareSpring) {
                                         proxy.scrollTo("earn_feed_top", anchor: .top)
                                     }
@@ -379,15 +380,18 @@ struct EarnSocialHomeView: View {
                     )
                     .padding(.top, Spacing.xl)
                 } else {
-                    WaterfallLayout(columns: 2, spacing: Spacing.md) {
-                        ForEach(cards) { card in
-                            feedCard(for: card)
-                                .transition(.asymmetric(
-                                    insertion: .scale(scale: 0.92).combined(with: .opacity),
-                                    removal: .opacity
-                                ))
+                    GeometryReader { proxy in
+                        WaterfallLayout(columns: WaterfallColumns.count(for: proxy.size.width), spacing: Spacing.md) {
+                            ForEach(cards) { card in
+                                feedCard(for: card)
+                                    .transition(.asymmetric(
+                                        insertion: .scale(scale: 0.92).combined(with: .opacity),
+                                        removal: .opacity
+                                    ))
+                            }
                         }
                     }
+                    .frame(minHeight: CGFloat(cards.count / 2 + 1) * 200)
                 }
             }
         }
@@ -474,7 +478,7 @@ struct EarnSocialHomeView: View {
 // MARK: - Scroll Offset Key
 
 private struct EarnSocialScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    nonisolated(unsafe) static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }
@@ -2162,8 +2166,8 @@ private struct EarnArenaExperienceView: View {
                     Text("第 \(round.index) 回合 · \(round.prompt)")
                         .font(.spareCaptionSB)
 
-                    ArenaResponseBubble(title: match.challenger.displayName, body: round.challengerReply, score: round.challengerScore, tint: .emotionSplit)
-                    ArenaResponseBubble(title: match.opponent.displayName, body: round.opponentReply, score: round.opponentScore, tint: .emotionPositive)
+                    ArenaResponseBubble(title: match.challenger.displayName, bodyText: round.challengerReply, score: round.challengerScore, tint: .emotionSplit)
+                    ArenaResponseBubble(title: match.opponent.displayName, bodyText: round.opponentReply, score: round.opponentScore, tint: .emotionPositive)
 
                     Text(round.summary)
                         .font(.spareMicro)
@@ -2227,11 +2231,11 @@ private struct EarnArenaExperienceView: View {
 
 private struct ArenaResponseBubble: View {
     let title: String
-    let body: String
+    let bodyText: String
     let score: Double
     let tint: Color
 
-    var bodyView: some View {
+    var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(title)
@@ -2242,15 +2246,13 @@ private struct ArenaResponseBubble: View {
                     .font(.spareMicro)
                     .foregroundColor(tint)
             }
-            Text(body)
+            Text(bodyText)
                 .font(.spareCaption)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(Spacing.md)
         .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
     }
-
-    var body: some View { bodyView }
 }
 
 // MARK: - Bond Sheet
@@ -2352,7 +2354,10 @@ private struct EarnBondJourneyView: View {
                     .font(.spareCaptionSB)
                     .padding(.horizontal, Spacing.lg)
                     .padding(.vertical, Spacing.md)
-                    .background(task.isCompleted ? Color(.systemGray5) : story.lane.accentGradient, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+                    .background(
+                        RoundedRectangle(cornerRadius: CornerRadius.lg)
+                            .fill(task.isCompleted ? AnyShapeStyle(Color(.systemGray5)) : AnyShapeStyle(story.lane.accentGradient))
+                    )
                     .foregroundColor(task.isCompleted ? .secondary : .white)
                     .buttonStyle(.plain)
                 }

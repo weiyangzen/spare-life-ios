@@ -1,0 +1,9 @@
+{
+  "id": "spare-life-openclaw-plugin",
+  "channels": ["clawdb-topics"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

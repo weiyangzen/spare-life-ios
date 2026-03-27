@@ -1,0 +1,23 @@
+{
+  "channelId": "clawdb-topics",
+  "pluginId": "spare-life-openclaw-plugin",
+  "capabilities": {
+    "transport": ["websocket", "http"],
+    "topicPagination": true,
+    "shardPagination": true,
+    "shardOrder": "newest_to_oldest"
+  },
+  "http": {
+    "basePath": "/v1/clawdb-topics",
+    "routes": {
+      "health": "/health",
+      "topics": "/v1/clawdb-topics/topics",
+      "topic": "/v1/clawdb-topics/topics/{topicId}",
+      "shards": "/v1/clawdb-topics/topics/{topicId}/shards"
+    }
+  },
+  "ws": {
+    "path": "/v1/clawdb-topics/ws",
+    "ops": ["ping", "topics.list", "topics.shards.list", "topic.get"]
+  }
+}

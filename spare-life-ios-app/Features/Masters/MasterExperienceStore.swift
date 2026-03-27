@@ -288,26 +288,6 @@ struct MasterConversationDraft: Identifiable, Hashable {
     var inlineError: String?
 }
 
-enum MasterHomeFeedCard: Identifiable {
-    case master(MasterProfile)
-    case resume(MasterRecentSession)
-    case template(masterID: String, template: MasterQuestionTemplate)
-    case consultation(featuredMasterIDs: [String])
-
-    var id: String {
-        switch self {
-        case .master(let profile):
-            return "master-\(profile.id)"
-        case .resume(let session):
-            return "resume-\(session.id)"
-        case .template(let masterID, let template):
-            return "template-\(masterID)-\(template.id)"
-        case .consultation(let featuredMasterIDs):
-            return "consult-\(featuredMasterIDs.joined(separator: "-"))"
-        }
-    }
-}
-
 struct MasterRoutePreview: Identifiable, Hashable {
     let id: String
     let action: MasterActionRecommendation
@@ -330,6 +310,10 @@ struct MasterCatalogCoverage: Hashable {
     }
 
     var imageSourceDisplayPath: String {
+        "./assets/assets"
+    }
+
+    var imageIndexDisplayPath: String {
         "./assets/assets/char"
     }
 
@@ -403,8 +387,8 @@ final class MasterExperienceStore: ObservableObject {
         }
     }
 
-    var homeCards: [MasterHomeFeedCard] {
-        filteredMasters.map(MasterHomeFeedCard.master)
+    var directoryMasters: [MasterProfile] {
+        filteredMasters
     }
 
     var recentStripSessions: [MasterRecentSession] {
@@ -978,6 +962,7 @@ enum MasterCatalogLoader {
         "001572",
         "001580"
     ]
+    private static let requiredImageFiles = ["avatar.png", "image.png", "background.jpg"]
 
     static func load() throws -> MasterCatalogSnapshot {
         let roots = try resolveAssetRoots()
@@ -999,15 +984,10 @@ enum MasterCatalogLoader {
                 }
 
                 let imageDirectory = roots.imageDirectory.appendingPathComponent(entry.assetID, isDirectory: true)
-                let avatarPath = imageDirectory.appendingPathComponent("avatar.png").path
-                let portraitPath = imageDirectory.appendingPathComponent("image.png").path
-                let backgroundPath = imageDirectory.appendingPathComponent("background.jpg").path
-
-                for requiredPath in [avatarPath, portraitPath, backgroundPath] {
-                    guard FileManager.default.fileExists(atPath: requiredPath) else {
-                        throw MasterCatalogLoadError.missingImage(entry.assetID, URL(fileURLWithPath: requiredPath).lastPathComponent)
-                    }
-                }
+                try validateImageDirectory(at: imageDirectory, assetID: entry.assetID)
+                let avatarPath = imageDirectory.appendingPathComponent(requiredImageFiles[0]).path
+                let portraitPath = imageDirectory.appendingPathComponent(requiredImageFiles[1]).path
+                let backgroundPath = imageDirectory.appendingPathComponent(requiredImageFiles[2]).path
 
                 let data = try Data(contentsOf: characterURL)
                 let document: MasterCharacterResourceDocument
@@ -1052,7 +1032,7 @@ enum MasterCatalogLoader {
                 characterRootPath: roots.charDirectory.path,
                 imageRootPath: roots.imageDirectory.path,
                 matchedAssetIDs: masters.map(\.id).sorted(),
-                mappedImageFiles: ["avatar.png", "image.png", "background.jpg"]
+                mappedImageFiles: requiredImageFiles
             ),
             sessions: []
         )
@@ -1093,6 +1073,11 @@ enum MasterCatalogLoader {
                     actual: localImageAssetIDs
                 )
             )
+        }
+
+        for assetID in stage1MasterAssetIDs {
+            let imageDirectory = roots.imageDirectory.appendingPathComponent(assetID, isDirectory: true)
+            try validateImageDirectory(at: imageDirectory, assetID: assetID)
         }
     }
 
@@ -1162,6 +1147,30 @@ enum MasterCatalogLoader {
             guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { return nil }
             return url.lastPathComponent
         })
+    }
+
+    private static func validateImageDirectory(at directory: URL, assetID: String) throws {
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )
+
+        let actualFiles = Set<String>(contents.compactMap { url in
+            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { return nil }
+            return url.lastPathComponent
+        })
+        let expectedFiles = Set(requiredImageFiles)
+
+        if let missingFile = expectedFiles.subtracting(actualFiles).sorted().first {
+            throw MasterCatalogLoadError.missingImage(assetID, missingFile)
+        }
+
+        guard actualFiles == expectedFiles else {
+            throw MasterCatalogLoadError.directory(
+                "大师图片资源目录与映射规则不一致：asset_id=\(assetID)。expected=[\(requiredImageFiles.joined(separator: ", "))] actual=[\(actualFiles.sorted().joined(separator: ", "))]"
+            )
+        }
     }
 
     private static func mismatchMessage(title: String, expected: Set<String>, actual: Set<String>) -> String {
@@ -1255,7 +1264,7 @@ enum MasterCatalogLoader {
                 isOfficial: true,
                 characterAssetPath: characterURL.path,
                 imageDirectoryPath: imageDirectory.path,
-                mappedImageFiles: ["avatar.png", "image.png", "background.jpg"]
+                mappedImageFiles: requiredImageFiles
             ),
             portraitSymbol: entry.portraitSymbol,
             palette: entry.palette,

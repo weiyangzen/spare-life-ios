@@ -44,9 +44,6 @@ struct MasterHomeView: View {
             .sheet(item: $store.conversation) { _ in
                 MasterConversationView(store: store)
             }
-            .sheet(item: $store.consultation) { _ in
-                MasterConsultationView(store: store)
-            }
             .sheet(item: $store.routePreview) { preview in
                 MasterRoutePreviewSheet(store: store, preview: preview)
             }

@@ -437,6 +437,7 @@ struct TopicFeedCardView: View {
             .cardShadow()
         }
         .buttonStyle(CardPressStyle())
+        .accessibilityIdentifier("xianxia.topicCard")
     }
 }
 
@@ -488,5 +489,7 @@ struct TopicShardCardView: View {
                 .strokeBorder(Color.cardStroke, lineWidth: 0.5)
         )
         .cardShadow()
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("xianxia.topicShardCard")
     }
 }

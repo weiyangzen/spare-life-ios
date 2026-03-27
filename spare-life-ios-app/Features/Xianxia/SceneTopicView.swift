@@ -45,6 +45,7 @@ struct SceneTopicView: View {
                         .background(Color(.secondarySystemGroupedBackground), in: Circle())
                 }
                 .accessibilityLabel("返回")
+                .accessibilityIdentifier("xianxia.topicDetail.back")
 
                 VStack(alignment: .leading, spacing: Spacing.xs) {
                     Text(topic.title)
@@ -146,6 +147,7 @@ struct SceneTopicView: View {
             .refreshable {
                 await vm.refreshFromPullToRefresh()
             }
+            .accessibilityIdentifier("xianxia.topicDetail.scrollView")
         }
     }
 }
@@ -164,6 +166,7 @@ private struct TopicShardCacheBanner: View {
         }
         .padding(Spacing.md)
         .background(Color(.systemYellow).opacity(0.10), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+        .accessibilityIdentifier("xianxia.topicDetail.cacheBanner")
     }
 }
 
@@ -439,11 +442,25 @@ struct XianxiaTopicAPIConfiguration: Equatable, Sendable {
             userDefaults.string(forKey: "clawdbTopics.tenantId") ??
             "default"
 
+        let feedBatchSize =
+            positiveInt(processInfo.environment["XIANXIA_TOPICS_FEED_BATCH_SIZE"]) ??
+            positiveInt(processInfo.environment["CLAWDB_TOPICS_FEED_BATCH_SIZE"]) ??
+            positiveInt(userDefaults.string(forKey: "xianxia.topic.feedBatchSize")) ??
+            positiveInt(userDefaults.string(forKey: "clawdbTopics.feedBatchSize")) ??
+            20
+
+        let shardBatchSize =
+            positiveInt(processInfo.environment["XIANXIA_TOPICS_SHARD_BATCH_SIZE"]) ??
+            positiveInt(processInfo.environment["CLAWDB_TOPICS_SHARD_BATCH_SIZE"]) ??
+            positiveInt(userDefaults.string(forKey: "xianxia.topic.shardBatchSize")) ??
+            positiveInt(userDefaults.string(forKey: "clawdbTopics.shardBatchSize")) ??
+            20
+
         return XianxiaTopicAPIConfiguration(
             baseURL: normalizeBaseURL(rawBaseURL) ?? URL(string: "http://100.82.60.69:17880/v1/clawdb-topics")!,
             tenantId: tenantId.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "default",
-            feedBatchSize: 20,
-            shardBatchSize: 20
+            feedBatchSize: feedBatchSize,
+            shardBatchSize: shardBatchSize
         )
     }
 
@@ -478,6 +495,15 @@ struct XianxiaTopicAPIConfiguration: Equatable, Sendable {
         url.appendPathComponent("v1", isDirectory: true)
         url.appendPathComponent("clawdb-topics", isDirectory: false)
         return url
+    }
+
+    private static func positiveInt(_ rawValue: String?) -> Int? {
+        guard let rawValue else { return nil }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value = Int(trimmed), value > 0 else {
+            return nil
+        }
+        return value
     }
 }
 

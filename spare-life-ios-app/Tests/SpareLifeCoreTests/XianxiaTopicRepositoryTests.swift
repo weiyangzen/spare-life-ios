@@ -17,6 +17,25 @@ final class XianxiaTopicRepositoryTests: XCTestCase {
         XCTAssertEqual(WaterfallColumns.count(for: 1024), 5)
     }
 
+    func testAPIConfigurationRespectsBatchSizeOverridesFromUserDefaults() {
+        let suiteName = "xianxia-topic-config-tests-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated user defaults suite")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        defaults.set("2", forKey: "xianxia.topic.feedBatchSize")
+        defaults.set("1", forKey: "xianxia.topic.shardBatchSize")
+
+        let configuration = XianxiaTopicAPIConfiguration.current(userDefaults: defaults)
+
+        XCTAssertEqual(configuration.feedBatchSize, 2)
+        XCTAssertEqual(configuration.shardBatchSize, 1)
+    }
+
     @MainActor
     func testHomeViewModelOpenSetsActiveTopicForDetailRoute() {
         let cacheRoot = makeTemporaryCacheRoot()

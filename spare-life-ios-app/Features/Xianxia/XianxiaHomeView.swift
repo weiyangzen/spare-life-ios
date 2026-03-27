@@ -60,6 +60,7 @@ struct XianxiaHomeView: View {
                         .background(Color(.secondarySystemGroupedBackground), in: Circle())
                 }
                 .accessibilityLabel("刷新话题流")
+                .accessibilityIdentifier("xianxia.feed.refresh")
             }
 
             HStack(spacing: Spacing.sm) {
@@ -168,6 +169,7 @@ struct XianxiaHomeView: View {
                             .frame(height: 96)
                     }
                 }
+                .accessibilityIdentifier("xianxia.feed.scrollView")
                 .coordinateSpace(name: "xianxiaTopicFeed")
                 .onPreferenceChange(XianxiaScrollOffsetKey.self) { offset in
                     scrollState.offsetY = offset
@@ -207,6 +209,7 @@ private struct TopicFeedCacheBanner: View {
         }
         .padding(Spacing.md)
         .background(Color(.systemYellow).opacity(0.10), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+        .accessibilityIdentifier("xianxia.feed.cacheBanner")
     }
 }
 

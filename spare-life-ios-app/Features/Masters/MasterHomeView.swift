@@ -81,6 +81,10 @@ struct MasterHomeView: View {
                 Capsule()
                     .stroke(Color.cardStroke, lineWidth: 1)
             )
+
+            Text("目录索引：\(store.directoryManifestName)")
+                .font(.spareMicro)
+                .foregroundColor(.secondary)
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.top, Spacing.lg)

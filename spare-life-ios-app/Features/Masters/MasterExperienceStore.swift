@@ -323,7 +323,9 @@ final class MasterExperienceStore: ObservableObject {
     @Published private(set) var degradedMessage: String? = nil
     @Published private(set) var fatalErrorMessage: String? = nil
     @Published private(set) var domains: [MasterDomain] = []
+    @Published private(set) var domainIndex: [String: MasterDomain] = [:]
     @Published private(set) var masters: [MasterProfile] = []
+    @Published private(set) var masterIndex: [String: Int] = [:]
     @Published private(set) var recentSessions: [MasterRecentSession] = []
     @Published var selectedMasterID: String? = nil
     @Published var conversation: MasterConversationDraft? = nil
@@ -384,8 +386,18 @@ final class MasterExperienceStore: ObservableObject {
         degradedMessage != nil || catalogSourceMode == .cached
     }
 
+    var directoryManifestName: String {
+        guard let path = masters.first?.assetBundle.directoryManifestPath else {
+            return "master_service_directory.json"
+        }
+        return URL(fileURLWithPath: path).lastPathComponent
+    }
+
     func master(withID id: String) -> MasterProfile? {
-        masters.first(where: { $0.id == id })
+        guard let position = masterIndex[id], masters.indices.contains(position) else {
+            return nil
+        }
+        return masters[position]
     }
 
     func loadIfNeeded() {
@@ -403,17 +415,21 @@ final class MasterExperienceStore: ObservableObject {
             let snapshot = try catalogLoader()
             catalogSourceMode = .synced
             domains = snapshot.domains
+            domainIndex = snapshot.domainIndex
             masters = snapshot.masters
+            masterIndex = snapshot.masterIndex
             recentSessions = snapshot.sessions
         } catch {
             catalogSourceMode = .unavailable
             domains = []
+            domainIndex = [:]
             masters = []
+            masterIndex = [:]
             recentSessions = []
             fatalErrorMessage = error.localizedDescription
         }
 
-        if let selectedDomainID, !domains.contains(where: { $0.id == selectedDomainID }) {
+        if let selectedDomainID, domainIndex[selectedDomainID] == nil {
             self.selectedDomainID = nil
         }
 
@@ -498,7 +514,7 @@ final class MasterExperienceStore: ObservableObject {
     }
 
     func clearMemories(for masterID: String) {
-        guard let index = masters.firstIndex(where: { $0.id == masterID }) else { return }
+        guard let index = masterIndex[masterID], masters.indices.contains(index) else { return }
         masters[index].memoryNotes = []
 
         if conversation?.masterID == masterID {
@@ -664,7 +680,7 @@ final class MasterExperienceStore: ObservableObject {
     }
 
     private func appendAuthorizedMemory(for masterID: String, from message: String, scope: MasterMemoryScope) {
-        guard let index = masters.firstIndex(where: { $0.id == masterID }) else { return }
+        guard let index = masterIndex[masterID], masters.indices.contains(index) else { return }
         let newMemory = makeMemoryNote(from: message, scope: scope)
         let notes = [newMemory] + masters[index].memoryNotes.filter { $0.summary != newMemory.summary }
         masters[index].memoryNotes = Array(notes.prefix(5))
@@ -906,7 +922,9 @@ final class MasterExperienceStore: ObservableObject {
 
 struct MasterCatalogSnapshot {
     let domains: [MasterDomain]
+    let domainIndex: [String: MasterDomain]
     let masters: [MasterProfile]
+    let masterIndex: [String: Int]
     let sessions: [MasterRecentSession]
 }
 
@@ -960,6 +978,14 @@ enum MasterCatalogLoader {
                     throw MasterCatalogLoadError.invalidCharacter(entry.assetID, error.localizedDescription)
                 }
 
+                let internalAssetID = String(format: "%06d", document.metadata.id)
+                guard internalAssetID == entry.assetID else {
+                    throw MasterCatalogLoadError.mismatchedCharacterIdentifier(
+                        expected: entry.assetID,
+                        actual: internalAssetID
+                    )
+                }
+
                 return makeProfile(
                     entry: entry,
                     domain: domain,
@@ -976,9 +1002,12 @@ enum MasterCatalogLoader {
                 )
             }
 
+        let masterIndex = Dictionary(uniqueKeysWithValues: masters.enumerated().map { ($1.id, $0) })
         return MasterCatalogSnapshot(
             domains: serviceDirectory.domains,
+            domainIndex: domainLookup,
             masters: masters,
+            masterIndex: masterIndex,
             sessions: []
         )
     }
@@ -1134,7 +1163,7 @@ enum MasterCatalogLoader {
             ),
             domainID: domain.id,
             domainTitle: domain.title,
-            sourceLabel: "本地角色资源",
+            sourceLabel: "预置角色资源",
             voice: clip(
                 firstNonEmpty(document.metadata.speechStyle, document.chinese.interactionStyleTags, document.chinese.personality),
                 limit: 88
@@ -1398,6 +1427,7 @@ private enum MasterCatalogLoadError: LocalizedError {
     case missingCharacter(String)
     case missingImage(String, String)
     case invalidCharacter(String, String)
+    case mismatchedCharacterIdentifier(expected: String, actual: String)
     case directory(String)
 
     var errorDescription: String? {
@@ -1410,6 +1440,8 @@ private enum MasterCatalogLoadError: LocalizedError {
             return "缺少大师图片资源：./assets/assets/char/\(assetID)/\(fileName)"
         case .invalidCharacter(let assetID, let detail):
             return "解析大师字段资源失败：\(assetID).json，\(detail)"
+        case .mismatchedCharacterIdentifier(let expected, let actual):
+            return "大师字段资源与目录索引不一致：期望 asset_id=\(expected)，实际 metadata.id=\(actual)"
         case .directory(let message):
             return message
         }
@@ -1456,6 +1488,7 @@ private struct MasterLocalizedName: Decodable {
 
 private struct MasterCharacterMetadata: Decodable {
     let description: String
+    let id: Int
     let tags: [String]
     let openingMessage: String?
     let personalityTraits: String?
@@ -1465,6 +1498,7 @@ private struct MasterCharacterMetadata: Decodable {
 
     enum CodingKeys: String, CodingKey {
         case description
+        case id
         case tags
         case openingMessage = "opening_message"
         case personalityTraits = "personality_traits"

@@ -27,6 +27,8 @@ Stage 1 的目标不是“代码里已经有一些页面和组件”，而是：
 
 运行环境说明：
 `100.82.60.69` 是 ClawDB 启动的位置，也是负责 ASR 的机器。
+开发环境与真实 iPad / iPhone 都在同一个 Tailscale 网络里，随时都可以真实拉通 `100.82.60.69` 这台后端服务器。
+因此 Stage 1 的测试标准默认基于真实连通与真实请求，不以纯本地 mock 作为最终完成依据。
 ## 2. Stage 1 范围
 
 Stage 1 只处理以下问题：
@@ -225,10 +227,10 @@ Stage 1 默认验证设备矩阵：
 - [ ] 大师本机验证通过：在 iPhone 15 Pro 上完成 8 位大师的目录浏览、卡片正确展示、进入任意大师、发送多轮消息、得到稳定回复、退出再进入继续聊天的主路径。
 
 验证日期：2026-03-27
-验证环境：本地 Swift Package 定向测试
-入口路径：`swift test --package-path spare-life-ios-app --filter MasterCatalogLoaderTests`
-验证结果：4 个定向测试通过，覆盖首页目录只返回大师卡、目录索引固定读取 8 位大师、字段与图片资源严格命中 `./assets/char` 和 `./assets/assets/char/<id>`。
-残留问题：`大师本机验证通过` 仍未完成，尚缺 iPhone 15 Pro / iPad Air 的人工走查记录。
+验证设备：iPhone 15 Pro Simulator；iPad Air 11-inch (M2) Simulator
+入口路径：本地 `SpareLifePreviewHost` 直达大师首页
+验证结果：大师首页仅保留目录浏览结构；顶部明确展示 `./assets/char`、`./assets/assets` 和 `master_service_directory.json`；页面显示首批 8 位大师。另执行 `swift test --package-path spare-life-ios-app --filter MasterCatalogLoaderTests`，4 个定向测试通过，覆盖目录索引、8 套资源集合与 `metadata.id -> asset_id` 一致性校验。
+残留问题：双列瀑布流完整性、只读边界、进入对话与连续会话链路仍未在本批次勾选。
 ### 6.3 赚闲能
 
 - [ ] 赚闲能首页信息架构对齐：顶部信息、闲能余额/今日可赚、赛道 chips、双列瀑布流按蓝图落位。

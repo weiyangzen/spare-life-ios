@@ -31,6 +31,7 @@ Progress: 咸虾 3/6, 大师 3/10
 - [ ] 大师本机验证通过：在 iPhone 15 Pro 上完成 8 位大师的目录浏览、卡片正确展示、进入任意大师、发送多轮消息、得到稳定回复、退出再进入继续聊天的主路径。
 
 验证日期：2026-03-27
-验证环境：本地 Swift Package 定向测试
-入口路径：`swift test --package-path spare-life-ios-app --filter MasterCatalogLoaderTests`
-验证结果：4 个定向测试通过，覆盖首页目录只返回大师卡、目录索引固定读取 8 位大师、字段与图片资源严格命中 `./assets/char` 和 `./assets/assets/char/<id>`。
+验证设备：iPhone 15 Pro Simulator；iPad Air 11-inch (M2) Simulator
+入口路径：本地 `SpareLifePreviewHost` 直达大师首页
+验证结果：大师首页仅保留目录浏览结构；顶部明确展示 `./assets/char`、`./assets/assets` 和 `master_service_directory.json`；页面显示首批 8 位大师。另执行 `swift test --package-path spare-life-ios-app --filter MasterCatalogLoaderTests`，4 个定向测试通过，覆盖目录索引、8 套资源集合与 `metadata.id -> asset_id` 一致性校验。
+残留问题：双列瀑布流完整性、只读边界、进入对话与连续会话链路仍未在本批次勾选。

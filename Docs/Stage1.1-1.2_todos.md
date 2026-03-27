@@ -26,12 +26,12 @@ Progress: 咸虾 5/6, 大师 8/10
 - [x] 大师目录只读约束：用户只能浏览和进入对话，不能在端侧新建、删除或编辑大师本体内容。
 - [x] 大师详情承接正确：点击任意大师卡后，进入正确的一对一对话页面，而不是停留在静态详情样板。
 - [x] 单大师对话能力：任意大师都能进行正常、连续、可发送可接收的一对一对话。
-- [ ] 大师对话 UI 对齐：对话页延续当前配色方案，聊天布局采用成熟对话结构的 iOS 原生版本，不退化成简陋调试页。
+- [x] 大师对话 UI 对齐：对话页延续当前配色方案，聊天布局采用成熟对话结构的 iOS 原生版本，不退化成简陋调试页。
 - [x] 对话密钥与服务安全边界：对话所需密钥与敏感配置只在本机安全读取，不进入客户端页面配置或版本化文档。
 - [ ] 大师本机验证通过：在 iPhone 15 Pro 上完成当前已提供大师批次的目录浏览、卡片正确展示、进入任意大师、发送多轮消息、得到稳定回复、退出再进入继续聊天的主路径；当前首批为 8 位。
 
 验证日期：2026-03-28
-验证设备：macOS 本地 masters slice 校验
-入口路径：`MasterHomeView` 目录页 -> `.navigationDestination(item: $store.conversation)` 一对一对话页
-验证结果：执行 `xcrun --sdk macosx swiftc -typecheck spare-life-ios-app/App/DesignSystem/PlatformCompat.swift spare-life-ios-app/App/DesignSystem/DesignTokens.swift spare-life-ios-app/App/DesignSystem/WaterfallLayout.swift spare-life-ios-app/Features/Shared/FeedCardProtocol.swift spare-life-ios-app/Features/Shared/UnifiedWaterfallFeed.swift spare-life-ios-app/Features/Masters/MasterConversationService.swift spare-life-ios-app/Features/Masters/MasterExperienceStore.swift spare-life-ios-app/Features/Masters/MasterHomeView.swift` 通过；另用临时命令行 harness 编译并运行 masters slice，输出 `service_mode=liveRemote`、`credential_source=keychain`、`model=claude-sonnet-4-6`，随后依次输出 8 位当前 Stage 1 大师的 `single_turn_ok=<asset_id>:<displayName>`，并以 `follow_up_messages=7`、`masters_validation_ok` 收尾，确认当前 8 位大师都能走真实远端一对一收发，且首位大师可继续追问形成多轮上下文；同一 harness 还确认对话密钥已从本机 `ANTHROPIC_API_KEY` 引导写入并回读自钥匙串，不进入页面配置。`xcodebuild -project spare-life-ios-preview-host/SpareLifePreviewHost.xcodeproj -scheme SpareLifePreviewHost -destination 'platform=iOS Simulator,id=63DAFAF1-789A-4206-8B3C-6B87048AFDF1' build` 仍被 `spare-life-ios-app/Features/Xianxia` 中既有冲突标记阻塞，失败点不在 masters lane。
-残留问题：大师对话 UI 已按原生聊天结构重做，但受 `spare-life-ios-app/Features/Xianxia` 现有冲突阻塞，尚未完成独立于全工程构建的设备态 UI 验证，因此本批次不勾选“大师对话 UI 对齐”与 “大师本机验证通过”。
+验证设备：macOS masters slice 校验 + `Stage1 iPhone 15 Pro` 模拟器
+入口路径：`MasterHomeView` 目录页 -> `.navigationDestination(isPresented: conversationDestinationBinding)` 一对一对话页
+验证结果：执行 `xcrun --sdk macosx swiftc -typecheck spare-life-ios-app/App/DesignSystem/PlatformCompat.swift spare-life-ios-app/App/DesignSystem/DesignTokens.swift spare-life-ios-app/App/DesignSystem/WaterfallLayout.swift spare-life-ios-app/Features/Shared/FeedCardProtocol.swift spare-life-ios-app/Features/Shared/UnifiedWaterfallFeed.swift spare-life-ios-app/Features/Masters/MasterConversationService.swift spare-life-ios-app/Features/Masters/MasterLocalStateStore.swift spare-life-ios-app/Features/Masters/MasterExperienceStore.swift spare-life-ios-app/Features/Masters/MasterHomeView.swift spare-life-ios-preview-host/App/MastersPreviewRootView.swift` 通过；`ruby spare-life-ios-preview-host/generate_masters_xcodeproj.rb` 生成独立 `SpareLifeMastersPreviewHost.xcodeproj`，随后 `xcodebuild -project spare-life-ios-preview-host/SpareLifeMastersPreviewHost.xcodeproj -scheme SpareLifeMastersPreviewHost -destination 'platform=iOS Simulator,id=63DAFAF1-789A-4206-8B3C-6B87048AFDF1' build` 通过；`xcrun simctl launch` 驱动 `directory_snapshot` 自动化返回 `visibleMasterCount=8`，确认当前首批 8 位大师全部进入目录；同一独立 host 下抓取的 `masters-conversation.png` 与 `masters-resume.png` 显示对话页已改为紧凑抬头 + 直接消息流 + 底部输入区的原生聊天结构，模式/记忆控制移入辅助层，不再是堆叠调试卡片；`seed_chat` 与 `resume_chat` 自动化均返回 `success=true`，确认退出再进入后 transcript 能继续承接并再次发送一轮追问。
+残留问题：`Stage1 iPhone 15 Pro` 模拟器上的 live remote 路径仍未通过，最新 `seed_chat` 自动化返回 `serviceMode=localFallback`，`serviceDetail='实时大师服务这轮不可用，已回退到本地故事与记忆引擎继续回复。原因：大师服务请求失败，状态码 403。 Request not allowed'`；因此本批次只勾选“大师对话 UI 对齐”，继续保留“大师本机验证通过”为未完成。

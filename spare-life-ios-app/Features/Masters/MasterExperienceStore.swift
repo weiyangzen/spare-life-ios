@@ -401,16 +401,19 @@ final class MasterExperienceStore: ObservableObject {
     private var hasLoaded = false
     private let catalogLoader: () throws -> MasterCatalogSnapshot
     private let conversationService: MasterConversationReplying
+    private let localStateStore: MasterConversationLocalStateStore
     let catalogAccessPolicy: MasterCatalogAccessPolicy = .browseAndChatOnly
     private var sessionTranscripts: [String: [MasterMessage]] = [:]
 
     init(
         catalogLoader: @escaping () throws -> MasterCatalogSnapshot = { try MasterCatalogLoader.load() },
-        conversationService: MasterConversationReplying? = nil
+        conversationService: MasterConversationReplying? = nil,
+        localStateStore: MasterConversationLocalStateStore = MasterConversationLocalStateStore()
     ) {
         self.catalogLoader = catalogLoader
         let resolvedConversationService = conversationService ?? AnthropicMasterConversationService()
         self.conversationService = resolvedConversationService
+        self.localStateStore = localStateStore
         self.conversationServiceStatus = resolvedConversationService.status
     }
 
@@ -504,6 +507,13 @@ final class MasterExperienceStore: ObservableObject {
 
         let previousMasters = Dictionary(uniqueKeysWithValues: masters.map { ($0.id, $0) })
         let previousSessions = recentSessions
+        let previousTranscripts = sessionTranscripts
+        let persistedState: MasterConversationLocalState
+        do {
+            persistedState = try localStateStore.load()
+        } catch {
+            persistedState = .empty
+        }
 
         do {
             let snapshot = try catalogLoader()
@@ -511,20 +521,40 @@ final class MasterExperienceStore: ObservableObject {
             domains = snapshot.domains
             domainIndex = snapshot.domainIndex
             let mergedMasters = snapshot.masters.map { incoming -> MasterProfile in
-                guard let existing = previousMasters[incoming.id] else { return incoming }
                 var merged = incoming
-                if !existing.memoryNotes.isEmpty {
-                    merged.memoryNotes = existing.memoryNotes
+                if let existing = previousMasters[incoming.id] {
+                    if !existing.memoryNotes.isEmpty {
+                        merged.memoryNotes = existing.memoryNotes
+                    }
+                    if !existing.goalSnapshots.isEmpty {
+                        merged.goalSnapshots = existing.goalSnapshots
+                    }
+                } else if let persistedNotes = persistedState.memoryNotesByMasterID[incoming.id], !persistedNotes.isEmpty {
+                    merged.memoryNotes = persistedNotes
                 }
-                if !existing.goalSnapshots.isEmpty {
-                    merged.goalSnapshots = existing.goalSnapshots
-                }
+
                 return merged
             }
             masters = mergedMasters
             masterIndex = Dictionary(uniqueKeysWithValues: mergedMasters.enumerated().map { ($1.id, $0) })
             catalogCoverage = snapshot.catalogCoverage
-            recentSessions = snapshot.sessions.isEmpty ? previousSessions : snapshot.sessions
+            let persistedSessions = persistedState.recentSessions.compactMap { session -> MasterRecentSession? in
+                guard let position = masterIndex[session.masterID], masters.indices.contains(position) else {
+                    return nil
+                }
+                return session.materialize(seedMessages: seedMessages(for: masters[position]))
+            }
+            let preferredSessions = snapshot.sessions.isEmpty
+                ? (previousSessions.isEmpty ? persistedSessions : previousSessions)
+                : snapshot.sessions
+            recentSessions = preferredSessions.filter { masterIndex[$0.masterID] != nil }
+            sessionTranscripts = previousTranscripts
+            let validSessionIDs = Set(recentSessions.map(\.id))
+            for (sessionID, messages) in persistedState.sessionTranscripts where validSessionIDs.contains(sessionID) {
+                if sessionTranscripts[sessionID] == nil || sessionTranscripts[sessionID]?.isEmpty == true {
+                    sessionTranscripts[sessionID] = messages
+                }
+            }
         } catch {
             catalogSourceMode = .unavailable
             domains = []
@@ -532,7 +562,8 @@ final class MasterExperienceStore: ObservableObject {
             masters = []
             masterIndex = [:]
             catalogCoverage = nil
-            recentSessions = []
+            recentSessions = previousSessions
+            sessionTranscripts = previousTranscripts
             visibleDirectoryMasterCount = 0
             fatalErrorMessage = error.localizedDescription
         }
@@ -544,6 +575,7 @@ final class MasterExperienceStore: ObservableObject {
         resetDirectoryPagination()
 
         isLoading = false
+        persistLocalState()
     }
 
     func applyCatalogSourceMode(_ mode: MasterCatalogSourceMode) {
@@ -555,6 +587,7 @@ final class MasterExperienceStore: ObservableObject {
         guard let index = recentSessions.firstIndex(where: { $0.id == session.id }) else { return }
         recentSessions[index].isPinned.toggle()
         syncConversationSession(recentSessions[index])
+        persistLocalState()
     }
 
     func resetDirectoryPagination() {
@@ -575,6 +608,7 @@ final class MasterExperienceStore: ObservableObject {
 
     func openConversation(for profile: MasterProfile, template: MasterQuestionTemplate? = nil) {
         let existingSession = recentSessions.first(where: { $0.masterID == profile.id })
+        let defaultSeedMessages = seedMessages(for: profile)
         let session = existingSession ?? MasterRecentSession(
             id: "session-\(profile.id)",
             masterID: profile.id,
@@ -585,25 +619,7 @@ final class MasterExperienceStore: ObservableObject {
             unreadCount: 0,
             lastMessageAt: "刚刚",
             isPinned: false,
-            seedMessages: [
-                MasterMessage(
-                    id: "opening-\(profile.id)",
-                    role: .assistant,
-                    text: "\(profile.displayName)在这里。你可以直接问问题，也可以先挑一个问题模板，我会沿用你授权的长期记忆，但不会跨大师乱共享。",
-                    timestamp: "刚刚",
-                    referencedStoryTitles: [],
-                    referencedMemoryLabels: [],
-                    ctas: [
-                        MasterActionRecommendation(
-                            id: "profile-memory-\(profile.id)",
-                            label: "检查记忆授权",
-                            reason: "先确认长期记忆范围，避免把隐私记过头。",
-                            route: "sparelife://my/profile?highlight=memory",
-                            target: .profile
-                        )
-                    ]
-                )
-            ]
+            seedMessages: defaultSeedMessages
         )
 
         conversation = MasterConversationDraft(
@@ -613,7 +629,7 @@ final class MasterExperienceStore: ObservableObject {
             mode: template?.mode ?? .storyFirst,
             memoryScope: .masterOnly,
             serviceStatus: conversationServiceStatus,
-            messages: sessionTranscripts[session.id] ?? session.seedMessages,
+            messages: sessionTranscripts[session.id] ?? session.seedMessages.nonEmpty ?? defaultSeedMessages,
             prefilledPrompt: template?.prompt ?? "",
             isReplying: false,
             inlineError: nil
@@ -622,6 +638,7 @@ final class MasterExperienceStore: ObservableObject {
 
     func restoreSession(_ session: MasterRecentSession) {
         guard let profile = master(withID: session.masterID) else { return }
+        let defaultSeedMessages = seedMessages(for: profile)
         conversation = MasterConversationDraft(
             id: session.id,
             masterID: profile.id,
@@ -629,7 +646,7 @@ final class MasterExperienceStore: ObservableObject {
             mode: .storyFirst,
             memoryScope: .masterOnly,
             serviceStatus: conversationServiceStatus,
-            messages: sessionTranscripts[session.id] ?? session.seedMessages,
+            messages: sessionTranscripts[session.id] ?? session.seedMessages.nonEmpty ?? defaultSeedMessages,
             prefilledPrompt: "",
             isReplying: false,
             inlineError: nil
@@ -655,6 +672,7 @@ final class MasterExperienceStore: ObservableObject {
             )
             if let conversation {
                 sessionTranscripts[conversation.session.id] = conversation.messages
+                persistLocalState()
             }
         }
     }
@@ -740,6 +758,7 @@ final class MasterExperienceStore: ObservableObject {
         )
         self.conversation = conversation
         sessionTranscripts[conversation.session.id] = conversation.messages
+        persistLocalState()
 
         try? await Task.sleep(nanoseconds: 420_000_000)
 
@@ -804,6 +823,7 @@ final class MasterExperienceStore: ObservableObject {
 
         self.conversation = conversation
         sessionTranscripts[conversation.session.id] = conversation.messages
+        persistLocalState()
     }
 
     func presentRoutePreview(_ action: MasterActionRecommendation, sourceTitle: String) {
@@ -820,10 +840,45 @@ final class MasterExperienceStore: ObservableObject {
 
     private var adoptedActionIDs: Set<String> = []
 
+    private func seedMessages(for profile: MasterProfile) -> [MasterMessage] {
+        [
+            MasterMessage(
+                id: "opening-\(profile.id)",
+                role: .assistant,
+                text: "\(profile.displayName)在这里。你可以直接问问题，也可以先挑一个问题模板，我会沿用你授权的长期记忆，但不会跨大师乱共享。",
+                timestamp: "刚刚",
+                referencedStoryTitles: [],
+                referencedMemoryLabels: [],
+                ctas: [
+                    MasterActionRecommendation(
+                        id: "profile-memory-\(profile.id)",
+                        label: "检查记忆授权",
+                        reason: "先确认长期记忆范围，避免把隐私记过头。",
+                        route: "sparelife://my/profile?highlight=memory",
+                        target: .profile
+                    )
+                ]
+            )
+        ]
+    }
+
+    private func persistLocalState() {
+        do {
+            try localStateStore.save(
+                recentSessions: recentSessions,
+                sessionTranscripts: sessionTranscripts,
+                masters: masters
+            )
+        } catch {
+            // Local persistence is best-effort. UI state should stay usable even if writing fails.
+        }
+    }
+
     private func markSessionRead(_ sessionID: String) {
         guard let index = recentSessions.firstIndex(where: { $0.id == sessionID }) else { return }
         recentSessions[index].unreadCount = 0
         syncConversationSession(recentSessions[index])
+        persistLocalState()
     }
 
     private func syncConversationSession(_ session: MasterRecentSession) {
@@ -839,6 +894,7 @@ final class MasterExperienceStore: ObservableObject {
             recentSessions.insert(session, at: 0)
         }
         syncConversationSession(session)
+        persistLocalState()
     }
 
     private func appendAuthorizedMemory(for masterID: String, from message: String, scope: MasterMemoryScope) {
@@ -846,6 +902,7 @@ final class MasterExperienceStore: ObservableObject {
         let newMemory = makeMemoryNote(from: message, scope: scope)
         let notes = [newMemory] + masters[index].memoryNotes.filter { $0.summary != newMemory.summary }
         masters[index].memoryNotes = Array(notes.prefix(5))
+        persistLocalState()
     }
 
     private func buildConsultationResult(
@@ -1859,5 +1916,11 @@ private struct MasterServiceDirectoryDocument: Decodable {
             let blue = Double(value & 0xFF) / 255.0
             return Color(red: red, green: green, blue: blue)
         }
+    }
+}
+
+private extension Array where Element == MasterMessage {
+    var nonEmpty: [MasterMessage]? {
+        isEmpty ? nil : self
     }
 }

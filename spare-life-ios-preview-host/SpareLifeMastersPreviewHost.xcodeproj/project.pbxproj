@@ -1,0 +1,478 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		110489FA0D4FB1562450DD8E /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9784745CA22DB9E53E2CE616 /* Foundation.framework */; };
+		19AFA4C02074453F5E1BA9D4 /* master_service_directory.json in Resources */ = {isa = PBXBuildFile; fileRef = A682E12C93D49BE24E5106EF /* master_service_directory.json */; };
+		2B171B0C15519B722861DA4E /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 8A915C78D6BD15083C6A9EB3 /* assets */; };
+		2D1F0E651775E2DAA7297B43 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D28C235EAD88FB31DB1850DF /* Assets.xcassets */; };
+		3EEE4F74A01B39BB312230E3 /* MastersPreviewRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB0BED8DEBFE4C72E5F2D9BF /* MastersPreviewRootView.swift */; };
+		70A1AD7F8795A0E5D75CD6B9 /* FeedCardProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28C4A161EDD61D9D5484E8EA /* FeedCardProtocol.swift */; };
+		7E7572B9041EC2480B8A27ED /* UnifiedWaterfallFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = C380F0DFE615F2C952C3CA3A /* UnifiedWaterfallFeed.swift */; };
+		8A1F6B0275B76ED42AC46A00 /* char in Resources */ = {isa = PBXBuildFile; fileRef = E43C20B6A866399ED3D31C4D /* char */; };
+		A8789BFAFDD332EDDE1AF5D1 /* MasterConversationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FB054999FD94C242155ABD3 /* MasterConversationService.swift */; };
+		C6F6117E662E3B2BCF87B903 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = D266433585F5E5162A08CB8F /* DesignTokens.swift */; };
+		C8171B1FA1ABAF5C28AF289F /* SpareLifeMastersPreviewHostApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F655C1414BDADB54C53FA86 /* SpareLifeMastersPreviewHostApp.swift */; };
+		DC015472CBDFA95B0AF179D5 /* MasterExperienceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D14A7304E3E7F6DC96955824 /* MasterExperienceStore.swift */; };
+		E47C309D35E1BD63A117DFFB /* MasterLocalStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BA04584FB14CC14A234BC77 /* MasterLocalStateStore.swift */; };
+		F2D52596469620A0359F1CFB /* MasterHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC5FF28CD4025E14D663E344 /* MasterHomeView.swift */; };
+		F78952242AC8A25A60330C9A /* WaterfallLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB8B685CAA0D7FB845D75C12 /* WaterfallLayout.swift */; };
+		FD7E4A0301A87BB4384DD8BC /* PlatformCompat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56C71A538FB7C2F066B4A542 /* PlatformCompat.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		1BA04584FB14CC14A234BC77 /* MasterLocalStateStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MasterLocalStateStore.swift; path = "../spare-life-ios-app/Features/Masters/MasterLocalStateStore.swift"; sourceTree = "<group>"; };
+		28C4A161EDD61D9D5484E8EA /* FeedCardProtocol.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = FeedCardProtocol.swift; path = "../spare-life-ios-app/Features/Shared/FeedCardProtocol.swift"; sourceTree = "<group>"; };
+		56C71A538FB7C2F066B4A542 /* PlatformCompat.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlatformCompat.swift; path = "../spare-life-ios-app/App/DesignSystem/PlatformCompat.swift"; sourceTree = "<group>"; };
+		6F655C1414BDADB54C53FA86 /* SpareLifeMastersPreviewHostApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = SpareLifeMastersPreviewHostApp.swift; path = App/SpareLifeMastersPreviewHostApp.swift; sourceTree = "<group>"; };
+		7FB054999FD94C242155ABD3 /* MasterConversationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MasterConversationService.swift; path = "../spare-life-ios-app/Features/Masters/MasterConversationService.swift"; sourceTree = "<group>"; };
+		8A915C78D6BD15083C6A9EB3 /* assets */ = {isa = PBXFileReference; includeInIndex = 1; name = assets; path = ../assets/assets; sourceTree = "<group>"; };
+		9784745CA22DB9E53E2CE616 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		A682E12C93D49BE24E5106EF /* master_service_directory.json */ = {isa = PBXFileReference; includeInIndex = 1; name = master_service_directory.json; path = "../spare-life-ios-app/Features/Masters/Support/master_service_directory.json"; sourceTree = "<group>"; };
+		BC5FF28CD4025E14D663E344 /* MasterHomeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MasterHomeView.swift; path = "../spare-life-ios-app/Features/Masters/MasterHomeView.swift"; sourceTree = "<group>"; };
+		C380F0DFE615F2C952C3CA3A /* UnifiedWaterfallFeed.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = UnifiedWaterfallFeed.swift; path = "../spare-life-ios-app/Features/Shared/UnifiedWaterfallFeed.swift"; sourceTree = "<group>"; };
+		D14A7304E3E7F6DC96955824 /* MasterExperienceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MasterExperienceStore.swift; path = "../spare-life-ios-app/Features/Masters/MasterExperienceStore.swift"; sourceTree = "<group>"; };
+		D266433585F5E5162A08CB8F /* DesignTokens.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DesignTokens.swift; path = "../spare-life-ios-app/App/DesignSystem/DesignTokens.swift"; sourceTree = "<group>"; };
+		D28C235EAD88FB31DB1850DF /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
+		D839A161066482CA263EF0B7 /* SpareLifeMastersPreviewHost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SpareLifeMastersPreviewHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DB0BED8DEBFE4C72E5F2D9BF /* MastersPreviewRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MastersPreviewRootView.swift; path = App/MastersPreviewRootView.swift; sourceTree = "<group>"; };
+		DB8B685CAA0D7FB845D75C12 /* WaterfallLayout.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WaterfallLayout.swift; path = "../spare-life-ios-app/App/DesignSystem/WaterfallLayout.swift"; sourceTree = "<group>"; };
+		E43C20B6A866399ED3D31C4D /* char */ = {isa = PBXFileReference; includeInIndex = 1; name = char; path = ../assets/char; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		EC927DB93BE573194244B7F8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				110489FA0D4FB1562450DD8E /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		04272E898D968DD94EBB1FFC /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D839A161066482CA263EF0B7 /* SpareLifeMastersPreviewHost.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		11A6733EA117CA375C1E84A9 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				9784745CA22DB9E53E2CE616 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		13A5382DC5864ACF49A9D491 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				40CB733EEF9FDBC142F68036 /* DesignSystem */,
+			);
+			name = App;
+			sourceTree = "<group>";
+		};
+		13E129DFE828EBBC335828B9 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				11A6733EA117CA375C1E84A9 /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		16BDA72532621DCAD762F3D1 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				6F655C1414BDADB54C53FA86 /* SpareLifeMastersPreviewHostApp.swift */,
+				DB0BED8DEBFE4C72E5F2D9BF /* MastersPreviewRootView.swift */,
+			);
+			name = App;
+			sourceTree = "<group>";
+		};
+		1CF52752C57E5697FBA819A7 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				ABE0B1DEC9C70A6D55591D6E /* Shared */,
+				CAD935B438008B8DD20024FA /* Masters */,
+			);
+			name = Features;
+			sourceTree = "<group>";
+		};
+		2238557A844829BD21EF2D0C = {
+			isa = PBXGroup;
+			children = (
+				04272E898D968DD94EBB1FFC /* Products */,
+				13E129DFE828EBBC335828B9 /* Frameworks */,
+				DF2D18C9F13C0908E2E5504F /* SpareLifeMastersPreviewHost */,
+			);
+			sourceTree = "<group>";
+		};
+		32A970AD479186BB20B4F7C3 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				16BDA72532621DCAD762F3D1 /* App */,
+			);
+			name = App;
+			sourceTree = "<group>";
+		};
+		39C61ED50C1EA5806AD86BB9 /* SharedSources */ = {
+			isa = PBXGroup;
+			children = (
+				A1D2B89F4E4187AB7BC00AB6 /* spare-life-ios-app */,
+			);
+			name = SharedSources;
+			sourceTree = "<group>";
+		};
+		40CB733EEF9FDBC142F68036 /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				56C71A538FB7C2F066B4A542 /* PlatformCompat.swift */,
+				D266433585F5E5162A08CB8F /* DesignTokens.swift */,
+				DB8B685CAA0D7FB845D75C12 /* WaterfallLayout.swift */,
+			);
+			name = DesignSystem;
+			sourceTree = "<group>";
+		};
+		A1D2B89F4E4187AB7BC00AB6 /* spare-life-ios-app */ = {
+			isa = PBXGroup;
+			children = (
+				13A5382DC5864ACF49A9D491 /* App */,
+				1CF52752C57E5697FBA819A7 /* Features */,
+			);
+			name = "spare-life-ios-app";
+			sourceTree = "<group>";
+		};
+		ABE0B1DEC9C70A6D55591D6E /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				28C4A161EDD61D9D5484E8EA /* FeedCardProtocol.swift */,
+				C380F0DFE615F2C952C3CA3A /* UnifiedWaterfallFeed.swift */,
+			);
+			name = Shared;
+			sourceTree = "<group>";
+		};
+		CAD935B438008B8DD20024FA /* Masters */ = {
+			isa = PBXGroup;
+			children = (
+				7FB054999FD94C242155ABD3 /* MasterConversationService.swift */,
+				1BA04584FB14CC14A234BC77 /* MasterLocalStateStore.swift */,
+				D14A7304E3E7F6DC96955824 /* MasterExperienceStore.swift */,
+				BC5FF28CD4025E14D663E344 /* MasterHomeView.swift */,
+			);
+			name = Masters;
+			sourceTree = "<group>";
+		};
+		DF2D18C9F13C0908E2E5504F /* SpareLifeMastersPreviewHost */ = {
+			isa = PBXGroup;
+			children = (
+				32A970AD479186BB20B4F7C3 /* App */,
+				39C61ED50C1EA5806AD86BB9 /* SharedSources */,
+				F5E90126FB79535A185676FC /* Resources */,
+			);
+			name = SpareLifeMastersPreviewHost;
+			sourceTree = "<group>";
+		};
+		F5E90126FB79535A185676FC /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				D28C235EAD88FB31DB1850DF /* Assets.xcassets */,
+				E43C20B6A866399ED3D31C4D /* char */,
+				8A915C78D6BD15083C6A9EB3 /* assets */,
+				A682E12C93D49BE24E5106EF /* master_service_directory.json */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		7151166A3B43C0352BC6EDF6 /* SpareLifeMastersPreviewHost */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F3A42484BB00E8F235D593E6 /* Build configuration list for PBXNativeTarget "SpareLifeMastersPreviewHost" */;
+			buildPhases = (
+				D15F2E2F63A360CD8DBD7BB5 /* Sources */,
+				EC927DB93BE573194244B7F8 /* Frameworks */,
+				21666CA24BC3D5B30368682E /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SpareLifeMastersPreviewHost;
+			productName = SpareLifeMastersPreviewHost;
+			productReference = D839A161066482CA263EF0B7 /* SpareLifeMastersPreviewHost.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E6C9BF18BFEE94970EC3FE25 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 2600;
+			};
+			buildConfigurationList = B643FF41C278AD7A7AB14CB6 /* Build configuration list for PBXProject "SpareLifeMastersPreviewHost" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 2238557A844829BD21EF2D0C;
+			minimizedProjectReferenceProxies = 0;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 04272E898D968DD94EBB1FFC /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				7151166A3B43C0352BC6EDF6 /* SpareLifeMastersPreviewHost */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		21666CA24BC3D5B30368682E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2D1F0E651775E2DAA7297B43 /* Assets.xcassets in Resources */,
+				8A1F6B0275B76ED42AC46A00 /* char in Resources */,
+				2B171B0C15519B722861DA4E /* assets in Resources */,
+				19AFA4C02074453F5E1BA9D4 /* master_service_directory.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D15F2E2F63A360CD8DBD7BB5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C8171B1FA1ABAF5C28AF289F /* SpareLifeMastersPreviewHostApp.swift in Sources */,
+				3EEE4F74A01B39BB312230E3 /* MastersPreviewRootView.swift in Sources */,
+				FD7E4A0301A87BB4384DD8BC /* PlatformCompat.swift in Sources */,
+				C6F6117E662E3B2BCF87B903 /* DesignTokens.swift in Sources */,
+				F78952242AC8A25A60330C9A /* WaterfallLayout.swift in Sources */,
+				70A1AD7F8795A0E5D75CD6B9 /* FeedCardProtocol.swift in Sources */,
+				7E7572B9041EC2480B8A27ED /* UnifiedWaterfallFeed.swift in Sources */,
+				A8789BFAFDD332EDDE1AF5D1 /* MasterConversationService.swift in Sources */,
+				E47C309D35E1BD63A117DFFB /* MasterLocalStateStore.swift in Sources */,
+				DC015472CBDFA95B0AF179D5 /* MasterExperienceStore.swift in Sources */,
+				F2D52596469620A0359F1CFB /* MasterHomeView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		265462CC9310A6BDAAB9A15F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		5A4310B7EA442C4CA9FEB12B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = NO;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wangweiyang.sparelife.masters.previewhost;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		9DF8556D6B051BEAE08DD8C4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		A0FEA46359A630706A09D3D8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIRequiresFullScreen = NO;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wangweiyang.sparelife.masters.previewhost;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B643FF41C278AD7A7AB14CB6 /* Build configuration list for PBXProject "SpareLifeMastersPreviewHost" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				265462CC9310A6BDAAB9A15F /* Debug */,
+				9DF8556D6B051BEAE08DD8C4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F3A42484BB00E8F235D593E6 /* Build configuration list for PBXNativeTarget "SpareLifeMastersPreviewHost" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A0FEA46359A630706A09D3D8 /* Release */,
+				5A4310B7EA442C4CA9FEB12B /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = E6C9BF18BFEE94970EC3FE25 /* Project object */;
+}

@@ -13,7 +13,7 @@ Progress: 咸虾 3/6, 大师 0/10
 - [x] topics 本地存储：topics 数据能落到设备本地，并在重进页面或失败场景下复用。
 
 验证记录（2026-03-27）：
-`swift test --package-path spare-life-ios-app --filter XianxiaTopicRepositoryTests` 通过，覆盖 topics 分页合并、topics 缓存失败回退、跨实例复用持久化 topics、topic shards 缓存失败回退；`swift build --package-path spare-life-ios-app` 通过；`rg -n "QRScanView|SceneAvatarRadarView|SceneSocialIntentView|SceneClusterOverviewView|SceneSummaryCardView|HotTakeCardView|AvatarRadarCardView|SceneSocialPromptCardView" spare-life-ios-app/Features/Xianxia/XianxiaHomeView.swift spare-life-ios-app/App/MainTabView.swift` 未命中，确认 Stage 1 首页未接入扫码、雷达或陌生社交残留引用。
+`swift build --package-path spare-life-ios-app` 通过；`swift test --package-path spare-life-ios-app --filter XianxiaTopicRepositoryTests` 通过，覆盖 topics 分页合并、失败回退缓存、跨实例复用持久化 topics；`rg -n "QRScanView|SceneAvatarRadarView|SceneSocialIntentView|SceneClusterOverviewView|SceneSummaryCardView|HotTakeCardView|AvatarRadarCardView|SceneSocialPromptCardView" spare-life-ios-app/Features/Xianxia/XianxiaHomeView.swift spare-life-ios-app/App/MainTabView.swift` 未命中，确认首页未接入扫码、雷达、陌生社交残留引用；`curl -sS -m 5 'http://100.82.60.69:17880/v1/clawdb-topics/topics?batchSize=2&tenantId=default'` 与 `curl -sS -m 5 'http://100.82.60.69:17880/v1/clawdb-topics/topics?batchSize=2&tenantId=default&cursor=2'` 均返回 `200 OK` 和有效 topics 数据，确认统一 topic 数据源可持续分页；默认 fallback base URL 已切到 `http://100.82.60.69:17880/v1/clawdb-topics`。
 - [ ] topic 卡片双列瀑布流：每个 topic 一张卡片，以双列瀑布流方式呈现，不混入其他卡片类型。
 - [ ] topic shards 详情承接：点击任意 topic 后，能读取并展示对应 topic shards，并把 shards 写入本地存储。
 - [ ] 咸虾本机验证通过：在 iPhone 15 Pro 上完成 topics 拉取、卡片浏览、进入 topic detail、分页读取 shards、离线回退缓存的主路径。

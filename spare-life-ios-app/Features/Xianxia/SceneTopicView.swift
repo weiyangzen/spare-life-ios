@@ -430,7 +430,7 @@ struct XianxiaTopicAPIConfiguration: Equatable, Sendable {
             processInfo.environment["CLAWDB_TOPICS_BASE_URL"] ??
             userDefaults.string(forKey: "xianxia.topic.baseURL") ??
             userDefaults.string(forKey: "clawdbTopics.baseURL") ??
-            "http://127.0.0.1:17880/v1/clawdb-topics"
+            "http://100.82.60.69:17880/v1/clawdb-topics"
 
         let tenantId =
             processInfo.environment["XIANXIA_TOPICS_TENANT_ID"] ??
@@ -440,7 +440,7 @@ struct XianxiaTopicAPIConfiguration: Equatable, Sendable {
             "default"
 
         return XianxiaTopicAPIConfiguration(
-            baseURL: normalizeBaseURL(rawBaseURL) ?? URL(string: "http://127.0.0.1:17880/v1/clawdb-topics")!,
+            baseURL: normalizeBaseURL(rawBaseURL) ?? URL(string: "http://100.82.60.69:17880/v1/clawdb-topics")!,
             tenantId: tenantId.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "default",
             feedBatchSize: 20,
             shardBatchSize: 20

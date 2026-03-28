@@ -130,6 +130,69 @@ final class MasterConversationServiceTests: XCTestCase {
         XCTAssertTrue(status.detail.contains("live 候选配置已注入"))
     }
 
+    func testMasterChatLiveSmokeConfigurationFallsBackToLegacyAnthropicEnvironment() throws {
+        let suiteName = "master-chat-live-smoke-legacy-fallback-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated user defaults suite")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let resolved = try Self.liveSmokeConfiguration(
+            environment: [
+                "ANTHROPIC_BASE_URL": "http://24.199.97.185:8080",
+                "ANTHROPIC_AUTH_TOKEN": "legacy-token"
+            ],
+            userDefaults: defaults
+        )
+
+        XCTAssertEqual(
+            resolved.configuration.chatCompletionsURL.absoluteString,
+            "http://24.199.97.185:8080/v1/chat/completions"
+        )
+        XCTAssertEqual(resolved.configuration.apiKey, "legacy-token")
+        XCTAssertEqual(resolved.configuration.model, "k2p5")
+        XCTAssertTrue(resolved.sourceSummary.contains("baseURL=legacy env(ANTHROPIC_BASE_URL)"))
+        XCTAssertTrue(resolved.sourceSummary.contains("apiKey=legacy env(ANTHROPIC_AUTH_TOKEN)"))
+        XCTAssertTrue(resolved.sourceSummary.contains("model=fallback(k2p5)"))
+    }
+
+    func testMasterChatLiveSmokeConfigurationPrefersStage2EnvironmentOverLegacyFallbacks() throws {
+        let suiteName = "master-chat-live-smoke-stage2-priority-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated user defaults suite")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let resolved = try Self.liveSmokeConfiguration(
+            environment: [
+                "MASTER_CHAT_BASE_URL": "https://chat.example.com/gateway",
+                "MASTER_CHAT_API_KEY": "stage2-secret",
+                "MASTER_CHAT_MODEL": "stage2-k2p5",
+                "ANTHROPIC_BASE_URL": "http://24.199.97.185:8080",
+                "ANTHROPIC_AUTH_TOKEN": "legacy-token"
+            ],
+            userDefaults: defaults
+        )
+
+        XCTAssertEqual(
+            resolved.configuration.chatCompletionsURL.absoluteString,
+            "https://chat.example.com/gateway/v1/chat/completions"
+        )
+        XCTAssertEqual(resolved.configuration.apiKey, "stage2-secret")
+        XCTAssertEqual(resolved.configuration.model, "stage2-k2p5")
+        XCTAssertTrue(resolved.sourceSummary.contains("baseURL=env(MASTER_CHAT_BASE_URL)"))
+        XCTAssertTrue(resolved.sourceSummary.contains("apiKey=env(MASTER_CHAT_API_KEY)"))
+        XCTAssertTrue(resolved.sourceSummary.contains("model=env(MASTER_CHAT_MODEL)"))
+        XCTAssertFalse(resolved.sourceSummary.contains("legacy env(ANTHROPIC_BASE_URL)"))
+        XCTAssertFalse(resolved.sourceSummary.contains("legacy env(ANTHROPIC_AUTH_TOKEN)"))
+    }
+
     @MainActor
     func testK2P5ServiceBuildsOpenAICompatibleRequestAndKeepsFullContext() async throws {
         let capture = ConversationRequestCapture()
@@ -212,16 +275,18 @@ final class MasterConversationServiceTests: XCTestCase {
             defaults.removePersistentDomain(forName: suiteName)
         }
 
-        let configuration = try MasterChatConfiguration.current(
+        let liveSmoke = try Self.liveSmokeConfiguration(
             environment: environment,
-            userDefaults: defaults,
-            keychainAPIKey: { nil },
-            persistAPIKey: { _ in false }
+            userDefaults: defaults
         )
-        let availableModels = try await Self.preflightAvailableModels(configuration: configuration)
+        let configuration = liveSmoke.configuration
+        let availableModels = try await Self.preflightAvailableModels(
+            configuration: configuration,
+            sourceSummary: liveSmoke.sourceSummary
+        )
         guard availableModels.contains(configuration.model) else {
             throw XCTSkip(
-                "Live k2p5 smoke blocked before send: \(Self.modelCatalogURL(for: configuration.chatCompletionsURL).absoluteString) does not advertise '\(configuration.model)'; available=\(availableModels.joined(separator: ", "))"
+                "Live k2p5 smoke blocked before send: \(Self.modelCatalogURL(for: configuration.chatCompletionsURL).absoluteString) [\(liveSmoke.sourceSummary)] does not advertise '\(configuration.model)'; available=\(availableModels.joined(separator: ", "))"
             )
         }
         let tempDirectory = FileManager.default.temporaryDirectory
@@ -264,7 +329,9 @@ final class MasterConversationServiceTests: XCTestCase {
         await store.sendMessage(firstPrompt)
         let firstConversation = try XCTUnwrap(store.conversation)
         guard firstConversation.serviceStatus.isLiveRemote else {
-            throw XCTSkip("Live k2p5 smoke blocked on first turn: \(firstConversation.serviceStatus.detail)")
+            throw XCTSkip(
+                "Live k2p5 smoke blocked on first turn [\(liveSmoke.sourceSummary)]: \(firstConversation.serviceStatus.detail)"
+            )
         }
         XCTAssertGreaterThanOrEqual(firstConversation.messages.count, initialCount + 2)
         XCTAssertEqual(firstConversation.messages[firstConversation.messages.count - 2].text, firstPrompt)
@@ -276,7 +343,9 @@ final class MasterConversationServiceTests: XCTestCase {
         await store.sendMessage(secondPrompt)
         let secondConversation = try XCTUnwrap(store.conversation)
         guard secondConversation.serviceStatus.isLiveRemote else {
-            throw XCTSkip("Live k2p5 smoke blocked on follow-up: \(secondConversation.serviceStatus.detail)")
+            throw XCTSkip(
+                "Live k2p5 smoke blocked on follow-up [\(liveSmoke.sourceSummary)]: \(secondConversation.serviceStatus.detail)"
+            )
         }
         XCTAssertGreaterThanOrEqual(secondConversation.messages.count, initialCount + 4)
         XCTAssertEqual(secondConversation.messages[secondConversation.messages.count - 2].text, secondPrompt)
@@ -511,7 +580,10 @@ final class MasterConversationServiceTests: XCTestCase {
         return value
     }
 
-    private static func preflightAvailableModels(configuration: MasterChatConfiguration) async throws -> [String] {
+    private static func preflightAvailableModels(
+        configuration: MasterChatConfiguration,
+        sourceSummary: String
+    ) async throws -> [String] {
         var request = URLRequest(url: modelCatalogURL(for: configuration.chatCompletionsURL))
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "content-type")
@@ -520,13 +592,15 @@ final class MasterConversationServiceTests: XCTestCase {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
-                throw XCTSkip("Live k2p5 smoke blocked before send: /v1/models returned a non-HTTP response.")
+                throw XCTSkip(
+                    "Live k2p5 smoke blocked before send: /v1/models [\(sourceSummary)] returned a non-HTTP response."
+                )
             }
             guard (200..<300).contains(httpResponse.statusCode) else {
                 let detail = String(data: data, encoding: .utf8)?
                     .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 throw XCTSkip(
-                    "Live k2p5 smoke blocked before send: \(request.url?.absoluteString ?? "/v1/models") returned \(httpResponse.statusCode). \(detail)"
+                    "Live k2p5 smoke blocked before send: \(request.url?.absoluteString ?? "/v1/models") [\(sourceSummary)] returned \(httpResponse.statusCode). \(detail)"
                 )
             }
             let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -540,8 +614,75 @@ final class MasterConversationServiceTests: XCTestCase {
         } catch let error as XCTSkip {
             throw error
         } catch {
-            throw XCTSkip("Live k2p5 smoke blocked before send: failed to probe /v1/models. \(error.localizedDescription)")
+            throw XCTSkip(
+                "Live k2p5 smoke blocked before send: failed to probe /v1/models [\(sourceSummary)]. \(error.localizedDescription)"
+            )
         }
+    }
+
+    private static func liveSmokeConfiguration(
+        environment: [String: String],
+        userDefaults: UserDefaults
+    ) throws -> LiveSmokeConfiguration {
+        var resolvedEnvironment = environment
+
+        let baseURLSource: String
+        if trimmedEnvironmentValue("MASTER_CHAT_BASE_URL", in: resolvedEnvironment) != nil {
+            baseURLSource = "env(MASTER_CHAT_BASE_URL)"
+        } else if let legacyBaseURL = trimmedEnvironmentValue("ANTHROPIC_BASE_URL", in: environment) {
+            resolvedEnvironment["MASTER_CHAT_BASE_URL"] = legacyBaseURL
+            baseURLSource = "legacy env(ANTHROPIC_BASE_URL)"
+        } else if let legacyHost = trimmedEnvironmentValue("ANTHROPIC_HOST", in: environment) {
+            resolvedEnvironment["MASTER_CHAT_BASE_URL"] = legacyHost
+            baseURLSource = "legacy env(ANTHROPIC_HOST)"
+        } else {
+            throw XCTSkip(
+                "Live k2p5 smoke blocked before send: missing MASTER_CHAT_BASE_URL and no legacy ANTHROPIC_BASE_URL / ANTHROPIC_HOST is available."
+            )
+        }
+
+        let apiKeySource: String
+        if trimmedEnvironmentValue("MASTER_CHAT_API_KEY", in: resolvedEnvironment) != nil {
+            apiKeySource = "env(MASTER_CHAT_API_KEY)"
+        } else if let legacyAuthToken = trimmedEnvironmentValue("ANTHROPIC_AUTH_TOKEN", in: environment) {
+            resolvedEnvironment["MASTER_CHAT_API_KEY"] = legacyAuthToken
+            apiKeySource = "legacy env(ANTHROPIC_AUTH_TOKEN)"
+        } else if let legacyAPIKey = trimmedEnvironmentValue("ANTHROPIC_API_KEY", in: environment) {
+            resolvedEnvironment["MASTER_CHAT_API_KEY"] = legacyAPIKey
+            apiKeySource = "legacy env(ANTHROPIC_API_KEY)"
+        } else {
+            throw XCTSkip(
+                "Live k2p5 smoke blocked before send: missing MASTER_CHAT_API_KEY and no legacy ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY is available."
+            )
+        }
+
+        let modelSource: String
+        if let model = trimmedEnvironmentValue("MASTER_CHAT_MODEL", in: resolvedEnvironment) {
+            resolvedEnvironment["MASTER_CHAT_MODEL"] = model
+            modelSource = "env(MASTER_CHAT_MODEL)"
+        } else {
+            resolvedEnvironment["MASTER_CHAT_MODEL"] = K2P5MasterConversationService.modelFallback
+            modelSource = "fallback(\(K2P5MasterConversationService.modelFallback))"
+        }
+
+        let configuration = try MasterChatConfiguration.current(
+            environment: resolvedEnvironment,
+            userDefaults: userDefaults,
+            keychainAPIKey: { nil },
+            persistAPIKey: { _ in false }
+        )
+        return LiveSmokeConfiguration(
+            configuration: configuration,
+            sourceSummary: "baseURL=\(baseURLSource)；apiKey=\(apiKeySource)；model=\(modelSource)"
+        )
+    }
+
+    private static func trimmedEnvironmentValue(_ key: String, in environment: [String: String]) -> String? {
+        guard let value = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            return nil
+        }
+        return value
     }
 
     private static func modelCatalogURL(for chatCompletionsURL: URL) -> URL {
@@ -550,6 +691,11 @@ final class MasterConversationServiceTests: XCTestCase {
             .deletingLastPathComponent()
             .appendingPathComponent("models")
     }
+}
+
+private struct LiveSmokeConfiguration {
+    let configuration: MasterChatConfiguration
+    let sourceSummary: String
 }
 
 private actor ConversationRequestCapture {

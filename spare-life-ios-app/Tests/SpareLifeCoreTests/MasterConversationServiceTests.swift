@@ -40,8 +40,10 @@ final class MasterConversationServiceTests: XCTestCase {
         let status = MasterChatConfiguration.currentStatus(
             environment: [
                 "MASTER_CHAT_API_KEY": "env-secret",
+                "ANTHROPIC_HOST": "http://24.199.97.185:8080",
                 "ANTHROPIC_BASE_URL": "http://24.199.97.185:8080",
-                "ANTHROPIC_AUTH_TOKEN": "legacy-token"
+                "ANTHROPIC_AUTH_TOKEN": "legacy-token",
+                "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-6"
             ],
             userDefaults: defaults,
             keychainAPIKey: { nil },
@@ -52,7 +54,9 @@ final class MasterConversationServiceTests: XCTestCase {
         XCTAssertFalse(status.isLiveRemote)
         XCTAssertTrue(status.detail.contains("MASTER_CHAT_BASE_URL"))
         XCTAssertTrue(status.detail.contains("defaults(masters.chat.baseURL)"))
+        XCTAssertTrue(status.detail.contains("ANTHROPIC_HOST"))
         XCTAssertTrue(status.detail.contains("ANTHROPIC_BASE_URL"))
+        XCTAssertTrue(status.detail.contains("ANTHROPIC_DEFAULT_OPUS_MODEL"))
         XCTAssertTrue(status.detail.contains("apiKey=env(MASTER_CHAT_API_KEY)"))
     }
 

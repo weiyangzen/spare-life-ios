@@ -44,6 +44,7 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [x] 拆分：ClawDB ASR 的真实写入 host / path / method 仍未提供，当前还不能把 live 端点写死进客户端。
 - [x] 拆分：已复核 `Docs/Stage2_Blueprint*`、`MasterASRService.swift`、`MasterASRServiceTests.swift` 与当前执行环境，仍未发现可直接写入客户端的 live `MASTER_ASR_URL / MASTER_ASR_BASE_URL / MASTER_ASR_PATH / MASTER_ASR_METHOD` 实值。
 - [x] 拆分：当前执行环境确认未注入任何 `MASTER_ASR_*` 环境变量。
+- [x] 拆分：2026-03-28 已复核当前机器 `defaults read`，未见任何 `masters.asr.*` live 配置；结合 shell 仍无 `MASTER_ASR_*`，ASR 主项继续保持未勾。
 - [x] 拆分：ClawDB ASR 鉴权 header 名、scheme 与密钥来源仍未提供，live 联调前不能诚实勾选主项。
 - [x] 拆分：已复核 `Docs/Stage2_Blueprint*`、`MasterASRService.swift`、`MasterASRServiceTests.swift` 与当前执行环境，仍未发现可直接用于 live 联调的 `MASTER_ASR_AUTH_HEADER / MASTER_ASR_AUTH_SCHEME / MASTER_ASR_API_KEY / MASTER_ASR_AUTH_TOKEN` 实值或来源说明。
 - [x] 拆分：已补充 `MASTER_ASR_LIVE_SMOKE=1` + `MASTER_ASR_SMOKE_AUDIO_FILE` 驱动的 ASR live smoke test；拿到真实端点与鉴权后，可直接对候选配置发起一次真实转写验证，默认无配置时会跳过。
@@ -56,8 +57,10 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [x] 拆分：大师对话配置诊断现已区分 `baseURL` 未注入、`API key` 缺失、以及 live `k2p5` 候选已注入三种状态，并明确列出 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY / MASTER_CHAT_MODEL`、`defaults(masters.chat.baseURL / masters.chat.model)` 与本机钥匙串来源；本地单测已覆盖。
 - [x] 拆分：大师对话页服务状态现已明确区分“`k2p5` live 候选已注入”和“实时对话已接通”；仅注入 `MASTER_CHAT_*` 但尚未收到远端回复时只显示候选，不再误报主链路已接通；本地单测已覆盖。
 - [x] 拆分：当当前 shell 只有 legacy `ANTHROPIC_*` 配置时，`k2p5` 诊断会明确标注这只是旁路线索，Stage 2 主链路仍只认 `MASTER_CHAT_*`；本地单测已覆盖。
+- [x] 拆分：大师对话配置诊断现已额外回显 legacy `ANTHROPIC_HOST / ANTHROPIC_DEFAULT_OPUS_MODEL` 线索，避免当前 shell 只有 host 时被误判成无线索；本地单测已覆盖。
 - [x] 拆分：已补充本地 `MasterExperienceStore` 集成测试，覆盖 8 张大师卡装载、进入一对一、经 `K2P5MasterConversationService` 连续发送两轮消息、落盘后 `restoreSession` 恢复，以及恢复后继续携带完整历史 context 发送；本地单测已覆盖。
 - [x] 拆分：2026-03-28 当前执行环境仍未提供 `MASTER_CHAT_BASE_URL` / `MASTER_CHAT_API_KEY` 的 Stage 2 live `k2p5` 配置；shell 仅见 legacy `ANTHROPIC_*`，带鉴权请求 `http://24.199.97.185:8080/v1/models` 仍只枚举 Claude 系列。
+- [x] 拆分：2026-03-28 已复核当前机器 `defaults read` 与钥匙串，未发现 `masters.chat.*` 或 `com.wangweiyang.sparelife.masters.chat/k2p5.api-key`；带当前 shell 的 legacy 鉴权请求 `http://24.199.97.185:8080/v1/models` 仍只枚举 Claude 系列，未发现 `k2p5`。
 - [x] 拆分：已补充 `MASTER_CHAT_LIVE_SMOKE=1` 驱动的 `MasterExperienceStore` 一对一聊天 smoke test，直接覆盖 `openConversation -> sendMessage -> k2p5` 实际发送链路；拿到 live `MASTER_CHAT_*` 配置后可直接复跑。
 - [x] 拆分：2026-03-28 以当前 shell 的 `ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN` 临时映射到 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY` 执行上述 smoke 时，首轮即返回 `503 No available accounts: no available accounts`；因此基于 live `k2p5` 端点的一对一聊天自动化验证主项仍不能诚实勾选。
 - [x] 拆分：2026-03-28 再次以当前 shell 的 `ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN` 临时映射到 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY` 执行上述 smoke 时，首轮改为返回 `404`，并在错误详情里回显 `model: k2p5`；因此基于 live `k2p5` 端点的一对一聊天自动化验证仍未完成。

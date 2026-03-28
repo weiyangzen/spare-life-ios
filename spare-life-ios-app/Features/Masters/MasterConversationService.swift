@@ -655,9 +655,11 @@ final class K2P5MasterConversationService: MasterConversationReplying {
 
     nonisolated fileprivate static func detectedLegacyEnvironmentKeys(in environment: [String: String]) -> [String] {
         let legacyKeys = [
+            "ANTHROPIC_HOST",
             "ANTHROPIC_BASE_URL",
             "ANTHROPIC_API_KEY",
             "ANTHROPIC_AUTH_TOKEN",
+            "ANTHROPIC_DEFAULT_OPUS_MODEL",
             "ANTHROPIC_DEFAULT_SONNET_MODEL"
         ]
         return legacyKeys.filter { key in

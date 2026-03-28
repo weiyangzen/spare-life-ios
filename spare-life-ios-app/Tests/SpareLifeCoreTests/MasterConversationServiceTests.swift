@@ -785,6 +785,80 @@ final class MasterConversationServiceTests: XCTestCase {
         XCTAssertEqual(updatedConversation.serviceStatus.modelName, "k2p5")
     }
 
+    @MainActor
+    func testMasterExperienceStoreRefreshCatalogAppliesChatLiveProbeBlockerToEntryStatus() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("master-store-k2p5-preflight-blocked-\(UUID().uuidString)", isDirectory: true)
+        let archiveURL = tempDirectory.appendingPathComponent("master-conversations.json", isDirectory: false)
+        defer {
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        let blockedStatus = MasterConversationServiceStatus(
+            providerName: "k2p5",
+            modelName: "k2p5",
+            credentialSource: .environmentFallback,
+            deliveryMode: .localFallback,
+            tone: .warning,
+            title: "k2p5 预检未通过",
+            detail: "已对 http://24.199.97.185:8080/v1/models 做 live `/v1/models` 预检，但还不能把会话记为已接通。阻塞：Live k2p5 smoke blocked before send: http://24.199.97.185:8080/v1/models [baseURL=legacy env(ANTHROPIC_BASE_URL)；apiKey=legacy env(ANTHROPIC_AUTH_TOKEN)；model=fallback(k2p5)] does not advertise 'k2p5'; available=claude-opus-4-6"
+        )
+        let store = MasterExperienceStore(
+            catalogLoader: { try MasterCatalogLoader.load() },
+            conversationService: FailingConversationService(),
+            chatLiveStatusProbe: { blockedStatus },
+            localStateStore: MasterConversationLocalStateStore(archiveURL: archiveURL)
+        )
+
+        await store.refreshCatalog()
+
+        XCTAssertEqual(store.conversationServiceStatus.title, "k2p5 预检未通过")
+        XCTAssertFalse(store.conversationServiceStatus.isLiveRemote)
+        XCTAssertTrue(store.conversationServiceStatus.detail.contains("does not advertise 'k2p5'"))
+
+        let profile = try XCTUnwrap(store.visibleDirectoryMasters.first)
+        store.openConversation(for: profile)
+
+        XCTAssertEqual(store.conversation?.serviceStatus.title, "k2p5 预检未通过")
+        XCTAssertTrue(store.conversation?.serviceStatus.detail.contains("does not advertise 'k2p5'") == true)
+    }
+
+    @MainActor
+    func testMasterExperienceStoreRefreshCatalogAppliesChatLiveProbeCandidateToEntryStatus() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("master-store-k2p5-preflight-ready-\(UUID().uuidString)", isDirectory: true)
+        let archiveURL = tempDirectory.appendingPathComponent("master-conversations.json", isDirectory: false)
+        defer {
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        let preflightReadyStatus = MasterConversationServiceStatus.candidate(
+            modelName: "k2p5",
+            credentialSource: .environmentFallback,
+            detailOverride: "已对 https://chat.example.com/v1/models 做 live `/v1/models` 预检，确认端点广告 k2p5；available=k2p5 / claude-sonnet-4-6。目标 https://chat.example.com/v1/chat/completions。来源：baseURL=env(MASTER_CHAT_BASE_URL)；apiKey=env(MASTER_CHAT_API_KEY)；model=fallback(k2p5)。在收到首条真实远端回复前，只能视为 live 候选配置已注入。"
+        )
+        let store = MasterExperienceStore(
+            catalogLoader: { try MasterCatalogLoader.load() },
+            conversationService: FailingConversationService(),
+            chatLiveStatusProbe: { preflightReadyStatus },
+            localStateStore: MasterConversationLocalStateStore(archiveURL: archiveURL)
+        )
+
+        await store.refreshCatalog()
+
+        XCTAssertEqual(store.conversationServiceStatus.title, "k2p5 live 候选已注入")
+        XCTAssertFalse(store.conversationServiceStatus.isLiveRemote)
+        XCTAssertTrue(store.conversationServiceStatus.isLiveCandidateConfigured)
+        XCTAssertTrue(store.conversationServiceStatus.detail.contains("确认端点广告 k2p5"))
+
+        let profile = try XCTUnwrap(store.visibleDirectoryMasters.first)
+        store.openConversation(for: profile)
+
+        XCTAssertEqual(store.conversation?.serviceStatus.title, "k2p5 live 候选已注入")
+        XCTAssertTrue(store.conversation?.serviceStatus.isLiveCandidateConfigured == true)
+        XCTAssertTrue(store.conversation?.serviceStatus.detail.contains("确认端点广告 k2p5") == true)
+    }
+
     private func makeRequest(messagePairCount: Int) throws -> MasterConversationRequest {
         let snapshot = try MasterCatalogLoader.load()
         let profile = try XCTUnwrap(snapshot.masters.first)

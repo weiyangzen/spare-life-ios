@@ -404,6 +404,7 @@ final class MasterExperienceStore: ObservableObject {
     private let asrService: MasterAudioTranscribing
     let asrConnectionStatus: MasterASRConnectionStatus
     private let localStateStore: MasterConversationLocalStateStore
+    private let chatLiveStatusProbe: (() async -> MasterConversationServiceStatus?)?
     let catalogAccessPolicy: MasterCatalogAccessPolicy = .browseAndChatOnly
     private var sessionTranscripts: [String: [MasterMessage]] = [:]
 
@@ -412,16 +413,23 @@ final class MasterExperienceStore: ObservableObject {
         conversationService: MasterConversationReplying? = nil,
         asrService: MasterAudioTranscribing? = nil,
         asrConnectionStatus: MasterASRConnectionStatus? = nil,
+        chatLiveStatusProbe: (() async -> MasterConversationServiceStatus?)? = nil,
         localStateStore: MasterConversationLocalStateStore = MasterConversationLocalStateStore()
     ) {
         self.catalogLoader = catalogLoader
         let resolvedConversationService = conversationService ?? K2P5MasterConversationService()
         let resolvedASRService = asrService ?? ClawDBMasterASRService()
         let resolvedASRConnectionStatus = asrConnectionStatus ?? MasterASRConfiguration.currentStatus()
+        let resolvedChatLiveStatusProbe = chatLiveStatusProbe ?? (
+            conversationService == nil && Self.shouldEnableDefaultChatLiveStatusProbe()
+                ? Self.makeDefaultChatLiveStatusProbe()
+                : nil
+        )
         self.conversationService = resolvedConversationService
         self.asrService = resolvedASRService
         self.asrConnectionStatus = resolvedASRConnectionStatus
         self.localStateStore = localStateStore
+        self.chatLiveStatusProbe = resolvedChatLiveStatusProbe
         self.conversationServiceStatus = resolvedConversationService.status
         bootstrapAutomationIfNeeded()
     }
@@ -528,7 +536,7 @@ final class MasterExperienceStore: ObservableObject {
         isLoading = true
         degradedMessage = nil
         fatalErrorMessage = nil
-        conversationServiceStatus = conversationService.status
+        applyConversationServiceStatus(conversationService.status)
 
         let previousMasters = Dictionary(uniqueKeysWithValues: masters.map { ($0.id, $0) })
         let previousSessions = recentSessions
@@ -597,6 +605,7 @@ final class MasterExperienceStore: ObservableObject {
         }
 
         resetDirectoryPagination()
+        await refreshChatLiveDiagnosticsIfNeeded()
 
         isLoading = false
         persistLocalState()
@@ -871,6 +880,113 @@ final class MasterExperienceStore: ObservableObject {
     }
 
     private var adoptedActionIDs: Set<String> = []
+
+    private static func shouldEnableDefaultChatLiveStatusProbe(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        environment["XCTestConfigurationFilePath"] == nil
+    }
+
+    private static func makeDefaultChatLiveStatusProbe(
+        processInfo: ProcessInfo = .processInfo,
+        userDefaults: UserDefaults = .standard
+    ) -> (() async -> MasterConversationServiceStatus?) {
+        {
+            let environment = processInfo.environment
+            let candidate: MasterChatLiveProbeCandidate
+            do {
+                candidate = try MasterChatLiveProbe.resolveCandidate(
+                    environment: environment,
+                    userDefaults: userDefaults
+                )
+            } catch let error as MasterChatLiveProbeError {
+                switch error {
+                case .missingBaseURL, .missingAPIKey:
+                    return nil
+                default:
+                    return MasterConversationServiceStatus(
+                        providerName: K2P5MasterConversationService.modelFallback,
+                        modelName: K2P5MasterConversationService.modelFallback,
+                        credentialSource: .unavailable,
+                        deliveryMode: .localFallback,
+                        tone: .warning,
+                        title: "k2p5 预检未通过",
+                        detail: "页面侧 live 预检还不能确认 `k2p5` 可用。阻塞：\(error.localizedDescription)"
+                    )
+                }
+            } catch {
+                return MasterConversationServiceStatus(
+                    providerName: K2P5MasterConversationService.modelFallback,
+                    modelName: K2P5MasterConversationService.modelFallback,
+                    credentialSource: .unavailable,
+                    deliveryMode: .localFallback,
+                    tone: .warning,
+                    title: "k2p5 预检未通过",
+                    detail: "页面侧 live 预检失败：\(error.localizedDescription)"
+                )
+            }
+
+            let catalogURL = MasterChatLiveProbe.modelCatalogURL(
+                for: candidate.configuration.chatCompletionsURL
+            ).absoluteString
+
+            do {
+                let availableModels = try await MasterChatLiveProbe.ensureExpectedModelAdvertised(
+                    candidate: candidate
+                )
+                let advertisedModels = availableModels.isEmpty
+                    ? "未返回模型列表"
+                    : availableModels.joined(separator: " / ")
+
+                return .candidate(
+                    modelName: candidate.configuration.model,
+                    credentialSource: candidate.configuration.credentialSource,
+                    detailOverride: "已对 \(catalogURL) 做 live `/v1/models` 预检，确认端点广告 \(candidate.configuration.model)；available=\(advertisedModels)。目标 \(candidate.configuration.chatCompletionsURL.absoluteString)。来源：\(candidate.sourceSummary)。在收到首条真实远端回复前，只能视为 live 候选配置已注入。"
+                )
+            } catch let error as MasterChatLiveProbeError {
+                return MasterConversationServiceStatus(
+                    providerName: candidate.configuration.model,
+                    modelName: candidate.configuration.model,
+                    credentialSource: candidate.configuration.credentialSource,
+                    deliveryMode: .localFallback,
+                    tone: .warning,
+                    title: "k2p5 预检未通过",
+                    detail: "已对 \(catalogURL) 做 live `/v1/models` 预检，但还不能把会话记为已接通。阻塞：\(error.localizedDescription)"
+                )
+            } catch {
+                return MasterConversationServiceStatus(
+                    providerName: candidate.configuration.model,
+                    modelName: candidate.configuration.model,
+                    credentialSource: candidate.configuration.credentialSource,
+                    deliveryMode: .localFallback,
+                    tone: .warning,
+                    title: "k2p5 预检未通过",
+                    detail: "已对 \(catalogURL) 发起 live 预检，但请求失败：\(error.localizedDescription)"
+                )
+            }
+        }
+    }
+
+    private func refreshChatLiveDiagnosticsIfNeeded() async {
+        guard !conversationServiceStatus.isLiveRemote,
+              let chatLiveStatusProbe else {
+            return
+        }
+
+        guard let refreshedStatus = await chatLiveStatusProbe() else {
+            return
+        }
+
+        applyConversationServiceStatus(refreshedStatus)
+    }
+
+    private func applyConversationServiceStatus(_ status: MasterConversationServiceStatus) {
+        conversationServiceStatus = status
+        guard conversation?.serviceStatus.isLiveRemote != true else {
+            return
+        }
+        conversation?.serviceStatus = status
+    }
 
     private func seedMessages(for profile: MasterProfile) -> [MasterMessage] {
         [

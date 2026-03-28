@@ -21,6 +21,7 @@ let package = Package(
                 "Resources",
                 "Tests",
                 "App/CLI",
+                "Features/Masters/Support",
                 "LocalBackend",
                 "Services",
                 "Domain/Models/a2aContracts.mjs",

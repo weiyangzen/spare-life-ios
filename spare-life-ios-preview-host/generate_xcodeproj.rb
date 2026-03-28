@@ -6,8 +6,10 @@ require 'xcodeproj'
 
 ROOT = Pathname(__dir__).realpath
 REPO_ROOT = ROOT.parent
-PROJECT_PATH = ROOT.join('SpareLifePreviewHost.xcodeproj')
+PROJECT_PATH = ROOT.join('闲人.xcodeproj')
+LEGACY_PROJECT_PATH = ROOT.join('SpareLifePreviewHost.xcodeproj')
 APP_NAME = 'SpareLifePreviewHost'
+DISPLAY_NAME = '闲人'
 BUNDLE_ID = 'com.wangweiyang.sparelife.previewhost'
 UI_TEST_NAME = 'SpareLifePreviewHostUITests'
 UI_TEST_BUNDLE_ID = 'com.wangweiyang.sparelife.previewhost.uitests'
@@ -37,7 +39,7 @@ def ensure_group(parent, path_parts)
   group
 end
 
-def add_swift_sources(project, target, container_group, root_path)
+def add_swift_sources(target, container_group, root_path)
   Dir.glob(root_path.join('**/*.swift')).sort.each do |file_path|
     next if file_path.include?('/App/CLI/')
 
@@ -58,18 +60,19 @@ def add_resource_path(target, group, resource_path)
 end
 
 FileUtils.rm_rf(PROJECT_PATH)
+FileUtils.rm_rf(LEGACY_PROJECT_PATH)
 
 project = Xcodeproj::Project.new(PROJECT_PATH.to_s)
 project.root_object.attributes['LastUpgradeCheck'] = '2600'
 
-app_group = project.main_group.new_group(APP_NAME)
+app_group = project.main_group.new_group(DISPLAY_NAME)
 host_sources_group = app_group.new_group('App')
 shared_group = app_group.new_group('SharedSources')
 ui_tests_group = app_group.new_group('UITests')
 resources_group = app_group.new_group('Resources')
 
 target = project.new_target(:application, APP_NAME, :ios, DEPLOYMENT_TARGET)
-target.product_name = APP_NAME
+target.product_name = DISPLAY_NAME
 
 ui_test_target = project.new_target(:ui_test_bundle, UI_TEST_NAME, :ios, DEPLOYMENT_TARGET)
 ui_test_target.product_name = UI_TEST_NAME
@@ -92,7 +95,7 @@ target.build_configurations.each do |config|
   config.build_settings['ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME'] = 'AccentColor'
   config.build_settings['CODE_SIGN_STYLE'] = 'Automatic'
   config.build_settings['DEVELOPMENT_TEAM'] = ''
-  config.build_settings['PRODUCT_NAME'] = '$(TARGET_NAME)'
+  config.build_settings['PRODUCT_NAME'] = DISPLAY_NAME
   config.build_settings['SDKROOT'] = 'iphoneos'
 end
 
@@ -115,11 +118,11 @@ target.add_file_references([host_app_file])
 
 SOURCE_DIRECTORIES.each do |source_dir|
   subgroup = shared_group.new_group(source_dir.basename.to_s)
-  add_swift_sources(project, target, subgroup, source_dir)
+  add_swift_sources(target, subgroup, source_dir)
 end
 
 if UI_TEST_SOURCE_DIRECTORY.directory?
-  add_swift_sources(project, ui_test_target, ui_tests_group, UI_TEST_SOURCE_DIRECTORY)
+  add_swift_sources(ui_test_target, ui_tests_group, UI_TEST_SOURCE_DIRECTORY)
 end
 
 RESOURCE_PATHS.each do |resource_path|
@@ -134,5 +137,7 @@ scheme.set_launch_target(target)
 scheme.save_as(PROJECT_PATH.to_s, APP_NAME, true)
 
 project.save
+FileUtils.cp_r(PROJECT_PATH, LEGACY_PROJECT_PATH)
 
 puts "Generated #{PROJECT_PATH}"
+puts "Generated #{LEGACY_PROJECT_PATH}"

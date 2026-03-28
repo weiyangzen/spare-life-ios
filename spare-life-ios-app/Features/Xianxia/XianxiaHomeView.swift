@@ -1,5 +1,5 @@
 // XianxiaHomeView.swift
-// Spare Life – 咸虾 Stage 1 topic feed
+// Spare Life – 闲人 Stage 1 topic feed
 
 import SwiftUI
 
@@ -39,7 +39,7 @@ struct XianxiaHomeView: View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text("闲虾")
+                    Text("闲人")
                         .font(.spareTitle1)
                         .foregroundColor(.primary)
 

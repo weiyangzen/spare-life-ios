@@ -1,5 +1,5 @@
 // MasterExperienceStore.swift
-// Spare Life – 大师页 UI state, seeded catalog, and interaction logic
+// Spare Life – 闲聊页 UI state, seeded catalog, and interaction logic
 // Blueprint §3.2 功能点 1-7
 // UIUX lane – slot 2
 
@@ -125,7 +125,7 @@ enum MasterActionTarget: String, Hashable {
         case .messages: return "消息页"
         case .earnSocial: return "赚闲能"
         case .profile: return "我的页"
-        case .masters: return "大师页"
+        case .masters: return "闲聊页"
         }
     }
 
@@ -567,7 +567,6 @@ final class MasterExperienceStore: ObservableObject {
             visibleDirectoryMasterCount = 0
             fatalErrorMessage = error.localizedDescription
         }
-
         if let selectedDomainID, domainIndex[selectedDomainID] == nil {
             self.selectedDomainID = nil
         }
@@ -738,7 +737,7 @@ final class MasterExperienceStore: ObservableObject {
         let text = trimmed(rawText)
 
         guard !text.isEmpty else {
-            conversation.inlineError = "先把问题说完整，大师页不是一句“在吗”就能给出好建议的地方。"
+            conversation.inlineError = "先把问题说完整，闲聊页不是一句“在吗”就能给出好建议的地方。"
             self.conversation = conversation
             return
         }
@@ -1068,7 +1067,7 @@ final class MasterExperienceStore: ObservableObject {
 
         let secondary = MasterActionRecommendation(
             id: "cta-memory-\(profile.id)",
-            label: "回到大师页继续追问",
+            label: "回到闲聊页继续追问",
             reason: "先执行一个动作，再回来继续沿着这位大师的上下文追问。",
             route: "sparelife://masters/home?domain=\(profile.domainID)",
             target: .masters

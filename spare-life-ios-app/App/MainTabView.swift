@@ -18,7 +18,7 @@ enum MainTab: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .xianxia:    return "闲虾"
+        case .xianxia:    return "闲人"
         case .master:     return "闲聊"
         case .earnSocial: return "赚闲能"
         case .messages:   return "消息"
@@ -28,7 +28,7 @@ enum MainTab: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
-        case .xianxia:    return "qrcode.viewfinder"
+        case .xianxia:    return "rectangle.grid.1x2"
         case .master:     return "graduationcap"
         case .earnSocial: return "bolt.circle.fill"
         case .messages:   return "message"
@@ -38,7 +38,7 @@ enum MainTab: String, CaseIterable, Identifiable {
 
     var selectedIcon: String {
         switch self {
-        case .xianxia:    return "qrcode.viewfinder"
+        case .xianxia:    return "rectangle.grid.1x2.fill"
         case .master:     return "graduationcap.fill"
         case .earnSocial: return "bolt.circle.fill"
         case .messages:   return "message.fill"
@@ -54,44 +54,61 @@ enum MainTab: String, CaseIterable, Identifiable {
 
 struct MainTabView: View {
     @State private var selectedTab: MainTab = .xianxia
-    @State private var tabBarVisible = true
     @StateObject private var badgeStore = TabBadgeStore()
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            // Tab content
-            Group {
-                switch selectedTab {
-                case .xianxia:
-                    XianxiaHomeView()
-                case .master:
-                    MasterHomeView()
-                case .earnSocial:
-                    EarnSocialHomeView()
-                case .messages:
-                    ConversationHubView()
-                case .myProfile:
-                    MyProfileView()
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            // Custom floating tab bar
-            if tabBarVisible {
-                SpareTabBar(
-                    selectedTab: $selectedTab,
-                    badges: badgeStore.badges
-                )
-                .padding(.horizontal, Spacing.md)
-                .padding(.bottom, bottomSafeArea > 0 ? bottomSafeArea - 8 : Spacing.sm)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+        TabView(selection: $selectedTab) {
+            tabContent(for: .xianxia)
+                .tag(MainTab.xianxia)
+            tabContent(for: .master)
+                .tag(MainTab.master)
+            tabContent(for: .earnSocial)
+                .tag(MainTab.earnSocial)
+            tabContent(for: .messages)
+                .tag(MainTab.messages)
+            tabContent(for: .myProfile)
+                .tag(MainTab.myProfile)
+        }
+        .applyHiddenSystemTabBar()
+        .safeAreaInset(edge: .bottom) {
+            Color.clear
+                .frame(height: tabBarReservedHeight)
+                .allowsHitTesting(false)
+        }
+        .overlay(alignment: .bottom) {
+            SpareTabBar(
+                selectedTab: $selectedTab,
+                badges: badgeStore.badges
+            )
+            .padding(.horizontal, Spacing.md)
+            .padding(.bottom, bottomSafeArea > 0 ? bottomSafeArea - 8 : Spacing.sm)
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        .animation(.spareSpring, value: selectedTab)
     }
 
     private var bottomSafeArea: CGFloat {
         spareBottomSafeAreaInset()
+    }
+
+    private var tabBarReservedHeight: CGFloat {
+        82 + max(bottomSafeArea, 8)
+    }
+
+    @ViewBuilder
+    private func tabContent(for tab: MainTab) -> some View {
+        switch tab {
+        case .xianxia:
+            XianxiaHomeView()
+        case .master:
+            MasterChatHomeView()
+        case .earnSocial:
+            EarnSocialHoldingView()
+        case .messages:
+            MessagesHoldingView()
+        case .myProfile:
+            MyProfileHoldingView()
+        }
     }
 }
 
@@ -159,10 +176,12 @@ private struct SpareTabBar: View {
                 }
             }
             .frame(maxWidth: .infinity)
+            .frame(minHeight: 54)
             .padding(.vertical, 2)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("main-tab-\(tab.rawValue)")
     }
 
     // Regular tab icon
@@ -216,4 +235,24 @@ final class TabBadgeStore: ObservableObject {
     @Published var badges: [MainTab: Int] = [
         .messages: 3
     ]
+}
+
+private struct HiddenSystemTabBarModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        if #available(iOS 16.0, *) {
+            content.toolbar(.hidden, for: .tabBar)
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+private extension View {
+    func applyHiddenSystemTabBar() -> some View {
+        modifier(HiddenSystemTabBarModifier())
+    }
 }

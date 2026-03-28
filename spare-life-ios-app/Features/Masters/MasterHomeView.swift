@@ -1,5 +1,5 @@
 // MasterHomeView.swift
-// Spare Life – 大师馆首页与大师会话 UI
+// Spare Life – 闲聊首页与大师会话 UI
 // Blueprint §3.2 功能点 1-7
 // UIUX lane – slot 2
 

@@ -45,13 +45,13 @@ struct MasterConversationServiceStatus: Hashable {
 
     static func live(modelName: String, credentialSource: MasterCredentialSource) -> MasterConversationServiceStatus {
         MasterConversationServiceStatus(
-            providerName: "Claude",
+            providerName: modelName,
             modelName: modelName,
             credentialSource: credentialSource,
             deliveryMode: .liveRemote,
             tone: .success,
             title: "实时对话已接通",
-            detail: "回复走 \(modelName)，密钥只在本机 \(credentialSource.label) 读取，不写进页面配置或版本化文档。"
+            detail: "回复走 \(modelName) / chat/completions，密钥只在本机 \(credentialSource.label) 读取，不写进页面配置或版本化文档。"
         )
     }
 
@@ -99,9 +99,9 @@ enum MasterConversationServiceError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            return "未检测到大师对话密钥。请先在本机钥匙串或本机环境变量里配置。"
+            return "未检测到大师对话密钥。请先在本机钥匙串或本机 `MASTER_CHAT_API_KEY` 环境变量里配置。"
         case .invalidBaseURL:
-            return "大师对话服务地址无效。请检查本机 `ANTHROPIC_BASE_URL` 配置。"
+            return "大师对话服务地址无效。请检查本机 `MASTER_CHAT_BASE_URL` 配置。"
         case .emptyResponse:
             return "大师服务返回了空回复。"
         case .invalidResponse:
@@ -115,14 +115,103 @@ enum MasterConversationServiceError: LocalizedError, Equatable {
     }
 }
 
-@MainActor
-final class AnthropicMasterConversationService: MasterConversationReplying {
-    private static let keychainService = "com.wangweiyang.sparelife.masters.conversation"
-    private static let keychainAccount = "anthropic.api-key"
-    private static let apiVersion = "2023-06-01"
-    private static let modelFallback = "claude-sonnet-4-5"
+struct MasterChatConfiguration: Equatable, Sendable {
+    let apiKey: String
+    let credentialSource: MasterCredentialSource
+    let chatCompletionsURL: URL
+    let model: String
 
-    private let session: URLSession
+    static func current(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        userDefaults: UserDefaults = .standard,
+        keychainAPIKey: () -> String? = { K2P5MasterConversationService.keychainAPIKey() },
+        persistAPIKey: (String) -> Bool = { K2P5MasterConversationService.storeAPIKeyInKeychain($0) }
+    ) throws -> MasterChatConfiguration {
+        let credential = resolveCredential(
+            environment: environment,
+            keychainAPIKey: keychainAPIKey,
+            persistAPIKey: persistAPIKey
+        )
+        guard let apiKey = credential.value, !apiKey.isEmpty else {
+            throw MasterConversationServiceError.missingAPIKey
+        }
+
+        let rawBaseURL = environment["MASTER_CHAT_BASE_URL"] ??
+            userDefaults.string(forKey: "masters.chat.baseURL")
+        guard let chatCompletionsURL = chatCompletionsURL(rawValue: rawBaseURL) else {
+            throw MasterConversationServiceError.invalidBaseURL
+        }
+
+        let model =
+            environment["MASTER_CHAT_MODEL"] ??
+            userDefaults.string(forKey: "masters.chat.model") ??
+            K2P5MasterConversationService.modelFallback
+
+        return MasterChatConfiguration(
+            apiKey: apiKey,
+            credentialSource: credential.source,
+            chatCompletionsURL: chatCompletionsURL,
+            model: model.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
+    private static func resolveCredential(
+        environment: [String: String],
+        keychainAPIKey: () -> String?,
+        persistAPIKey: (String) -> Bool
+    ) -> (value: String?, source: MasterCredentialSource) {
+        if let apiKey = keychainAPIKey()?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !apiKey.isEmpty {
+            return (apiKey, .keychain)
+        }
+
+        if let environmentKey = environment["MASTER_CHAT_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !environmentKey.isEmpty {
+            if persistAPIKey(environmentKey),
+               let persisted = keychainAPIKey()?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !persisted.isEmpty {
+                return (persisted, .keychain)
+            }
+            return (environmentKey, .environmentFallback)
+        }
+
+        return (nil, .unavailable)
+    }
+
+    private static func chatCompletionsURL(rawValue: String?) -> URL? {
+        guard let rawValue = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawValue.isEmpty,
+              var url = URL(string: rawValue) else {
+            return nil
+        }
+
+        let normalizedPath = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if normalizedPath.hasSuffix("v1/chat/completions") || normalizedPath.hasSuffix("chat/completions") {
+            return url
+        }
+        if normalizedPath.hasSuffix("v1") {
+            url.appendPathComponent("chat", isDirectory: true)
+            url.appendPathComponent("completions", isDirectory: false)
+            return url
+        }
+
+        url.appendPathComponent("v1", isDirectory: true)
+        url.appendPathComponent("chat", isDirectory: true)
+        url.appendPathComponent("completions", isDirectory: false)
+        return url
+    }
+}
+
+typealias MasterConversationTransport = @Sendable (URLRequest) async throws -> (Data, URLResponse)
+
+@MainActor
+final class K2P5MasterConversationService: MasterConversationReplying {
+    nonisolated static let keychainService = "com.wangweiyang.sparelife.masters.chat"
+    nonisolated static let keychainAccount = "k2p5.api-key"
+    nonisolated static let modelFallback = "k2p5"
+
+    private let resolveConfiguration: () throws -> MasterChatConfiguration
+    private let transport: MasterConversationTransport
     private let processInfo: ProcessInfo
     private let userDefaults: UserDefaults
 
@@ -131,41 +220,63 @@ final class AnthropicMasterConversationService: MasterConversationReplying {
         processInfo: ProcessInfo = .processInfo,
         userDefaults: UserDefaults = .standard
     ) {
-        self.session = session
+        self.resolveConfiguration = {
+            try MasterChatConfiguration.current(
+                environment: processInfo.environment,
+                userDefaults: userDefaults
+            )
+        }
+        self.transport = { request in
+            try await session.data(for: request)
+        }
         self.processInfo = processInfo
         self.userDefaults = userDefaults
     }
 
+    init(
+        configuration: MasterChatConfiguration,
+        transport: @escaping MasterConversationTransport
+    ) {
+        self.resolveConfiguration = { configuration }
+        self.transport = transport
+        self.processInfo = .processInfo
+        self.userDefaults = .standard
+    }
+
     var status: MasterConversationServiceStatus {
         do {
-            let configuration = try Self.resolveConfiguration(processInfo: processInfo, userDefaults: userDefaults)
+            let configuration = try resolveConfiguration()
             return .live(modelName: configuration.model, credentialSource: configuration.credentialSource)
         } catch {
             return .fallback(
-                detail: "未检测到本机安全密钥或服务配置，当前会继续用本地故事和记忆逻辑回复，不会把密钥放进客户端页面。"
+                detail: [
+                    "Stage 2 `k2p5` live 配置未接通，当前会继续用本地故事和记忆逻辑回复。",
+                    error.localizedDescription,
+                    Self.legacyEnvironmentHint(environment: processInfo.environment)
+                ]
+                    .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty }
+                    .joined(separator: " ")
             )
         }
     }
 
     func generateReply(for request: MasterConversationRequest) async throws -> MasterConversationServiceResult {
-        let configuration = try Self.resolveConfiguration(processInfo: processInfo, userDefaults: userDefaults)
-        var urlRequest = URLRequest(url: configuration.messagesURL)
+        let configuration = try resolveConfiguration()
+        var urlRequest = URLRequest(url: configuration.chatCompletionsURL)
         urlRequest.httpMethod = "POST"
         urlRequest.timeoutInterval = 60
         urlRequest.setValue("application/json", forHTTPHeaderField: "content-type")
-        urlRequest.setValue(configuration.apiKey, forHTTPHeaderField: "x-api-key")
-        urlRequest.setValue(Self.apiVersion, forHTTPHeaderField: "anthropic-version")
+        urlRequest.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
         urlRequest.httpBody = try JSONEncoder().encode(
-            AnthropicMessagesRequest(
+            OpenAIChatCompletionsRequest(
                 model: configuration.model,
                 maxTokens: 700,
-                system: buildSystemPrompt(for: request),
-                messages: buildMessages(from: request.recentMessages)
+                messages: buildMessages(for: request)
             )
         )
 
         do {
-            let (data, response) = try await session.data(for: urlRequest)
+            let (data, response) = try await transport(urlRequest)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw MasterConversationServiceError.invalidResponse
             }
@@ -174,19 +285,16 @@ final class AnthropicMasterConversationService: MasterConversationReplying {
                 throw Self.decodeError(data: data, statusCode: httpResponse.statusCode)
             }
 
-            let payload = try JSONDecoder().decode(AnthropicMessagesResponse.self, from: data)
-            let text = payload.content
-                .compactMap(\.text)
-                .joined(separator: "\n\n")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-
-            guard !text.isEmpty else {
+            guard let text = Self.extractText(from: data) else {
                 throw MasterConversationServiceError.emptyResponse
             }
 
             return MasterConversationServiceResult(
                 text: text,
-                status: .live(modelName: payload.model ?? configuration.model, credentialSource: configuration.credentialSource)
+                status: .live(
+                    modelName: Self.extractModelName(from: data) ?? configuration.model,
+                    credentialSource: configuration.credentialSource
+                )
             )
         } catch let error as MasterConversationServiceError {
             throw error
@@ -250,16 +358,22 @@ final class AnthropicMasterConversationService: MasterConversationReplying {
         """
     }
 
-    private func buildMessages(from messages: [MasterMessage]) -> [AnthropicMessagesRequest.Message] {
-        messages
+    private func buildMessages(for request: MasterConversationRequest) -> [OpenAIChatCompletionsRequest.Message] {
+        let transcript = request.recentMessages
             .filter { $0.role != .system }
-            .suffix(12)
             .map { message in
-                AnthropicMessagesRequest.Message(
+                OpenAIChatCompletionsRequest.Message(
                     role: message.role == .user ? "user" : "assistant",
                     content: message.text
                 )
             }
+
+        return [
+            OpenAIChatCompletionsRequest.Message(
+                role: "system",
+                content: buildSystemPrompt(for: request)
+            )
+        ] + transcript
     }
 
     private func modeInstruction(for mode: MasterConversationMode) -> String {
@@ -286,74 +400,31 @@ final class AnthropicMasterConversationService: MasterConversationReplying {
         }
     }
 
-    private static func resolveConfiguration(
-        processInfo: ProcessInfo,
-        userDefaults: UserDefaults
-    ) throws -> AnthropicConfiguration {
-        let credential = resolveCredential(processInfo: processInfo)
-        guard let apiKey = credential.value, !apiKey.isEmpty else {
-            throw MasterConversationServiceError.missingAPIKey
+    private static func legacyEnvironmentHint(environment: [String: String]) -> String? {
+        let legacyKeys = [
+            "ANTHROPIC_BASE_URL",
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_AUTH_TOKEN",
+            "ANTHROPIC_DEFAULT_SONNET_MODEL"
+        ]
+        let present = legacyKeys.filter { key in
+            environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil
         }
-
-        guard let messagesURL = messagesURL(
-            rawValue: processInfo.environment["ANTHROPIC_BASE_URL"] ??
-                userDefaults.string(forKey: "masters.conversation.baseURL") ??
-                "https://api.anthropic.com"
-        ) else {
-            throw MasterConversationServiceError.invalidBaseURL
-        }
-
-        let model =
-            processInfo.environment["ANTHROPIC_DEFAULT_SONNET_MODEL"] ??
-            userDefaults.string(forKey: "masters.conversation.model") ??
-            Self.modelFallback
-
-        return AnthropicConfiguration(
-            apiKey: apiKey,
-            credentialSource: credential.source,
-            messagesURL: messagesURL,
-            model: model.trimmingCharacters(in: .whitespacesAndNewlines)
-        )
-    }
-
-    private static func resolveCredential(processInfo: ProcessInfo) -> (value: String?, source: MasterCredentialSource) {
-        if let apiKey = keychainAPIKey(), !apiKey.isEmpty {
-            return (apiKey, .keychain)
-        }
-
-        if let environmentKey = processInfo.environment["ANTHROPIC_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !environmentKey.isEmpty {
-            if storeAPIKeyInKeychain(environmentKey), let persisted = keychainAPIKey(), !persisted.isEmpty {
-                return (persisted, .keychain)
-            }
-            return (environmentKey, .environmentFallback)
-        }
-
-        return (nil, .unavailable)
-    }
-
-    private static func messagesURL(rawValue: String) -> URL? {
-        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, var url = URL(string: trimmed) else {
+        guard !present.isEmpty else {
             return nil
         }
-
-        let normalizedPath = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        if normalizedPath.hasSuffix("v1/messages") {
-            return url
-        }
-        if normalizedPath.hasSuffix("v1") {
-            url.appendPathComponent("messages", isDirectory: false)
-            return url
-        }
-        url.appendPathComponent("v1", isDirectory: true)
-        url.appendPathComponent("messages", isDirectory: false)
-        return url
+        return "当前 shell 只检测到 legacy `ANTHROPIC_*` 配置（\(present.joined(separator: ", "))）；Stage 2 的 `k2p5` 链路只认 `MASTER_CHAT_*`。"
     }
 
     private static func decodeError(data: Data, statusCode: Int) -> MasterConversationServiceError {
-        if let envelope = try? JSONDecoder().decode(AnthropicErrorEnvelope.self, from: data) {
-            return .invalidStatusCode(statusCode, envelope.error.message.trimmingCharacters(in: .whitespacesAndNewlines))
+        if let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let error = payload["error"] as? [String: Any],
+               let message = error["message"] as? String {
+                return .invalidStatusCode(statusCode, message.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
+            if let message = payload["message"] as? String {
+                return .invalidStatusCode(statusCode, message.trimmingCharacters(in: .whitespacesAndNewlines))
+            }
         }
 
         let fallback = String(data: data, encoding: .utf8)?
@@ -361,7 +432,62 @@ final class AnthropicMasterConversationService: MasterConversationReplying {
         return .invalidStatusCode(statusCode, fallback)
     }
 
-    private static func keychainAPIKey() -> String? {
+    private static func extractText(from data: Data) -> String? {
+        guard let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        if let choices = payload["choices"] as? [[String: Any]] {
+            for choice in choices {
+                if let message = choice["message"] as? [String: Any],
+                   let text = extractContent(from: message["content"]) {
+                    return text
+                }
+                if let text = extractContent(from: choice["text"]) {
+                    return text
+                }
+            }
+        }
+
+        if let message = payload["message"] as? [String: Any],
+           let text = extractContent(from: message["content"]) {
+            return text
+        }
+
+        return nil
+    }
+
+    private static func extractContent(from value: Any?) -> String? {
+        switch value {
+        case let text as String:
+            return text.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        case let part as [String: Any]:
+            let candidate = (part["text"] as? String) ?? (part["content"] as? String)
+            return candidate?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        case let parts as [[String: Any]]:
+            let text = parts
+                .compactMap { part in
+                    ((part["text"] as? String) ?? (part["content"] as? String))?
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .nonEmpty
+                }
+                .joined(separator: "\n\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.nonEmpty
+        default:
+            return nil
+        }
+    }
+
+    private static func extractModelName(from data: Data) -> String? {
+        guard let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let model = payload["model"] as? String else {
+            return nil
+        }
+        return model.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+
+    nonisolated static func keychainAPIKey() -> String? {
         #if canImport(Security)
         let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
@@ -385,7 +511,7 @@ final class AnthropicMasterConversationService: MasterConversationReplying {
     }
 
     @discardableResult
-    private static func storeAPIKeyInKeychain(_ value: String) -> Bool {
+    nonisolated static func storeAPIKeyInKeychain(_ value: String) -> Bool {
         #if canImport(Security)
         let encoded = Data(value.utf8)
         let baseQuery: [CFString: Any] = [
@@ -419,14 +545,7 @@ final class AnthropicMasterConversationService: MasterConversationReplying {
     }
 }
 
-private struct AnthropicConfiguration {
-    let apiKey: String
-    let credentialSource: MasterCredentialSource
-    let messagesURL: URL
-    let model: String
-}
-
-private struct AnthropicMessagesRequest: Encodable {
+private struct OpenAIChatCompletionsRequest: Encodable {
     struct Message: Encodable {
         let role: String
         let content: String
@@ -434,31 +553,17 @@ private struct AnthropicMessagesRequest: Encodable {
 
     let model: String
     let maxTokens: Int
-    let system: String
     let messages: [Message]
 
     enum CodingKeys: String, CodingKey {
         case model
         case maxTokens = "max_tokens"
-        case system
         case messages
     }
 }
 
-private struct AnthropicMessagesResponse: Decodable {
-    struct ContentBlock: Decodable {
-        let type: String
-        let text: String?
+private extension String {
+    var nonEmpty: String? {
+        isEmpty ? nil : self
     }
-
-    let model: String?
-    let content: [ContentBlock]
-}
-
-private struct AnthropicErrorEnvelope: Decodable {
-    struct Payload: Decodable {
-        let message: String
-    }
-
-    let error: Payload
 }

@@ -415,7 +415,7 @@ final class MasterExperienceStore: ObservableObject {
         localStateStore: MasterConversationLocalStateStore = MasterConversationLocalStateStore()
     ) {
         self.catalogLoader = catalogLoader
-        let resolvedConversationService = conversationService ?? AnthropicMasterConversationService()
+        let resolvedConversationService = conversationService ?? K2P5MasterConversationService()
         let resolvedASRService = asrService ?? ClawDBMasterASRService()
         let resolvedASRConnectionStatus = asrConnectionStatus ?? MasterASRConfiguration.currentStatus()
         self.conversationService = resolvedConversationService

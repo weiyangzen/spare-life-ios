@@ -15,6 +15,56 @@ enum ConversationKind: String, Hashable {
     case agentDirect    // 直接和分身聊
 }
 
+enum ConversationCounterpartMode: String, Codable, CaseIterable, Hashable, Identifiable {
+    case human
+    case persona
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .human:   return "真人"
+        case .persona: return "分身"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .human:   return "person.fill"
+        case .persona: return "sparkles"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .human:   return .blue
+        case .persona: return .spareYellow
+        }
+    }
+
+    func helperText(contactName: String) -> String {
+        switch self {
+        case .human:
+            return "当前直接和 \(contactName) 的真人聊天，消息列表保持标准 IM 语义。"
+        case .persona:
+            return "当前切到 \(contactName) 的分身代聊，消息气泡与输入提示会同步切换。"
+        }
+    }
+
+    func recipientName(contactName: String) -> String {
+        switch self {
+        case .human:
+            return contactName
+        case .persona:
+            return "\(contactName)的分身"
+        }
+    }
+
+    static func defaultMode(for kind: ConversationKind) -> ConversationCounterpartMode {
+        kind == .agentDirect ? .persona : .human
+    }
+}
+
 struct ConversationThread: Identifiable, Hashable {
     let id: String
     let contactName: String
@@ -276,16 +326,21 @@ final class ConversationHubStore: ObservableObject {
     func load() {
         guard case .idle = loadState else { return }
         loadState = .loading
-        Task {
-            try? await Task.sleep(nanoseconds: 600_000_000)
-            self.threads = Self.mockThreads()
-            self.loadState = .loaded
+        do {
+            threads = try CompanionChatSeedLoader.loadThreads()
+            loadState = .loaded
+        } catch {
+            loadState = .error(error.localizedDescription)
         }
     }
 
     func refresh() async {
-        try? await Task.sleep(nanoseconds: 400_000_000)
-        self.threads = Self.mockThreads()
+        do {
+            self.threads = try CompanionChatSeedLoader.loadThreads()
+            self.loadState = .loaded
+        } catch {
+            self.loadState = .error(error.localizedDescription)
+        }
     }
 
     func markRead(threadID: String) {
@@ -301,43 +356,287 @@ final class ConversationHubStore: ObservableObject {
     }
 
     func retry() { loadState = .idle; load() }
+}
 
-    // MARK: Mock
+// MARK: - Local Seed / Mode Persistence
 
-    static func mockThreads() -> [ConversationThread] {
-        [
-            ConversationThread(
-                id: "t1", contactName: "林熙", avatarSeed: 2, kind: .human,
-                lastMessage: "下午一起去那个咖啡馆？",
-                lastTimestamp: Date() - 300, unreadCount: 2, isPinned: true,
-                relationTemperature: .close, activeMaskName: "温柔模式",
-                isOnline: true, isTyping: true
-            ),
-            ConversationThread(
-                id: "t2", contactName: "陈明", avatarSeed: 5, kind: .quadRole,
-                lastMessage: "你的分身刚才说了个很有趣的观点",
-                lastTimestamp: Date() - 1800, unreadCount: 5, isPinned: false,
-                relationTemperature: .warm, activeMaskName: nil,
-                isOnline: true
-            ),
-            ConversationThread(
-                id: "t3", contactName: "周游 & 王芳", avatarSeed: 8, kind: .group,
-                lastMessage: "王芳：明天的活动确认参加！",
-                lastTimestamp: Date() - 3600, unreadCount: 0, isPinned: false,
-                relationTemperature: .warming, activeMaskName: nil
-            ),
-            ConversationThread(
-                id: "t4", contactName: "李雪", avatarSeed: 1, kind: .human,
-                lastMessage: "收到，我会准时到的",
-                lastTimestamp: Date() - 7200, unreadCount: 0, isPinned: false,
-                relationTemperature: .warm, activeMaskName: "职场正式"
-            ),
-            ConversationThread(
-                id: "t5", contactName: "张伟", avatarSeed: 3, kind: .agentDirect,
-                lastMessage: "你的分身：我帮你整理了今日任务清单。",
-                lastTimestamp: Date() - 86400, unreadCount: 1, isPinned: false,
-                relationTemperature: .cold, activeMaskName: nil
-            ),
-        ]
+enum CompanionChatSeedLoader {
+    private static let cacheKey = "companion_chat.local_seed.v1"
+
+    static func loadThreads() throws -> [ConversationThread] {
+        let document = try loadDocument()
+        return try document.threads.map { try $0.thread }
     }
+
+    private static func loadDocument(defaults: UserDefaults = .standard) throws -> CompanionChatSeedDocument {
+        let seedData: Data
+        if let cached = defaults.data(forKey: cacheKey) {
+            seedData = cached
+        } else {
+            guard let embedded = CompanionChatEmbeddedSeed.payload.data(using: .utf8) else {
+                throw CompanionChatSeedError.seedUnavailable
+            }
+            defaults.set(embedded, forKey: cacheKey)
+            seedData = embedded
+        }
+
+        do {
+            return try JSONDecoder().decode(CompanionChatSeedDocument.self, from: seedData)
+        } catch {
+            defaults.removeObject(forKey: cacheKey)
+            throw CompanionChatSeedError.decodeFailed(error.localizedDescription)
+        }
+    }
+}
+
+enum CompanionChatModeStore {
+    private static let keyPrefix = "companion_chat.counterpart_mode."
+
+    static func load(
+        threadID: String,
+        defaults: UserDefaults = .standard,
+        defaultMode: ConversationCounterpartMode
+    ) -> ConversationCounterpartMode {
+        guard
+            let rawValue = defaults.string(forKey: keyPrefix + threadID),
+            let mode = ConversationCounterpartMode(rawValue: rawValue)
+        else {
+            return defaultMode
+        }
+        return mode
+    }
+
+    static func save(
+        _ mode: ConversationCounterpartMode,
+        threadID: String,
+        defaults: UserDefaults = .standard
+    ) {
+        defaults.set(mode.rawValue, forKey: keyPrefix + threadID)
+    }
+}
+
+private enum CompanionChatSeedError: LocalizedError {
+    case seedUnavailable
+    case decodeFailed(String)
+    case invalidThread(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .seedUnavailable:
+            return "消息联系人本地 seed 不可用。"
+        case .decodeFailed(let detail):
+            return "解析消息联系人本地 seed 失败：\(detail)"
+        case .invalidThread(let detail):
+            return "消息联系人 seed 无效：\(detail)"
+        }
+    }
+}
+
+private struct CompanionChatSeedDocument: Decodable {
+    let threads: [ThreadRecord]
+
+    struct ThreadRecord: Decodable {
+        let id: String
+        let contactName: String
+        let avatarSeed: Int
+        let kind: String
+        let lastMessage: String
+        let lastMinutesAgo: Int
+        let unreadCount: Int
+        let isPinned: Bool
+        let relationTemperature: String
+        let activeMaskName: String?
+        let isOnline: Bool
+        let isTyping: Bool
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case contactName = "contact_name"
+            case avatarSeed = "avatar_seed"
+            case kind
+            case lastMessage = "last_message"
+            case lastMinutesAgo = "last_minutes_ago"
+            case unreadCount = "unread_count"
+            case isPinned = "is_pinned"
+            case relationTemperature = "relation_temperature"
+            case activeMaskName = "active_mask_name"
+            case isOnline = "is_online"
+            case isTyping = "is_typing"
+        }
+
+        var thread: ConversationThread {
+            get throws {
+                guard let kind = ConversationKind(rawValue: kind) else {
+                    throw CompanionChatSeedError.invalidThread("未知对话类型：\(kind)")
+                }
+                guard let relationTemperature = RelationTemperature(rawValue: relationTemperature) else {
+                    throw CompanionChatSeedError.invalidThread("未知关系温度：\(relationTemperature)")
+                }
+
+                return ConversationThread(
+                    id: id,
+                    contactName: contactName,
+                    avatarSeed: avatarSeed,
+                    kind: kind,
+                    lastMessage: lastMessage,
+                    lastTimestamp: Date().addingTimeInterval(-Double(max(lastMinutesAgo, 0)) * 60),
+                    unreadCount: unreadCount,
+                    isPinned: isPinned,
+                    relationTemperature: relationTemperature,
+                    activeMaskName: activeMaskName,
+                    isOnline: isOnline,
+                    isTyping: isTyping
+                )
+            }
+        }
+    }
+}
+
+private enum CompanionChatEmbeddedSeed {
+    static let payload = """
+    {
+      "threads": [
+        {
+          "id": "t1",
+          "contact_name": "林熙",
+          "avatar_seed": 2,
+          "kind": "human",
+          "last_message": "下午一起去那个咖啡馆？",
+          "last_minutes_ago": 5,
+          "unread_count": 2,
+          "is_pinned": true,
+          "relation_temperature": "close",
+          "active_mask_name": "温柔模式",
+          "is_online": true,
+          "is_typing": true
+        },
+        {
+          "id": "t2",
+          "contact_name": "陈明",
+          "avatar_seed": 5,
+          "kind": "quadRole",
+          "last_message": "你的分身刚才说了个很有趣的观点",
+          "last_minutes_ago": 18,
+          "unread_count": 5,
+          "is_pinned": false,
+          "relation_temperature": "warm",
+          "active_mask_name": null,
+          "is_online": true,
+          "is_typing": false
+        },
+        {
+          "id": "t3",
+          "contact_name": "李雪",
+          "avatar_seed": 1,
+          "kind": "human",
+          "last_message": "收到，我会准时到的",
+          "last_minutes_ago": 42,
+          "unread_count": 0,
+          "is_pinned": false,
+          "relation_temperature": "warm",
+          "active_mask_name": "职场正式",
+          "is_online": false,
+          "is_typing": false
+        },
+        {
+          "id": "t4",
+          "contact_name": "张伟",
+          "avatar_seed": 3,
+          "kind": "agentDirect",
+          "last_message": "你的分身：我帮你整理了今日任务清单。",
+          "last_minutes_ago": 70,
+          "unread_count": 1,
+          "is_pinned": false,
+          "relation_temperature": "cold",
+          "active_mask_name": null,
+          "is_online": true,
+          "is_typing": false
+        },
+        {
+          "id": "t5",
+          "contact_name": "王舒宁",
+          "avatar_seed": 6,
+          "kind": "human",
+          "last_message": "周末去看展吗？我刚买到两张票。",
+          "last_minutes_ago": 95,
+          "unread_count": 3,
+          "is_pinned": false,
+          "relation_temperature": "warming",
+          "active_mask_name": "轻松破冰",
+          "is_online": true,
+          "is_typing": true
+        },
+        {
+          "id": "t6",
+          "contact_name": "许诺",
+          "avatar_seed": 7,
+          "kind": "quadRole",
+          "last_message": "我这边让分身先同步一下会前资料",
+          "last_minutes_ago": 160,
+          "unread_count": 0,
+          "is_pinned": false,
+          "relation_temperature": "warm",
+          "active_mask_name": "合作模式",
+          "is_online": false,
+          "is_typing": false
+        },
+        {
+          "id": "t7",
+          "contact_name": "赵一帆",
+          "avatar_seed": 4,
+          "kind": "human",
+          "last_message": "晚上跑步的话我 8 点到楼下",
+          "last_minutes_ago": 230,
+          "unread_count": 4,
+          "is_pinned": false,
+          "relation_temperature": "close",
+          "active_mask_name": null,
+          "is_online": true,
+          "is_typing": false
+        },
+        {
+          "id": "t8",
+          "contact_name": "苏棠",
+          "avatar_seed": 9,
+          "kind": "human",
+          "last_message": "那家店我帮你问过了，可以带宠物。",
+          "last_minutes_ago": 430,
+          "unread_count": 0,
+          "is_pinned": false,
+          "relation_temperature": "warming",
+          "active_mask_name": "邻里随和",
+          "is_online": false,
+          "is_typing": false
+        },
+        {
+          "id": "t9",
+          "contact_name": "周岚",
+          "avatar_seed": 10,
+          "kind": "agentDirect",
+          "last_message": "分身已确认明天上午 10 点回访。",
+          "last_minutes_ago": 980,
+          "unread_count": 2,
+          "is_pinned": false,
+          "relation_temperature": "cold",
+          "active_mask_name": "咨询窗口",
+          "is_online": false,
+          "is_typing": false
+        },
+        {
+          "id": "t10",
+          "contact_name": "何川",
+          "avatar_seed": 11,
+          "kind": "human",
+          "last_message": "资料我收到了，晚点给你反馈。",
+          "last_minutes_ago": 1600,
+          "unread_count": 0,
+          "is_pinned": false,
+          "relation_temperature": "warm",
+          "active_mask_name": null,
+          "is_online": false,
+          "is_typing": false
+        }
+      ]
+    }
+    """
 }

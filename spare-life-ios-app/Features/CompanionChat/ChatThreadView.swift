@@ -18,6 +18,7 @@ final class ChatThreadStore: ObservableObject {
     @Published private(set) var messages: [ChatMessage] = []
     @Published private(set) var agentMessages: [ChatMessage] = []  // Agent 辅助线程
     @Published private(set) var isLoading = true
+    @Published private(set) var counterpartMode: ConversationCounterpartMode
     @Published var showAgentPanel = false
     @Published var draftText: String = ""
     @Published var showContactMask = false
@@ -26,17 +27,28 @@ final class ChatThreadStore: ObservableObject {
     @Published var showGroupPlay = false
     @Published var showCrossSessionMemory = false
 
+    private var seededMessages: [ChatMessage] = []
+    private var localMessages: [ChatMessage] = []
+
     init(thread: ConversationThread) {
         self.thread = thread
+        self.counterpartMode = CompanionChatModeStore.load(
+            threadID: thread.id,
+            defaultMode: ConversationCounterpartMode.defaultMode(for: thread.kind)
+        )
     }
 
     func load() {
-        Task {
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            self.messages = Self.mockMessages(contactName: thread.contactName)
-            self.agentMessages = Self.mockAgentMessages(contactName: thread.contactName)
-            self.isLoading = false
-        }
+        isLoading = true
+        reloadThread()
+        isLoading = false
+    }
+
+    func setCounterpartMode(_ mode: ConversationCounterpartMode) {
+        guard counterpartMode != mode else { return }
+        counterpartMode = mode
+        CompanionChatModeStore.save(mode, threadID: thread.id)
+        reloadThread()
     }
 
     func send() {
@@ -50,45 +62,82 @@ final class ChatThreadStore: ObservableObject {
             isAgentThread: false
         )
         withAnimation(.spareEase) {
-            messages.append(msg)
+            localMessages.append(msg)
+            rebuildMessages()
         }
         draftText = ""
     }
 
+    var inputPrompt: String {
+        "发消息给 \(counterpartMode.recipientName(contactName: thread.contactName))…"
+    }
+
+    private func reloadThread() {
+        seededMessages = Self.mockMessages(
+            contactName: thread.contactName,
+            counterpartMode: counterpartMode
+        )
+        agentMessages = Self.mockAgentMessages(
+            contactName: thread.contactName,
+            counterpartMode: counterpartMode
+        )
+        rebuildMessages()
+    }
+
+    private func rebuildMessages() {
+        messages = (seededMessages + localMessages)
+            .sorted { $0.timestamp < $1.timestamp }
+    }
+
     // MARK: Mock
 
-    private static func mockMessages(contactName: String) -> [ChatMessage] {
+    private static func mockMessages(
+        contactName: String,
+        counterpartMode: ConversationCounterpartMode
+    ) -> [ChatMessage] {
         let now = Date()
+        let counterpartRole: ChatSenderRole = counterpartMode == .human ? .theirHuman : .theirPersona
+        let counterpartName = counterpartMode.recipientName(contactName: contactName)
+        let rendezvousLine = counterpartMode == .human
+            ? "好啊，3 点见？"
+            : "行，我的分身先帮你把时间和地址记上，3 点咖啡馆见。"
+
         return [
-            ChatMessage(id: "m1", senderRole: .theirHuman, senderName: contactName,
+            ChatMessage(id: "m1", senderRole: counterpartRole, senderName: counterpartName,
                         content: "嗨！你昨天推荐的那本书真的很有意思", timestamp: now - 7200,
                         isAgentThread: false),
             ChatMessage(id: "m2", senderRole: .myHuman, senderName: "我",
                         content: "哈哈是吧，我也觉得第三章写得特别好", timestamp: now - 7100,
                         isAgentThread: false),
-            ChatMessage(id: "m3", senderRole: .theirHuman, senderName: contactName,
+            ChatMessage(id: "m3", senderRole: counterpartRole, senderName: counterpartName,
                         content: "对！尤其是那段关于时间感知的论述", timestamp: now - 7050,
                         isAgentThread: false),
             ChatMessage(id: "m4", senderRole: .system, senderName: "系统",
-                        content: "Agent 助手已整理昨日对话摘要", timestamp: now - 3600,
+                        content: "当前会话已切到\(counterpartMode.label)模式", timestamp: now - 3600,
                         isAgentThread: false),
             ChatMessage(id: "m5", senderRole: .myHuman, senderName: "我",
                         content: "下午去那个咖啡馆？", timestamp: now - 1800,
                         isAgentThread: false),
-            ChatMessage(id: "m6", senderRole: .theirHuman, senderName: contactName,
-                        content: "好啊，3 点见？", timestamp: now - 1700,
+            ChatMessage(id: "m6", senderRole: counterpartRole, senderName: counterpartName,
+                        content: rendezvousLine, timestamp: now - 1700,
                         isAgentThread: false),
         ]
     }
 
-    private static func mockAgentMessages(contactName: String) -> [ChatMessage] {
+    private static func mockAgentMessages(
+        contactName: String,
+        counterpartMode: ConversationCounterpartMode
+    ) -> [ChatMessage] {
         let now = Date()
+        let modeSummary = counterpartMode == .human
+            ? "当前走真人直聊，建议减少模板感。"
+            : "当前走分身代聊，适合先确认时间和偏好。"
         return [
             ChatMessage(id: "a1", senderRole: .myPersona, senderName: "你的分身",
                         content: "已为你整理今日与\(contactName)的约定：下午 3 点，咖啡馆。",
                         timestamp: now - 1600, isAgentThread: true),
             ChatMessage(id: "a2", senderRole: .agentHelper, senderName: "Agent 助手",
-                        content: "关系温度：亲近。上次聊天提到了「时间感知」，可以延续这个话题。",
+                        content: "关系温度：亲近。\(modeSummary)",
                         timestamp: now - 900, isAgentThread: true),
             ChatMessage(id: "a3", senderRole: .agentHelper, senderName: "Agent 助手",
                         content: "建议开场白：「你那本书读完了没？我刚看到一篇相关的论文」",
@@ -207,6 +256,8 @@ struct ChatThreadView: View {
             // Compact header strip: temperature + mask + quick actions
             compactContextBar
 
+            modeSwitchBar
+
             // Expanded card deck (shown when contextCardsExpanded = true)
             if contextCardsExpanded {
                 contextCardDeck
@@ -263,6 +314,44 @@ struct ChatThreadView: View {
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.vertical, Spacing.sm)
+    }
+
+    private var modeSwitchBar: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            HStack(alignment: .center, spacing: Spacing.sm) {
+                Text("对方模式")
+                    .font(.spareMicro)
+                    .foregroundColor(.secondary)
+
+                Spacer()
+
+                Label(store.counterpartMode.label, systemImage: store.counterpartMode.icon)
+                    .font(.spareMicro)
+                    .foregroundColor(store.counterpartMode.tint)
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
+                    .background(store.counterpartMode.tint.opacity(0.12), in: Capsule())
+            }
+
+            Picker(
+                "对方模式",
+                selection: Binding(
+                    get: { store.counterpartMode },
+                    set: { store.setCounterpartMode($0) }
+                )
+            ) {
+                ForEach(ConversationCounterpartMode.allCases) { mode in
+                    Text(mode.label).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Text(store.counterpartMode.helperText(contactName: thread.contactName))
+                .font(.spareMicro)
+                .foregroundColor(.secondary)
+        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.bottom, contextCardsExpanded ? Spacing.sm : Spacing.md)
     }
 
     /// Horizontal scrolling deck of relationship / mask / memory context cards.
@@ -591,7 +680,7 @@ struct ChatThreadView: View {
 
             // Text field
             HStack(alignment: .bottom) {
-                TextField("发消息给 \(thread.contactName)…", text: $store.draftText, axis: .vertical)
+                TextField(store.inputPrompt, text: $store.draftText, axis: .vertical)
                     .font(.spareBody)
                     .lineLimit(1...5)
                     .padding(.horizontal, Spacing.md)

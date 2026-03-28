@@ -62,6 +62,7 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [x] 拆分：大师对话配置诊断现已区分 `baseURL` 未注入、`API key` 缺失、以及 live `k2p5` 候选已注入三种状态，并明确列出 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY / MASTER_CHAT_MODEL`、`defaults(masters.chat.baseURL / masters.chat.model)` 与本机钥匙串来源；本地单测已覆盖。
 - [x] 拆分：大师对话页服务状态现已明确区分“`k2p5` live 候选已注入”和“实时对话已接通”；仅注入 `MASTER_CHAT_*` 但尚未收到远端回复时只显示候选，不再误报主链路已接通；本地单测已覆盖。
 - [x] 拆分：当当前 shell 只有 legacy `ANTHROPIC_*` 配置时，`k2p5` 诊断会明确标注这只是旁路线索，Stage 2 主链路仍只认 `MASTER_CHAT_*`；本地单测已覆盖。
+- [x] 拆分：`/v1/models` 预检与首轮真实回复的模型校验现已统一按 `k2p5` 系列归一化匹配；当后端返回 `k2p5-<version>` 之类版本化模型 ID 时，不会被共享 preflight、页面入口或会话服务误判成非 `k2p5`；本地单测已覆盖。
 - [x] 拆分：大师对话配置诊断现已额外回显 legacy `ANTHROPIC_HOST / ANTHROPIC_DEFAULT_OPUS_MODEL` 线索，避免当前 shell 只有 host 时被误判成无线索；本地单测已覆盖。
 - [x] 拆分：已补充本地 `MasterExperienceStore` 集成测试，覆盖 8 张大师卡装载、进入一对一、经 `K2P5MasterConversationService` 连续发送两轮消息、落盘后 `restoreSession` 恢复，以及恢复后继续携带完整历史 context 发送；本地单测已覆盖。
 - [x] 拆分：2026-03-28 当前执行环境仍未提供 `MASTER_CHAT_BASE_URL` / `MASTER_CHAT_API_KEY` 的 Stage 2 live `k2p5` 配置；shell 仅见 legacy `ANTHROPIC_*`，带鉴权请求 `http://24.199.97.185:8080/v1/models` 仍只枚举 Claude 系列。

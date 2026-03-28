@@ -269,6 +269,33 @@ final class MasterConversationServiceTests: XCTestCase {
         }
     }
 
+    func testMasterChatLiveProbePreflightAcceptsVersionedK2P5ModelAlias() async throws {
+        let candidate = MasterChatLiveProbeCandidate(
+            configuration: MasterChatConfiguration(
+                apiKey: "secret-token",
+                credentialSource: .environmentFallback,
+                chatCompletionsURL: URL(string: "https://chat.example.com/v1/chat/completions")!,
+                model: "k2p5"
+            ),
+            sourceSummary: "baseURL=env(MASTER_CHAT_BASE_URL)；apiKey=env(MASTER_CHAT_API_KEY)；model=fallback(k2p5)"
+        )
+
+        let availableModels = try await MasterChatLiveProbe.ensureExpectedModelAdvertised(candidate: candidate) { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let payload = #"""
+            {"data":[{"id":"k2p5-20260328"},{"id":"claude-sonnet-4-6"}],"object":"list"}
+            """#
+            return (payload.data(using: .utf8)!, response)
+        }
+
+        XCTAssertEqual(availableModels, ["k2p5-20260328", "claude-sonnet-4-6"])
+    }
+
     @MainActor
     func testMasterExperienceStoreRefreshCatalogAppliesInvalidAPIKeyPreflightStatusToEntry() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
@@ -490,6 +517,32 @@ final class MasterConversationServiceTests: XCTestCase {
                 .unexpectedModel(expected: "k2p5", actual: "claude-sonnet-4-5")
             )
         }
+    }
+
+    @MainActor
+    func testK2P5ServiceAcceptsVersionedReturnedModelAlias() async throws {
+        let configuration = MasterChatConfiguration(
+            apiKey: "secret-token",
+            credentialSource: .environmentFallback,
+            chatCompletionsURL: URL(string: "https://chat.example.com/v1/chat/completions")!,
+            model: "k2p5"
+        )
+        let service = K2P5MasterConversationService(configuration: configuration) { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let payload = #"{"model":"k2p5-20260328","choices":[{"message":{"role":"assistant","content":"这件事我先不绕。你先把动作压成七天内能看到反馈的样本。"}}]}"#
+            return (payload.data(using: .utf8)!, response)
+        }
+
+        let result = try await service.generateReply(for: makeRequest(messagePairCount: 1))
+
+        XCTAssertEqual(result.status.modelName, "k2p5-20260328")
+        XCTAssertTrue(result.status.isLiveRemote)
+        XCTAssertTrue(result.text.contains("七天内能看到反馈"))
     }
 
     @MainActor

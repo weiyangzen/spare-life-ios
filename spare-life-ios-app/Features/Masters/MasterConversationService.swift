@@ -465,6 +465,22 @@ struct MasterChatLiveProbeCandidate: Equatable, Sendable {
     let sourceSummary: String
 }
 
+private enum MasterChatModelIdentity {
+    static func matches(expected expectedModel: String, candidate actualModel: String) -> Bool {
+        normalizedSignature(actualModel) == normalizedSignature(expectedModel)
+    }
+
+    private static func normalizedSignature(_ rawValue: String) -> String {
+        let normalized = rawValue
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if normalized.contains(K2P5MasterConversationService.modelFallback) {
+            return K2P5MasterConversationService.modelFallback
+        }
+        return normalized
+    }
+}
+
 enum MasterChatLiveProbeError: LocalizedError, Equatable {
     case missingBaseURL
     case missingAPIKey
@@ -627,7 +643,12 @@ enum MasterChatLiveProbe {
             candidate: candidate,
             transport: transport
         )
-        guard availableModels.contains(candidate.configuration.model) else {
+        guard availableModels.contains(where: { advertisedModel in
+            MasterChatModelIdentity.matches(
+                expected: candidate.configuration.model,
+                candidate: advertisedModel
+            )
+        }) else {
             throw MasterChatLiveProbeError.modelNotAdvertised(
                 url: modelCatalogURL(for: candidate.configuration.chatCompletionsURL).absoluteString,
                 sourceSummary: candidate.sourceSummary,
@@ -952,22 +973,12 @@ final class K2P5MasterConversationService: MasterConversationReplying {
         _ actualModel: String,
         expected expectedModel: String
     ) throws {
-        guard normalizedModelSignature(actualModel) == normalizedModelSignature(expectedModel) else {
+        guard MasterChatModelIdentity.matches(expected: expectedModel, candidate: actualModel) else {
             throw MasterConversationServiceError.unexpectedModel(
                 expected: expectedModel,
                 actual: actualModel
             )
         }
-    }
-
-    private static func normalizedModelSignature(_ rawValue: String) -> String {
-        let normalized = rawValue
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-        if normalized.contains(K2P5MasterConversationService.modelFallback) {
-            return K2P5MasterConversationService.modelFallback
-        }
-        return normalized
     }
 
     nonisolated static func keychainAPIKey() -> String? {

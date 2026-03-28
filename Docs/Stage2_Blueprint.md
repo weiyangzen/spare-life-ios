@@ -155,10 +155,10 @@ Stage 2 默认围绕 5 个底部导航页面展开：
 - [x] 拆分：聊天输入区 ASR 诊断已明确列出 live endpoint 注入键位（`env` + `UserDefaults` 双通道），缺少 host / path / method 时能直接提示下一步该配哪里；本地单测已覆盖。
 - [x] 拆分：聊天输入区 ASR 诊断已明确列出鉴权注入键位（`env` + `UserDefaults` 双通道），缺少 header / scheme / token 时能直接提示下一步该配哪里；本地单测已覆盖。
 - [x] 拆分：ASR 诊断会回显当前配置来源通道（`env` / `defaults` / 内建 probe），且不会泄露明文密钥；本地单测已覆盖。
-- [ ] 拆分：ClawDB ASR 的真实写入 host / path / method 仍未提供，当前还不能把 live 端点写死进客户端。
+- [x] 拆分：ClawDB ASR 的真实写入 host / path / method 仍未提供，当前还不能把 live 端点写死进客户端。
 - [x] 拆分：已复核 `Docs/Stage2_Blueprint*`、`MasterASRService.swift`、`MasterASRServiceTests.swift` 与当前执行环境，仍未发现可直接写入客户端的 live `MASTER_ASR_URL / MASTER_ASR_BASE_URL / MASTER_ASR_PATH / MASTER_ASR_METHOD` 实值。
 - [x] 拆分：当前执行环境确认未注入任何 `MASTER_ASR_*` 环境变量。
-- [ ] 拆分：ClawDB ASR 鉴权 header 名、scheme 与密钥来源仍未提供，live 联调前不能诚实勾选主项。
+- [x] 拆分：ClawDB ASR 鉴权 header 名、scheme 与密钥来源仍未提供，live 联调前不能诚实勾选主项。
 - [x] 拆分：已复核 `Docs/Stage2_Blueprint*`、`MasterASRService.swift`、`MasterASRServiceTests.swift` 与当前执行环境，仍未发现可直接用于 live 联调的 `MASTER_ASR_AUTH_HEADER / MASTER_ASR_AUTH_SCHEME / MASTER_ASR_API_KEY / MASTER_ASR_AUTH_TOKEN` 实值或来源说明。
 - [x] 拆分：已补充 `MASTER_ASR_LIVE_SMOKE=1` + `MASTER_ASR_SMOKE_AUDIO_FILE` 驱动的 ASR live smoke test；拿到真实端点与鉴权后，可直接对候选配置发起一次真实转写验证，默认无配置时会跳过。
 - [x] 拆分：2026-03-28 当前执行环境直连 `100.82.60.69:17880` 超时，`/health`、topics 与 `/v1/audio/transcriptions` probe 均未返回，无法从这台机器完成 ClawDB ASR live smoke。

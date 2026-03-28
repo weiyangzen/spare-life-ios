@@ -59,6 +59,15 @@ def add_resource_path(target, group, resource_path)
   target.add_resources([file_ref])
 end
 
+def rewrite_legacy_scheme_references(legacy_project_path)
+  scheme_path = legacy_project_path.join('xcshareddata/xcschemes/SpareLifePreviewHost.xcscheme')
+  return unless scheme_path.exist?
+
+  content = scheme_path.read
+  rewritten = content.gsub('container:闲人.xcodeproj', 'container:SpareLifePreviewHost.xcodeproj')
+  scheme_path.write(rewritten) if rewritten != content
+end
+
 FileUtils.rm_rf(PROJECT_PATH)
 FileUtils.rm_rf(LEGACY_PROJECT_PATH)
 
@@ -138,6 +147,7 @@ scheme.save_as(PROJECT_PATH.to_s, APP_NAME, true)
 
 project.save
 FileUtils.cp_r(PROJECT_PATH, LEGACY_PROJECT_PATH)
+rewrite_legacy_scheme_references(LEGACY_PROJECT_PATH)
 
 puts "Generated #{PROJECT_PATH}"
 puts "Generated #{LEGACY_PROJECT_PATH}"

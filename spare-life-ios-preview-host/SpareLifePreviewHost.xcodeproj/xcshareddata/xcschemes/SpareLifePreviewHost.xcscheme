@@ -14,10 +14,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "FDBB0D98037B85BA59EB1550"
+               BlueprintIdentifier = "F5695DBC0F36F4C22BE523AE"
                BuildableName = "SpareLifePreviewHost.app"
                BlueprintName = "SpareLifePreviewHost"
-               ReferencedContainer = "container:闲人.xcodeproj">
+               ReferencedContainer = "container:SpareLifePreviewHost.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
          <BuildActionEntry
@@ -28,10 +28,10 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "B01F9D64A9A9B91B5D5F5108"
+               BlueprintIdentifier = "8E996303BEF5102DB0E9F990"
                BuildableName = "SpareLifePreviewHostUITests.xctest"
                BlueprintName = "SpareLifePreviewHostUITests"
-               ReferencedContainer = "container:闲人.xcodeproj">
+               ReferencedContainer = "container:SpareLifePreviewHost.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -44,19 +44,19 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FDBB0D98037B85BA59EB1550"
+            BlueprintIdentifier = "F5695DBC0F36F4C22BE523AE"
             BuildableName = "SpareLifePreviewHost.app"
             BlueprintName = "SpareLifePreviewHost"
-            ReferencedContainer = "container:闲人.xcodeproj">
+            ReferencedContainer = "container:SpareLifePreviewHost.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FDBB0D98037B85BA59EB1550"
+            BlueprintIdentifier = "F5695DBC0F36F4C22BE523AE"
             BuildableName = "SpareLifePreviewHost.app"
             BlueprintName = "SpareLifePreviewHost"
-            ReferencedContainer = "container:闲人.xcodeproj">
+            ReferencedContainer = "container:SpareLifePreviewHost.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -64,10 +64,10 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "B01F9D64A9A9B91B5D5F5108"
+               BlueprintIdentifier = "8E996303BEF5102DB0E9F990"
                BuildableName = "SpareLifePreviewHostUITests.xctest"
                BlueprintName = "SpareLifePreviewHostUITests"
-               ReferencedContainer = "container:闲人.xcodeproj">
+               ReferencedContainer = "container:SpareLifePreviewHost.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -86,10 +86,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FDBB0D98037B85BA59EB1550"
+            BlueprintIdentifier = "F5695DBC0F36F4C22BE523AE"
             BuildableName = "SpareLifePreviewHost.app"
             BlueprintName = "SpareLifePreviewHost"
-            ReferencedContainer = "container:闲人.xcodeproj">
+            ReferencedContainer = "container:SpareLifePreviewHost.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -103,10 +103,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FDBB0D98037B85BA59EB1550"
+            BlueprintIdentifier = "F5695DBC0F36F4C22BE523AE"
             BuildableName = "SpareLifePreviewHost.app"
             BlueprintName = "SpareLifePreviewHost"
-            ReferencedContainer = "container:闲人.xcodeproj">
+            ReferencedContainer = "container:SpareLifePreviewHost.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

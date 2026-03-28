@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "FDBB0D98037B85BA59EB1550"
+               BlueprintIdentifier = "F5695DBC0F36F4C22BE523AE"
                BuildableName = "&#x95f2;&#x4eba;.app"
                BlueprintName = "SpareLifePreviewHost"
                ReferencedContainer = "container:&#x95f2;&#x4eba;.xcodeproj">
@@ -28,7 +28,7 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "B01F9D64A9A9B91B5D5F5108"
+               BlueprintIdentifier = "8E996303BEF5102DB0E9F990"
                BuildableName = "SpareLifePreviewHostUITests.xctest"
                BlueprintName = "SpareLifePreviewHostUITests"
                ReferencedContainer = "container:&#x95f2;&#x4eba;.xcodeproj">
@@ -44,7 +44,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FDBB0D98037B85BA59EB1550"
+            BlueprintIdentifier = "F5695DBC0F36F4C22BE523AE"
             BuildableName = "&#x95f2;&#x4eba;.app"
             BlueprintName = "SpareLifePreviewHost"
             ReferencedContainer = "container:&#x95f2;&#x4eba;.xcodeproj">
@@ -55,7 +55,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "B01F9D64A9A9B91B5D5F5108"
+               BlueprintIdentifier = "8E996303BEF5102DB0E9F990"
                BuildableName = "SpareLifePreviewHostUITests.xctest"
                BlueprintName = "SpareLifePreviewHostUITests"
                ReferencedContainer = "container:&#x95f2;&#x4eba;.xcodeproj">
@@ -77,7 +77,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FDBB0D98037B85BA59EB1550"
+            BlueprintIdentifier = "F5695DBC0F36F4C22BE523AE"
             BuildableName = "&#x95f2;&#x4eba;.app"
             BlueprintName = "SpareLifePreviewHost"
             ReferencedContainer = "container:&#x95f2;&#x4eba;.xcodeproj">
@@ -94,7 +94,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FDBB0D98037B85BA59EB1550"
+            BlueprintIdentifier = "F5695DBC0F36F4C22BE523AE"
             BuildableName = "&#x95f2;&#x4eba;.app"
             BlueprintName = "SpareLifePreviewHost"
             ReferencedContainer = "container:&#x95f2;&#x4eba;.xcodeproj">

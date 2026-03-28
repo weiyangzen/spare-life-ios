@@ -6,11 +6,15 @@ final class XianxiaStage1UITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        try Self.setProxyMode("online")
+        if requiresProxyControl {
+            try Self.setProxyMode("online")
+        }
     }
 
     override func tearDownWithError() throws {
-        try Self.setProxyMode("online")
+        if requiresProxyControl {
+            try Self.setProxyMode("online")
+        }
     }
 
     func testStage1TopicFeedDetailPaginationAndOfflineFallbackOnIPhone15Pro() throws {
@@ -56,6 +60,35 @@ final class XianxiaStage1UITests: XCTestCase {
         )
     }
 
+    func testMastersDirectoryShows8CardsAndOpensOneToOneOnIPhone15Pro() throws {
+        let app = XCUIApplication()
+
+        app.launch()
+
+        let mastersTab = app.buttons["main-tab-master"]
+        XCTAssertTrue(mastersTab.waitForExistence(timeout: 20))
+        mastersTab.tap()
+
+        let cardQuery = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "master-stage1-card-")
+        )
+        let firstCard = cardQuery.firstMatch
+        XCTAssertTrue(firstCard.waitForExistence(timeout: 20))
+        waitForElementCount(cardQuery, atLeast: 8, timeout: 20)
+
+        firstCard.tap()
+
+        let conversationIdentity = app.descendants(matching: .any)
+            .matching(identifier: "master-conversation-identity")
+            .firstMatch
+        XCTAssertTrue(conversationIdentity.waitForExistence(timeout: 20))
+
+        let composerInput = app.descendants(matching: .any)
+            .matching(identifier: "master-composer-input")
+            .firstMatch
+        XCTAssertTrue(composerInput.waitForExistence(timeout: 20))
+    }
+
     private func configuredApp() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["XIANXIA_TOPICS_BASE_URL"] = "http://127.0.0.1:17881/v1/clawdb-topics"
@@ -63,6 +96,10 @@ final class XianxiaStage1UITests: XCTestCase {
         app.launchEnvironment["XIANXIA_TOPICS_FEED_BATCH_SIZE"] = "2"
         app.launchEnvironment["XIANXIA_TOPICS_SHARD_BATCH_SIZE"] = "1"
         return app
+    }
+
+    private var requiresProxyControl: Bool {
+        name.contains("TopicFeed")
     }
 
     private nonisolated static func setProxyMode(_ mode: String) throws {

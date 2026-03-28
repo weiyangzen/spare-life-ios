@@ -50,6 +50,7 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [x] 拆分：已补充 `MASTER_ASR_LIVE_SMOKE=1` + `MASTER_ASR_SMOKE_AUDIO_FILE` 驱动的 ASR live smoke test；拿到真实端点与鉴权后，可直接对候选配置发起一次真实转写验证，默认无配置时会跳过。
 - [x] 拆分：2026-03-28 当前执行环境直连 `100.82.60.69:17880` 时，`GET /health` 已恢复并返回 `clawdb-topics-gateway`，但 `POST /v1/audio/transcriptions` 仍稳定返回 `{"ok":false,"error":"method_not_allowed"}`；因此仍无法把 ClawDB ASR live 写入口诚实勾选为已接通。
 - [x] 拆分：2026-03-28 已再次直连 `http://100.82.60.69:17880/v1/audio/transcriptions`；空 JSON `POST` 与 `OPTIONS` 都返回 `{"ok":false,"error":"method_not_allowed"}` + `HTTP 405`，默认 `clawdb-topics-gateway` 路由仍不是可用 ASR 写入口。
+- [x] 拆分：2026-03-28 当前 shell 再次复核仍只见 legacy `ANTHROPIC_*`，未注入任何 `MASTER_ASR_*`；直连 `POST http://100.82.60.69:17880/v1/audio/transcriptions` 继续返回 `HTTP 405` + `{"ok":false,"error":"method_not_allowed"}`，因此 ASR 主项继续保持未勾。
 - [x] 拆分：已复核 `spare-life-ios-preview-host` 与相关工程配置，当前预览宿主仍缺少 `NSMicrophoneUsageDescription`；端到端录音联调暂不能诚实勾选，且宿主 plist 不在本 lane 内。
 - [x] 大师闲聊请求携带全量 context，而不是只带最后一轮浅上下文。
 - [ ] 大师闲聊推理路径切到提供的 `k2p5` 模型与对应后端请求逻辑。
@@ -72,6 +73,7 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [x] 拆分：已抽出 `MasterChatLiveProbe`，统一处理 `MASTER_CHAT_*`、`defaults(masters.chat.baseURL / masters.chat.model)`、本机钥匙串与 legacy `ANTHROPIC_*` 的 live 候选解析及 `/v1/models` 预检；若候选端点未广告 `k2p5`，会直接回报 exact blocker，本地单测已覆盖。
 - [x] 拆分：`MasterExperienceStore` 刷新目录后会复用 `MasterChatLiveProbe` 做页面侧 `/v1/models` 预检；若候选端点未广告 `k2p5`，一对一页状态会直接展示 exact blocker，若已广告则展示“live 候选已注入”并回显模型目录；本地单测已覆盖。
 - [x] 拆分：若 live 端点回包中的 `model` 未继续指向 `k2p5` 系列，聊天服务会拒绝把该轮误标为“实时对话已接通”，并回退到本地故事引擎；本地单测已覆盖。
+- [x] 拆分：2026-03-28 当前 shell 再次复核仍未注入任何 `MASTER_CHAT_*`；借用现有 legacy `ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY` 对 `ANTHROPIC_BASE_URL/v1/models` 发起只读探针时，返回模型仍只有 `claude-opus-4-5-20251101 / claude-opus-4-6 / claude-sonnet-4-6 / claude-sonnet-4-5-20250929 / claude-haiku-4-5-20251001`，未广告 `k2p5`，因此主项继续保持未勾。
 - [x] 大师回复必须符合上下文和角色设定，像“小说场景中的角色台词”，而不是通用助手口吻。
 - [x] 拆分：`/v1/chat/completions` 的 system prompt 现已明确要求把回复写成“小说场景里的角色台词”，并禁止输出“作为 AI / 模型 / 助手”“建议如下”“1. 2. 3.” 等通用助手口吻；本地单测已覆盖。
 - [x] 拆分：当 `k2p5` 或兼容后端返回通用助手式文案时，聊天服务会在落地前改写成贴合当前故事与上下文的角色对白，再展示到一对一会话；本地单测已覆盖。
@@ -87,7 +89,7 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [x] 拆分：2026-03-28 已在当前 shell 复跑页面侧 live 预检所依赖的只读探针；`http://24.199.97.185:8080/v1/models` 借用 legacy `ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY` 的 Bearer 鉴权后，仍只返回 `claude-opus-4-5-20251101 / claude-opus-4-6 / claude-sonnet-4-6 / claude-sonnet-4-5-20250929 / claude-haiku-4-5-20251001`，因此页面状态会直接停在“k2p5 预检未通过”，真实对话主项继续保持未勾。
 - [x] 拆分：2026-03-28 已把 `MasterChatLiveProbe` / `MasterRoleplayReplyComposer` / `MasterSpeechTranscriptionFlow` 收回 preview host 已纳入的 Masters 源文件，随后 `xcodebuild -project spare-life-ios-preview-host/闲人.xcodeproj -scheme SpareLifePreviewHost -destination 'platform=iOS Simulator,id=63DAFAF1-789A-4206-8B3C-6B87048AFDF1' build` 已在 `Stage1 iPhone 15 Pro` 本机通过，页面级验证前置编译恢复。
 - [x] 拆分：2026-03-28 已用 `xcrun --sdk macosx swiftc -typecheck` 复核当前 Masters 源集（含上述合并后的语音/对话辅助类型），仅剩 `MasterChatHomeView.swift` 与 `MasterHomeView.swift` 的 macOS `onChange` deprecated warning，无新的类型错误。
-- [ ] 拆分：2026-03-28 预览宿主虽已成功启动到默认 `闲人` tab，但当前没有可复用的 `闲聊` deep link / 默认选中开关；`simctl launch` 注入 `SPARE_MASTERS_AUTOMATION_COMMAND=directory_snapshot` 后仍未写出 `masters-preview-validation.json`，因此“8 张大师卡页面实跑”与“进入一对一”还需要补一个 masters 专用 UI 驱动后才能继续诚实勾选。
+- [x] 拆分：2026-03-28 已补充 masters 专用 preview host UI 驱动；`xcodebuild test -project spare-life-ios-preview-host/闲人.xcodeproj -scheme SpareLifePreviewHost -destination 'platform=iOS Simulator,id=63DAFAF1-789A-4206-8B3C-6B87048AFDF1' -only-testing:SpareLifePreviewHostUITests/XianxiaStage1UITests/testMastersDirectoryShows8CardsAndOpensOneToOneOnIPhone15Pro` 已在 `Stage1 iPhone 15 Pro` 本机通过，实跑覆盖从默认 `闲人` tab 切到 `闲聊`、确认 8 张大师卡可见并进入一对一会话页。
 
 ### 4.4 赚闲能
 

@@ -2,12 +2,22 @@ import Foundation
 
 @MainActor
 enum MasterStage1Automation {
+    static func isEnabled(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        Command(environment: environment) != nil
+    }
+
     static func maybeRun(using store: MasterExperienceStore) async -> Bool {
         guard let command = Command(processInfo: .processInfo) else {
             return false
         }
 
-        let runner = Runner(store: store, command: command)
+        let runner = Runner(
+            store: store,
+            command: command,
+            resultFileURL: store.automationResultFileURL
+        )
         await runner.run()
         return true
     }
@@ -31,7 +41,12 @@ private extension MasterStage1Automation {
         init?(
             processInfo: ProcessInfo
         ) {
-            let environment = processInfo.environment
+            self.init(environment: processInfo.environment)
+        }
+
+        init?(
+            environment: [String: String]
+        ) {
             guard let rawValue = environment["SPARE_MASTERS_AUTOMATION_COMMAND"]?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
                 let kind = Kind(rawValue: rawValue) else {
@@ -77,12 +92,13 @@ private extension MasterStage1Automation {
     final class Runner {
         private let store: MasterExperienceStore
         private let command: Command
-        private let resultStore = MasterConversationLocalStateStore()
+        private let resultFileURL: URL
         private let fileManager = FileManager.default
 
-        init(store: MasterExperienceStore, command: Command) {
+        init(store: MasterExperienceStore, command: Command, resultFileURL: URL) {
             self.store = store
             self.command = command
+            self.resultFileURL = resultFileURL
         }
 
         func run() async {
@@ -276,17 +292,19 @@ private extension MasterStage1Automation {
         }
 
         private func write(_ result: Result) throws {
-            let url = resultStore.resultFileURL
-            try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try fileManager.createDirectory(
+                at: resultFileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
 
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try encoder.encode(result)
-            try data.write(to: url, options: .atomic)
+            try data.write(to: resultFileURL, options: .atomic)
         }
 
         private func clearPreviousResult() {
-            try? fileManager.removeItem(at: resultStore.resultFileURL)
+            try? fileManager.removeItem(at: resultFileURL)
         }
     }
 

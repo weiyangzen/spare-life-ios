@@ -423,6 +423,7 @@ final class MasterExperienceStore: ObservableObject {
         self.asrConnectionStatus = resolvedASRConnectionStatus
         self.localStateStore = localStateStore
         self.conversationServiceStatus = resolvedConversationService.status
+        bootstrapAutomationIfNeeded()
     }
 
     var filteredMasters: [MasterProfile] {
@@ -494,6 +495,10 @@ final class MasterExperienceStore: ObservableObject {
         catalogCoverage?.mappingSummary ?? "\(masters.count)/8 已匹配"
     }
 
+    var automationResultFileURL: URL {
+        localStateStore.resultFileURL
+    }
+
     func master(withID id: String) -> MasterProfile? {
         guard let position = masterIndex[id], masters.indices.contains(position) else {
             return nil
@@ -505,6 +510,18 @@ final class MasterExperienceStore: ObservableObject {
         guard !hasLoaded else { return }
         hasLoaded = true
         Task { await refreshCatalog() }
+    }
+
+    private func bootstrapAutomationIfNeeded(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) {
+        guard MasterStage1Automation.isEnabled(environment: environment), !hasLoaded else {
+            return
+        }
+        hasLoaded = true
+        Task { [store = self] in
+            _ = await MasterStage1Automation.maybeRun(using: store)
+        }
     }
 
     func refreshCatalog() async {

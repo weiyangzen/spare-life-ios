@@ -400,6 +400,46 @@ final class MasterConversationServiceTests: XCTestCase {
     }
 
     @MainActor
+    func testMasterExperienceStoreBootstrapsDirectorySnapshotAutomationWhenCommandInjected() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("master-store-automation-bootstrap-\(UUID().uuidString)", isDirectory: true)
+        let archiveURL = tempDirectory.appendingPathComponent("master-conversations.json", isDirectory: false)
+        let stateStore = MasterConversationLocalStateStore(archiveURL: archiveURL)
+        let resultURL = stateStore.resultFileURL
+        let environmentKeys = [
+            "SPARE_MASTERS_AUTOMATION_COMMAND",
+            "SPARE_MASTERS_AUTOMATION_MASTER_ID"
+        ]
+        defer {
+            environmentKeys.forEach { unsetenv($0) }
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        setenv("SPARE_MASTERS_AUTOMATION_COMMAND", "directory_snapshot", 1)
+        setenv("SPARE_MASTERS_AUTOMATION_MASTER_ID", "001546", 1)
+
+        XCTAssertTrue(MasterStage1Automation.isEnabled())
+
+        let store = MasterExperienceStore(
+            catalogLoader: { try MasterCatalogLoader.load() },
+            conversationService: FailingConversationService(),
+            localStateStore: stateStore
+        )
+
+        let data = try await Self.waitForAutomationResult(at: resultURL)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(payload["command"] as? String, "directory_snapshot")
+        XCTAssertEqual(payload["success"] as? Bool, true)
+        XCTAssertEqual(payload["visibleMasterCount"] as? Int, 8)
+        XCTAssertEqual(payload["totalMasterCount"] as? Int, 8)
+        XCTAssertEqual(payload["matchedCoverageCount"] as? Int, 8)
+        XCTAssertEqual(payload["hasExactStage1Coverage"] as? Bool, true)
+        XCTAssertNil(payload["error"] as? String)
+        XCTAssertNotNil(store)
+    }
+
+    @MainActor
     func testMasterExperienceStoreLiveSmokeRunsWhenExplicitlyEnabled() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard environment["MASTER_CHAT_LIVE_SMOKE"] == "1" else {
@@ -718,6 +758,22 @@ final class MasterConversationServiceTests: XCTestCase {
             return fallback
         }
         return value
+    }
+
+    private static func waitForAutomationResult(
+        at url: URL,
+        timeout: TimeInterval = 8
+    ) async throws -> Data {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if FileManager.default.fileExists(atPath: url.path) {
+                return try Data(contentsOf: url)
+            }
+            try await Task.sleep(nanoseconds: 200_000_000)
+        }
+
+        XCTFail("Timed out waiting for automation result at \(url.path)")
+        return Data()
     }
 
     private static func preflightAvailableModels(

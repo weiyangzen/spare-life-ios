@@ -102,30 +102,22 @@ struct MasterSpeechInputActions: View {
         Task {
             await MainActor.run {
                 isTranscribing = true
-            }
-            await MainActor.run {
                 store.setConversationInlineError(nil)
             }
 
-            do {
-                let transcript = try await store.transcribeAudio(at: fileURL)
-                await MainActor.run {
-                    draftText = MasterSpeechDraftComposer.mergedDraft(
-                        existingDraft: draftText,
-                        transcript: transcript
-                    )
-                }
-            } catch {
-                await MainActor.run {
-                    store.setConversationInlineError("语音识别失败：\(error.localizedDescription)")
-                }
+            let existingDraft = await MainActor.run { draftText }
+            let flow = MasterSpeechTranscriptionFlow { url in
+                try await store.transcribeAudio(at: url)
             }
-
-            if cleanupAfterTranscription {
-                try? FileManager.default.removeItem(at: fileURL)
-            }
+            let resolution = await flow.resolve(
+                fileURL: fileURL,
+                existingDraft: existingDraft,
+                cleanupAfterTranscription: cleanupAfterTranscription
+            )
 
             await MainActor.run {
+                draftText = resolution.draft
+                store.setConversationInlineError(resolution.errorMessage)
                 isTranscribing = false
             }
         }
@@ -145,6 +137,27 @@ struct MasterSpeechInputActions: View {
             .appendingPathExtension(ext)
         try FileManager.default.copyItem(at: sourceURL, to: destination)
         return destination
+    }
+}
+
+private struct MasterSpeechErrorBanner: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Spacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.emotionNegative)
+            Text(message)
+                .font(.spareCaption)
+                .foregroundColor(.secondary)
+        }
+        .padding(Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.emotionNegative.opacity(0.08), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: CornerRadius.lg)
+                .stroke(Color.emotionNegative.opacity(0.2), lineWidth: 1)
+        )
     }
 }
 
@@ -177,7 +190,7 @@ private struct MasterAudioRecorderSheet: View {
                 }
 
                 if let errorMessage = recorder.errorMessage {
-                    ErrorBanner(message: errorMessage)
+                    MasterSpeechErrorBanner(message: errorMessage)
                 }
 
                 VStack(spacing: Spacing.sm) {

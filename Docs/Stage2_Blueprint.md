@@ -168,6 +168,7 @@ Stage 2 默认围绕 5 个底部导航页面展开：
 - [x] 拆分：2026-03-28 当前 shell 再次复核仍只见 legacy `ANTHROPIC_*`，未注入任何 `MASTER_ASR_*`；直连 `POST http://100.82.60.69:17880/v1/audio/transcriptions` 继续返回 `HTTP 405` + `{"ok":false,"error":"method_not_allowed"}`，因此 ASR 主项继续保持未勾。
 - [x] 拆分：已复核 `spare-life-ios-preview-host` 与相关工程配置，当前预览宿主仍缺少 `NSMicrophoneUsageDescription`；端到端录音联调暂不能诚实勾选，且宿主 plist 不在本 lane 内。
 - [x] 拆分：2026-03-28 已本机复跑 `swift test --filter MasterASRServiceTests/testMasterASRConfigurationStatusWarnsWhenStillUsingDefaultProbeRoute` 与 `swift test --filter MasterSpeechTranscriptionFlowTests/testAvailabilityBlocksTranscriptionUntilASRIsReady`；确认默认 `clawdb-topics-gateway` probe 路由仍会把语音入口标成 blocker，并在发送前直接给出“语音识别暂不可用”内联文案。
+- [x] 拆分：2026-03-28 已再次在当前 shell 复核 ASR live 条件；`MASTER_ASR_*` 仍全部未注入，`com.wangweiyang.sparelife.previewhost*` defaults 也未见 `masters.asr.*`，直连 `GET http://100.82.60.69:17880/health` 返回 `clawdb-topics-gateway`，但 `POST http://100.82.60.69:17880/v1/audio/transcriptions` 仍是 `HTTP 405` + `{"ok":false,"error":"method_not_allowed"}`；因此 ASR 主项继续保持未勾。
 - [x] 大师闲聊请求携带全量 context，而不是只带最后一轮浅上下文。
 - [ ] 大师闲聊推理路径切到提供的 `k2p5` 模型与对应后端请求逻辑。
 - [x] 拆分：大师对话服务已支持 OpenAI-compatible `chat/completions` 请求体与 `k2p5` 默认模型配置。
@@ -193,6 +194,7 @@ Stage 2 默认围绕 5 个底部导航页面展开：
 - [x] 拆分：2026-03-28 已本机复跑 `swift test --filter MasterConversationServiceTests/testMasterStage1AutomationWritesExactPreflightBlockerBeforeStage2SmokeSend` 与 `swift test --filter MasterConversationServiceTests/testMasterExperienceStoreRefreshCatalogAppliesChatLiveProbeBlockerToEntryStatus`；确认自动化结果文件与页面一对一入口状态都会在发送前直接暴露 exact `k2p5` blocker，不会把只广告 Claude 的 legacy 端点误判成 live 可聊。
 - [x] 拆分：页面侧 live 预检现已把 `/v1/models` 的 `401 / 403` 区分为 `k2p5 鉴权失效`，并在一对一入口直接展示 `INVALID_API_KEY` 等 exact blocker；本地单测已覆盖。
 - [x] 拆分：`stage2_smoke` 自动化遇到 `/v1/models` 的 `401 / 403` 时，会把 `k2p5 鉴权失效` 与远端返回详情原样写入 `masters-preview-validation.json`，不再沿用“未广告 k2p5”的旧结论；本地单测已覆盖。
+- [x] 拆分：2026-03-28 已再次在当前 shell 复核 `k2p5` live 条件；`MASTER_CHAT_*` 仍全部未注入，`com.wangweiyang.sparelife.previewhost*` defaults 与 `com.wangweiyang.sparelife.masters.chat/k2p5.api-key` 钥匙串也都未提供 Stage 2 live 配置；借用现有 legacy `ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN` 直连 `GET /v1/models` 返回 `HTTP 200`，但仅枚举 Claude 系列，随后 `POST /v1/chat/completions` 发送 `model=k2p5` 的最小请求仍返回 `HTTP 404` + `{"error":{"message":"model: k2p5","type":"server_error"}}`；因此 `k2p5` 主项继续保持未勾。
 - [x] 大师回复必须符合上下文和角色设定，像“小说场景中的角色台词”，而不是通用助手口吻。
 - [x] 拆分：`/v1/chat/completions` 的 system prompt 现已明确要求把回复写成“小说场景里的角色台词”，并禁止输出“作为 AI / 模型 / 助手”“建议如下”“1. 2. 3.” 等通用助手口吻；本地单测已覆盖。
 - [x] 拆分：当 `k2p5` 或兼容后端返回通用助手式文案时，聊天服务会在落地前改写成贴合当前故事与上下文的角色对白，再展示到一对一会话；本地单测已覆盖。
@@ -212,6 +214,7 @@ Stage 2 默认围绕 5 个底部导航页面展开：
 - [x] 拆分：2026-03-28 已用 `xcrun --sdk macosx swiftc -typecheck` 复核当前 Masters 源集（含上述合并后的语音/对话辅助类型），仅剩 `MasterChatHomeView.swift` 与 `MasterHomeView.swift` 的 macOS `onChange` deprecated warning，无新的类型错误。
 - [x] 拆分：2026-03-28 已补充 masters 专用 preview host UI 驱动；`xcodebuild test -project spare-life-ios-preview-host/闲人.xcodeproj -scheme SpareLifePreviewHost -destination 'platform=iOS Simulator,id=63DAFAF1-789A-4206-8B3C-6B87048AFDF1' -only-testing:SpareLifePreviewHostUITests/XianxiaStage1UITests/testMastersDirectoryShows8CardsAndOpensOneToOneOnIPhone15Pro` 已在 `Stage1 iPhone 15 Pro` 本机通过，实跑覆盖从默认 `闲人` tab 切到 `闲聊`、确认 8 张大师卡可见并进入一对一会话页。
 - [x] 拆分：2026-03-28 已再次本机复跑 `xcodebuild test -project spare-life-ios-preview-host/闲人.xcodeproj -scheme SpareLifePreviewHost -destination 'platform=iOS Simulator,id=63DAFAF1-789A-4206-8B3C-6B87048AFDF1' -only-testing:SpareLifePreviewHostUITests/XianxiaStage1UITests/testMastersDirectoryShows8CardsAndOpensOneToOneOnIPhone15Pro`，在 `Stage1 iPhone 15 Pro` 上确认 `闲聊` tab 仍可见至少 `8` 张大师卡并稳定进入一对一会话页。
+- [x] 拆分：2026-03-28 已再次把页面级 UI 复跑与当前 shell live 探针对齐核对；`Stage1 iPhone 15 Pro` 上的 8 张大师卡与一对一入口仍全部通过，但同一时段 `GET /v1/models` 只广告 Claude、`POST /v1/chat/completions` 的 `model=k2p5` 最小请求仍返回 `HTTP 404`，因此本批仍无法诚实补出“至少 1 条真实对话链路”。
 ### 4.4 赚闲能
 
 - [x] 页面顶部分类轨道完整呈现 `跑腿 / 嘴替 / 搭子 / 两性 / 求职招聘 / 投融资 / 闲置` 7 个分类。

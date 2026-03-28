@@ -2,6 +2,14 @@ import XCTest
 @testable import SpareLifeCore
 
 final class MasterConversationServiceTests: XCTestCase {
+    func testMasterChatLiveSmokeDerivesModelCatalogURLFromChatCompletionsURL() {
+        let url = Self.modelCatalogURL(
+            for: URL(string: "https://chat.example.com/gateway/v1/chat/completions")!
+        )
+
+        XCTAssertEqual(url.absoluteString, "https://chat.example.com/gateway/v1/models")
+    }
+
     func testMasterChatConfigurationBuildsChatCompletionsURLAndDefaultsToK2P5() throws {
         let suiteName = "master-chat-config-\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
@@ -210,6 +218,12 @@ final class MasterConversationServiceTests: XCTestCase {
             keychainAPIKey: { nil },
             persistAPIKey: { _ in false }
         )
+        let availableModels = try await Self.preflightAvailableModels(configuration: configuration)
+        guard availableModels.contains(configuration.model) else {
+            throw XCTSkip(
+                "Live k2p5 smoke blocked before send: \(Self.modelCatalogURL(for: configuration.chatCompletionsURL).absoluteString) does not advertise '\(configuration.model)'; available=\(availableModels.joined(separator: ", "))"
+            )
+        }
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("master-live-chat-tests-\(UUID().uuidString)", isDirectory: true)
         let archiveURL = tempDirectory.appendingPathComponent("master-conversations.json", isDirectory: false)
@@ -495,6 +509,46 @@ final class MasterConversationServiceTests: XCTestCase {
             return fallback
         }
         return value
+    }
+
+    private static func preflightAvailableModels(configuration: MasterChatConfiguration) async throws -> [String] {
+        var request = URLRequest(url: modelCatalogURL(for: configuration.chatCompletionsURL))
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw XCTSkip("Live k2p5 smoke blocked before send: /v1/models returned a non-HTTP response.")
+            }
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                let detail = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                throw XCTSkip(
+                    "Live k2p5 smoke blocked before send: \(request.url?.absoluteString ?? "/v1/models") returned \(httpResponse.statusCode). \(detail)"
+                )
+            }
+            let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let models = (payload["data"] as? [[String: Any]])?
+                .compactMap { entry in
+                    (entry["id"] as? String)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                .filter { !$0.isEmpty } ?? []
+            return models
+        } catch let error as XCTSkip {
+            throw error
+        } catch {
+            throw XCTSkip("Live k2p5 smoke blocked before send: failed to probe /v1/models. \(error.localizedDescription)")
+        }
+    }
+
+    private static func modelCatalogURL(for chatCompletionsURL: URL) -> URL {
+        chatCompletionsURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("models")
     }
 }
 

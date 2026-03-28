@@ -64,6 +64,7 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [x] 拆分：已补充 `MASTER_CHAT_LIVE_SMOKE=1` 驱动的 `MasterExperienceStore` 一对一聊天 smoke test，直接覆盖 `openConversation -> sendMessage -> k2p5` 实际发送链路；拿到 live `MASTER_CHAT_*` 配置后可直接复跑。
 - [x] 拆分：2026-03-28 以当前 shell 的 `ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN` 临时映射到 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY` 执行上述 smoke 时，首轮即返回 `503 No available accounts: no available accounts`；因此基于 live `k2p5` 端点的一对一聊天自动化验证主项仍不能诚实勾选。
 - [x] 拆分：2026-03-28 再次以当前 shell 的 `ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN` 临时映射到 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY` 执行上述 smoke 时，首轮改为返回 `404`，并在错误详情里回显 `model: k2p5`；因此基于 live `k2p5` 端点的一对一聊天自动化验证仍未完成。
+- [x] 拆分：`MASTER_CHAT_LIVE_SMOKE=1` 的一对一聊天 smoke 现已在发起首轮消息前预检候选端点 `/v1/models`；若未枚举到 `k2p5` 会直接回报精确阻塞并跳过，不再等聊天请求 `404` 后才暴露问题。本地单测与当前 shell 映射实测已覆盖。
 - [ ] 拆分：基于 live `k2p5` 端点的一对一聊天自动化验证仍未完成，主项暂不勾。
 - [ ] 大师回复必须符合上下文和角色设定，像“小说场景中的角色台词”，而不是通用助手口吻。
 - [ ] 闲聊页面完成当前 8 位大师卡片与至少 1 条真实对话链路的本机验证。

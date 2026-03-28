@@ -85,6 +85,9 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [x] 拆分：2026-03-28 已用上述自动化 bootstrap 在本机复跑 `directory_snapshot`，结果 `success=true`、`visibleMasterCount=8`、`matchedCoverageCount=8`、`hasExactStage1Coverage=true`。
 - [x] 拆分：2026-03-28 已用 `MasterChatLiveProbe` 复跑本机真实对话链路预检；本地 `MasterExperienceStore` 集成测试仍覆盖 8 卡装载、进入一对一、持久化恢复与完整 context 发送，但当前 shell 借用 legacy `ANTHROPIC_*` 访问 `http://24.199.97.185:8080/v1/models` 仍只返回 Claude 系列、未广告 `k2p5`，因此“至少 1 条真实对话链路”主项继续保持未勾。
 - [x] 拆分：2026-03-28 已在当前 shell 复跑页面侧 live 预检所依赖的只读探针；`http://24.199.97.185:8080/v1/models` 借用 legacy `ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY` 的 Bearer 鉴权后，仍只返回 `claude-opus-4-5-20251101 / claude-opus-4-6 / claude-sonnet-4-6 / claude-sonnet-4-5-20250929 / claude-haiku-4-5-20251001`，因此页面状态会直接停在“k2p5 预检未通过”，真实对话主项继续保持未勾。
+- [x] 拆分：2026-03-28 已把 `MasterChatLiveProbe` / `MasterRoleplayReplyComposer` / `MasterSpeechTranscriptionFlow` 收回 preview host 已纳入的 Masters 源文件，随后 `xcodebuild -project spare-life-ios-preview-host/闲人.xcodeproj -scheme SpareLifePreviewHost -destination 'platform=iOS Simulator,id=63DAFAF1-789A-4206-8B3C-6B87048AFDF1' build` 已在 `Stage1 iPhone 15 Pro` 本机通过，页面级验证前置编译恢复。
+- [x] 拆分：2026-03-28 已用 `xcrun --sdk macosx swiftc -typecheck` 复核当前 Masters 源集（含上述合并后的语音/对话辅助类型），仅剩 `MasterChatHomeView.swift` 与 `MasterHomeView.swift` 的 macOS `onChange` deprecated warning，无新的类型错误。
+- [ ] 拆分：2026-03-28 预览宿主虽已成功启动到默认 `闲人` tab，但当前没有可复用的 `闲聊` deep link / 默认选中开关；`simctl launch` 注入 `SPARE_MASTERS_AUTOMATION_COMMAND=directory_snapshot` 后仍未写出 `masters-preview-validation.json`，因此“8 张大师卡页面实跑”与“进入一对一”还需要补一个 masters 专用 UI 驱动后才能继续诚实勾选。
 
 ### 4.4 赚闲能
 

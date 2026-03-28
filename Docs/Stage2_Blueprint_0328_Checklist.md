@@ -77,6 +77,8 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [x] 拆分：本地故事引擎回退与会诊回复已改成角色对白风格，沿用相关故事与授权记忆，不再输出“会按某风格回应 / 我的立场是”这类元叙述；本地单测已覆盖。
 - [ ] 闲聊页面完成当前 8 位大师卡片与至少 1 条真实对话链路的本机验证。
 - [x] 拆分：`MasterStage1Automation` 已重新接到当前 `MasterExperienceStore` 初始化路径；注入 `SPARE_MASTERS_AUTOMATION_COMMAND` 后，会沿用同一 `MasterConversationLocalStateStore` 目录写出 `masters-preview-validation.json`，本地单测已覆盖。
+- [x] 拆分：`MasterStage1Automation` 已新增 `stage2_smoke` 命令，会在同一次自动化里先断言当前 8 位大师目录覆盖无缺口，再进入一对一并要求两轮 `liveRemote` 对话成功后才写出 `masters-preview-validation.json`；本地单测已覆盖。
+- [x] 拆分：`MasterStage1Automation` 的 `resume_chat` 现已补上本地单测，要求复用同一 `MasterConversationLocalStateStore` 恢复至少 `5` 条 transcript 后，再追加一轮 `liveRemote` 一问一答并写回结果文件。
 - [x] 拆分：2026-03-28 已用上述自动化 bootstrap 在本机复跑 `directory_snapshot`，结果 `success=true`、`visibleMasterCount=8`、`matchedCoverageCount=8`、`hasExactStage1Coverage=true`。
 - [x] 拆分：2026-03-28 已用 `MasterChatLiveProbe` 复跑本机真实对话链路预检；本地 `MasterExperienceStore` 集成测试仍覆盖 8 卡装载、进入一对一、持久化恢复与完整 context 发送，但当前 shell 借用 legacy `ANTHROPIC_*` 访问 `http://24.199.97.185:8080/v1/models` 仍只返回 Claude 系列、未广告 `k2p5`，因此“至少 1 条真实对话链路”主项继续保持未勾。
 - [x] 拆分：2026-03-28 已在当前 shell 复跑页面侧 live 预检所依赖的只读探针；`http://24.199.97.185:8080/v1/models` 借用 legacy `ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY` 的 Bearer 鉴权后，仍只返回 `claude-opus-4-5-20251101 / claude-opus-4-6 / claude-sonnet-4-6 / claude-sonnet-4-5-20250929 / claude-haiku-4-5-20251001`，因此页面状态会直接停在“k2p5 预检未通过”，真实对话主项继续保持未勾。

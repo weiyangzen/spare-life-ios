@@ -35,6 +35,7 @@ private extension MasterStage1Automation {
         enum Kind: String {
             case directorySnapshot = "directory_snapshot"
             case seedChat = "seed_chat"
+            case stage2Smoke = "stage2_smoke"
             case resumeChat = "resume_chat"
         }
 
@@ -114,6 +115,8 @@ private extension MasterStage1Automation {
                     result = try directorySnapshotResult()
                 case .seedChat:
                     result = try await seedChatResult()
+                case .stage2Smoke:
+                    result = try await stage2SmokeResult()
                 case .resumeChat:
                     result = try await resumeChatResult()
                 }
@@ -175,6 +178,26 @@ private extension MasterStage1Automation {
         }
 
         private func seedChatResult() async throws -> Result {
+            try await liveChatResult(
+                commandName: command.kind.rawValue,
+                requireExactDirectoryCoverage: false
+            )
+        }
+
+        private func stage2SmokeResult() async throws -> Result {
+            try await liveChatResult(
+                commandName: command.kind.rawValue,
+                requireExactDirectoryCoverage: true
+            )
+        }
+
+        private func liveChatResult(
+            commandName: String,
+            requireExactDirectoryCoverage: Bool
+        ) async throws -> Result {
+            if requireExactDirectoryCoverage {
+                _ = try directorySnapshotResult()
+            }
             let profile = try targetMaster()
             store.openConversation(for: profile)
             guard let initialConversation = store.conversation else {
@@ -193,7 +216,7 @@ private extension MasterStage1Automation {
             }
 
             return Result(
-                command: command.kind.rawValue,
+                command: commandName,
                 success: true,
                 validatedAt: ISO8601DateFormatter().string(from: Date()),
                 masterID: profile.id,

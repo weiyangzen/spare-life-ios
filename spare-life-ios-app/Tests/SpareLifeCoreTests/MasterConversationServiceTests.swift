@@ -516,6 +516,138 @@ final class MasterConversationServiceTests: XCTestCase {
     }
 
     @MainActor
+    func testMasterStage1AutomationWritesStage2SmokeValidation() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("master-store-automation-stage2-smoke-\(UUID().uuidString)", isDirectory: true)
+        let archiveURL = tempDirectory.appendingPathComponent("master-conversations.json", isDirectory: false)
+        let stateStore = MasterConversationLocalStateStore(archiveURL: archiveURL)
+        let resultURL = stateStore.resultFileURL
+        let firstPrompt = "别给安慰，我只要你判断现在该先止损还是继续推进转岗。"
+        let secondPrompt = "如果今天只能做一件七天内能看到反馈的动作，你会逼我先做什么？"
+        let environmentKeys = [
+            "SPARE_MASTERS_AUTOMATION_COMMAND",
+            "SPARE_MASTERS_AUTOMATION_MASTER_ID",
+            "SPARE_MASTERS_AUTOMATION_FIRST_PROMPT",
+            "SPARE_MASTERS_AUTOMATION_SECOND_PROMPT",
+            "SPARE_MASTERS_AUTOMATION_RESUME_PROMPT"
+        ]
+        defer {
+            environmentKeys.forEach { unsetenv($0) }
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        setenv("SPARE_MASTERS_AUTOMATION_COMMAND", "stage2_smoke", 1)
+        setenv("SPARE_MASTERS_AUTOMATION_MASTER_ID", "001546", 1)
+        setenv("SPARE_MASTERS_AUTOMATION_FIRST_PROMPT", firstPrompt, 1)
+        setenv("SPARE_MASTERS_AUTOMATION_SECOND_PROMPT", secondPrompt, 1)
+
+        let capture = ConversationRequestCapture()
+        let store = MasterExperienceStore(
+            catalogLoader: { try MasterCatalogLoader.load() },
+            conversationService: makeAutomationLiveService(capture: capture),
+            localStateStore: stateStore
+        )
+
+        let data = try await Self.waitForAutomationResult(at: resultURL)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(payload["command"] as? String, "stage2_smoke")
+        XCTAssertEqual(payload["success"] as? Bool, true)
+        XCTAssertEqual(payload["masterID"] as? String, "001546")
+        XCTAssertEqual(payload["visibleMasterCount"] as? Int, 8)
+        XCTAssertEqual(payload["totalMasterCount"] as? Int, 8)
+        XCTAssertEqual(payload["matchedCoverageCount"] as? Int, 8)
+        XCTAssertEqual(payload["hasExactStage1Coverage"] as? Bool, true)
+        XCTAssertEqual(payload["transcriptCount"] as? Int, 5)
+        XCTAssertEqual(payload["serviceMode"] as? String, "liveRemote")
+        XCTAssertEqual(payload["serviceTitle"] as? String, "实时对话已接通")
+        XCTAssertNotNil(payload["sessionID"] as? String)
+        XCTAssertNil(payload["error"] as? String)
+        XCTAssertNotNil(store)
+
+        let requests = await capture.all()
+        XCTAssertEqual(requests.count, 2)
+
+        let secondRequest = try XCTUnwrap(requests.last)
+        let secondBody = try XCTUnwrap(secondRequest.httpBody)
+        let secondPayload = try XCTUnwrap(JSONSerialization.jsonObject(with: secondBody) as? [String: Any])
+        XCTAssertEqual(secondPayload["model"] as? String, "k2p5")
+
+        let messages = try XCTUnwrap(secondPayload["messages"] as? [[String: Any]])
+        XCTAssertEqual(messages.count, 5)
+        XCTAssertEqual(messages[0]["role"] as? String, "system")
+        XCTAssertEqual(messages[1]["role"] as? String, "assistant")
+        XCTAssertEqual(messages[2]["role"] as? String, "user")
+        XCTAssertEqual(messages[2]["content"] as? String, firstPrompt)
+        XCTAssertEqual(messages[3]["role"] as? String, "assistant")
+        XCTAssertFalse((messages[3]["content"] as? String)?.isEmpty ?? true)
+        XCTAssertEqual(messages[4]["role"] as? String, "user")
+        XCTAssertEqual(messages[4]["content"] as? String, secondPrompt)
+    }
+
+    @MainActor
+    func testMasterStage1AutomationWritesResumeChatValidationAfterSeedChat() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("master-store-automation-resume-chat-\(UUID().uuidString)", isDirectory: true)
+        let archiveURL = tempDirectory.appendingPathComponent("master-conversations.json", isDirectory: false)
+        let stateStore = MasterConversationLocalStateStore(archiveURL: archiveURL)
+        let resultURL = stateStore.resultFileURL
+        let resumePrompt = "我准备把动作缩成一个实验了。恢复会话后，继续追问我最容易自欺的地方。"
+        let environmentKeys = [
+            "SPARE_MASTERS_AUTOMATION_COMMAND",
+            "SPARE_MASTERS_AUTOMATION_MASTER_ID",
+            "SPARE_MASTERS_AUTOMATION_FIRST_PROMPT",
+            "SPARE_MASTERS_AUTOMATION_SECOND_PROMPT",
+            "SPARE_MASTERS_AUTOMATION_RESUME_PROMPT"
+        ]
+        defer {
+            environmentKeys.forEach { unsetenv($0) }
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        setenv("SPARE_MASTERS_AUTOMATION_COMMAND", "seed_chat", 1)
+        setenv("SPARE_MASTERS_AUTOMATION_MASTER_ID", "001546", 1)
+
+        let firstStore = MasterExperienceStore(
+            catalogLoader: { try MasterCatalogLoader.load() },
+            conversationService: makeAutomationLiveService(capture: ConversationRequestCapture()),
+            localStateStore: stateStore
+        )
+
+        let seedData = try await Self.waitForAutomationResult(at: resultURL)
+        let seedPayload = try XCTUnwrap(JSONSerialization.jsonObject(with: seedData) as? [String: Any])
+        XCTAssertEqual(seedPayload["command"] as? String, "seed_chat")
+        XCTAssertEqual(seedPayload["success"] as? Bool, true)
+        XCTAssertEqual(seedPayload["transcriptCount"] as? Int, 5)
+        XCTAssertNotNil(firstStore)
+
+        try? FileManager.default.removeItem(at: resultURL)
+
+        setenv("SPARE_MASTERS_AUTOMATION_COMMAND", "resume_chat", 1)
+        setenv("SPARE_MASTERS_AUTOMATION_RESUME_PROMPT", resumePrompt, 1)
+
+        let secondStore = MasterExperienceStore(
+            catalogLoader: { try MasterCatalogLoader.load() },
+            conversationService: makeAutomationLiveService(capture: ConversationRequestCapture()),
+            localStateStore: stateStore
+        )
+
+        let resumeData = try await Self.waitForAutomationResult(at: resultURL)
+        let resumePayload = try XCTUnwrap(JSONSerialization.jsonObject(with: resumeData) as? [String: Any])
+
+        XCTAssertEqual(resumePayload["command"] as? String, "resume_chat")
+        XCTAssertEqual(resumePayload["success"] as? Bool, true)
+        XCTAssertEqual(resumePayload["masterID"] as? String, "001546")
+        XCTAssertEqual(resumePayload["resumedTranscriptCount"] as? Int, 5)
+        XCTAssertEqual(resumePayload["transcriptCount"] as? Int, 7)
+        XCTAssertEqual(resumePayload["serviceMode"] as? String, "liveRemote")
+        XCTAssertEqual(resumePayload["serviceTitle"] as? String, "实时对话已接通")
+        XCTAssertNotNil(resumePayload["sessionID"] as? String)
+        XCTAssertNil(resumePayload["error"] as? String)
+        XCTAssertNotNil(secondStore)
+    }
+
+    @MainActor
     func testMasterExperienceStoreLiveSmokeRunsWhenExplicitlyEnabled() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard environment["MASTER_CHAT_LIVE_SMOKE"] == "1" else {
@@ -909,6 +1041,40 @@ final class MasterConversationServiceTests: XCTestCase {
             return fallback
         }
         return value
+    }
+
+    @MainActor
+    private func makeAutomationLiveService(
+        capture: ConversationRequestCapture
+    ) -> K2P5MasterConversationService {
+        let configuration = MasterChatConfiguration(
+            apiKey: "secret-token",
+            credentialSource: .environmentFallback,
+            chatCompletionsURL: URL(string: "https://chat.example.com/v1/chat/completions")!,
+            model: "k2p5"
+        )
+
+        return K2P5MasterConversationService(configuration: configuration) { request in
+            let turn = await capture.storeAndReturnCount(request)
+            let reply: String
+            switch turn {
+            case 1:
+                reply = "先把现金流收住，再把转岗动作压成七天内能拿到反馈的样本。"
+            case 2:
+                reply = "今天就去交付一个最小样本给真实用户，别再拿准备感冒充推进。"
+            default:
+                reply = "你最容易自欺的地方，就是继续优化准备动作，却不把样本暴露给真实反馈。"
+            }
+
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let payload = #"{"model":"k2p5","choices":[{"message":{"role":"assistant","content":"\#(reply)"}}]}"#
+            return (payload.data(using: .utf8)!, response)
+        }
     }
 
     private static func waitForAutomationResult(

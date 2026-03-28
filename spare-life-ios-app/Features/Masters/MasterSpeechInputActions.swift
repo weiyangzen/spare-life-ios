@@ -9,6 +9,16 @@ struct MasterSpeechTranscriptionResolution: Equatable {
     let errorMessage: String?
 }
 
+struct MasterSpeechTranscriptionAvailability {
+    static func blockingMessage(for status: MasterASRConnectionStatus) -> String? {
+        guard status.tone != .ready else {
+            return nil
+        }
+
+        return "语音识别暂不可用：\(status.title)。\(status.detail)"
+    }
+}
+
 struct MasterSpeechTranscriptionFlow {
     typealias Transcribe = @Sendable (URL) async throws -> String
     typealias MergeDraft = @Sendable (String, String) -> String
@@ -158,6 +168,16 @@ struct MasterSpeechInputActions: View {
     }
 
     private func startTranscription(from fileURL: URL, cleanupAfterTranscription: Bool) {
+        if let blocker = MasterSpeechTranscriptionAvailability.blockingMessage(for: store.asrConnectionStatus) {
+            if cleanupAfterTranscription {
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+            Task { @MainActor in
+                store.setConversationInlineError(blocker)
+            }
+            return
+        }
+
         Task {
             await MainActor.run {
                 isTranscribing = true

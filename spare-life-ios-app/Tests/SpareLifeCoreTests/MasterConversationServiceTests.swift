@@ -586,6 +586,63 @@ final class MasterConversationServiceTests: XCTestCase {
     }
 
     @MainActor
+    func testMasterStage1AutomationWritesExactPreflightBlockerBeforeStage2SmokeSend() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("master-store-automation-stage2-preflight-\(UUID().uuidString)", isDirectory: true)
+        let archiveURL = tempDirectory.appendingPathComponent("master-conversations.json", isDirectory: false)
+        let stateStore = MasterConversationLocalStateStore(archiveURL: archiveURL)
+        let resultURL = stateStore.resultFileURL
+        let environmentKeys = [
+            "SPARE_MASTERS_AUTOMATION_COMMAND",
+            "SPARE_MASTERS_AUTOMATION_MASTER_ID",
+            "SPARE_MASTERS_AUTOMATION_FIRST_PROMPT",
+            "SPARE_MASTERS_AUTOMATION_SECOND_PROMPT",
+            "SPARE_MASTERS_AUTOMATION_RESUME_PROMPT"
+        ]
+        defer {
+            environmentKeys.forEach { unsetenv($0) }
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        setenv("SPARE_MASTERS_AUTOMATION_COMMAND", "stage2_smoke", 1)
+        setenv("SPARE_MASTERS_AUTOMATION_MASTER_ID", "001546", 1)
+
+        let blockedStatus = MasterConversationServiceStatus(
+            providerName: "k2p5",
+            modelName: "k2p5",
+            credentialSource: .environmentFallback,
+            deliveryMode: .localFallback,
+            tone: .warning,
+            title: "k2p5 预检未通过",
+            detail: "已对 http://24.199.97.185:8080/v1/models 做 live `/v1/models` 预检，但还不能把会话记为已接通。阻塞：Live k2p5 smoke blocked before send: http://24.199.97.185:8080/v1/models [baseURL=legacy env(ANTHROPIC_BASE_URL)；apiKey=legacy env(ANTHROPIC_AUTH_TOKEN)；model=fallback(k2p5)] does not advertise 'k2p5'; available=claude-opus-4-6"
+        )
+
+        let store = MasterExperienceStore(
+            catalogLoader: { try MasterCatalogLoader.load() },
+            conversationService: FailingConversationService(),
+            chatLiveStatusProbe: { blockedStatus },
+            localStateStore: stateStore
+        )
+
+        let data = try await Self.waitForAutomationResult(at: resultURL)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(payload["command"] as? String, "stage2_smoke")
+        XCTAssertEqual(payload["success"] as? Bool, false)
+        XCTAssertEqual(payload["masterID"] as? String, "001546")
+        XCTAssertEqual(payload["visibleMasterCount"] as? Int, 8)
+        XCTAssertEqual(payload["totalMasterCount"] as? Int, 8)
+        XCTAssertEqual(payload["matchedCoverageCount"] as? Int, 8)
+        XCTAssertEqual(payload["hasExactStage1Coverage"] as? Bool, true)
+        XCTAssertEqual(payload["serviceMode"] as? String, "localFallback")
+        XCTAssertEqual(payload["serviceTitle"] as? String, "k2p5 预检未通过")
+        XCTAssertTrue((payload["serviceDetail"] as? String)?.contains("does not advertise 'k2p5'") == true)
+        XCTAssertTrue((payload["error"] as? String)?.contains("进入真实对话前的 k2p5 预检未通过") == true)
+        XCTAssertNil(payload["sessionID"] as? String)
+        XCTAssertNotNil(store)
+    }
+
+    @MainActor
     func testMasterStage1AutomationWritesResumeChatValidationAfterSeedChat() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("master-store-automation-resume-chat-\(UUID().uuidString)", isDirectory: true)

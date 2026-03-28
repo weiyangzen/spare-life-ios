@@ -2,6 +2,29 @@ import XCTest
 @testable import SpareLifeCore
 
 final class MasterSpeechTranscriptionFlowTests: XCTestCase {
+    func testAvailabilityBlocksTranscriptionUntilASRIsReady() {
+        let status = MasterASRConnectionStatus(
+            tone: .warning,
+            title: "ASR 仍在探测路由",
+            detail: "当前仍会请求 POST http://100.82.60.69:17880/v1/audio/transcriptions。"
+        )
+
+        XCTAssertEqual(
+            MasterSpeechTranscriptionAvailability.blockingMessage(for: status),
+            "语音识别暂不可用：ASR 仍在探测路由。当前仍会请求 POST http://100.82.60.69:17880/v1/audio/transcriptions。"
+        )
+    }
+
+    func testAvailabilityAllowsTranscriptionWhenASRIsReady() {
+        let status = MasterASRConnectionStatus(
+            tone: .ready,
+            title: "ASR live 候选配置已注入",
+            detail: "当前会请求 POST https://asr.example.com/v1/audio/transcriptions。"
+        )
+
+        XCTAssertNil(MasterSpeechTranscriptionAvailability.blockingMessage(for: status))
+    }
+
     func testResolveSuccessMergesDraftAndCleansUpTemporaryAudio() async throws {
         let fileURL = try makeAudioFixture(named: "success", contents: "audio")
         XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path))

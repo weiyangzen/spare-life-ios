@@ -38,6 +38,7 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [x] 拆分：ASR 客户端已支持 `MASTER_ASR_AUTH_HEADER / MASTER_ASR_AUTH_SCHEME / MASTER_ASR_API_KEY / MASTER_ASR_AUTH_TOKEN` 鉴权覆盖，并通过本地单测验证请求头拼装。
 - [x] 拆分：默认 `100.82.60.69:17880` 健康检查已确认是 `clawdb-topics-gateway`，`POST /v1/audio/transcriptions` 当前稳定返回 `405 method_not_allowed`，可排除这条默认路由不是现成可用 ASR 写入口。
 - [x] 拆分：聊天输入区已展示当前 ASR 配置诊断，能明确区分默认 probe 路由、缺少鉴权与已注入 live 候选参数，避免把“可配置客户端”误判为“已接通 ClawDB live ASR”；本地单测已覆盖。
+- [x] 拆分：聊天输入区在 ASR 状态未 ready 时会直接以内联文案回显当前诊断 blocker，并停止导入/录音转写尝试，不再把默认 `405` probe 路由误用成可写入口；本地单测已覆盖。
 - [x] 拆分：聊天输入区 ASR 诊断已明确列出 live endpoint 注入键位（`env` + `UserDefaults` 双通道），缺少 host / path / method 时能直接提示下一步该配哪里；本地单测已覆盖。
 - [x] 拆分：聊天输入区 ASR 诊断已明确列出鉴权注入键位（`env` + `UserDefaults` 双通道），缺少 header / scheme / token 时能直接提示下一步该配哪里；本地单测已覆盖。
 - [x] 拆分：ASR 诊断会回显当前配置来源通道（`env` / `defaults` / 内建 probe），且不会泄露明文密钥；本地单测已覆盖。
@@ -82,6 +83,7 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [ ] 闲聊页面完成当前 8 位大师卡片与至少 1 条真实对话链路的本机验证。
 - [x] 拆分：`MasterStage1Automation` 已重新接到当前 `MasterExperienceStore` 初始化路径；注入 `SPARE_MASTERS_AUTOMATION_COMMAND` 后，会沿用同一 `MasterConversationLocalStateStore` 目录写出 `masters-preview-validation.json`，本地单测已覆盖。
 - [x] 拆分：`MasterStage1Automation` 已新增 `stage2_smoke` 命令，会在同一次自动化里先断言当前 8 位大师目录覆盖无缺口，再进入一对一并要求两轮 `liveRemote` 对话成功后才写出 `masters-preview-validation.json`；本地单测已覆盖。
+- [x] 拆分：`stage2_smoke` 自动化在进入一对一前会先读取当前 `k2p5` 预检状态；若 `/v1/models` 未广告 `k2p5` 或缺少 live 配置，会把 exact blocker 直接写入 `masters-preview-validation.json`，不再等发送后被本地回退详情稀释；本地单测已覆盖。
 - [x] 拆分：2026-03-28 已本机复跑 `MasterConversationServiceTests.testMasterStage1AutomationWritesStage2SmokeValidation`，确认 `stage2_smoke` 自动化仍覆盖 `8` 张大师卡、进入一对一与两轮 `liveRemote` 判定的回归链路；但这仍是受控测试，不等于已拿到真实 `k2p5` live 对话。
 - [x] 拆分：`MasterStage1Automation` 的 `resume_chat` 现已补上本地单测，要求复用同一 `MasterConversationLocalStateStore` 恢复至少 `5` 条 transcript 后，再追加一轮 `liveRemote` 一问一答并写回结果文件。
 - [x] 拆分：2026-03-28 已用上述自动化 bootstrap 在本机复跑 `directory_snapshot`，结果 `success=true`、`visibleMasterCount=8`、`matchedCoverageCount=8`、`hasExactStage1Coverage=true`。

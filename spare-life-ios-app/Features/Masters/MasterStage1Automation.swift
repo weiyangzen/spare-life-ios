@@ -135,9 +135,9 @@ private extension MasterStage1Automation {
                         hasExactStage1Coverage: store.catalogCoverage?.hasExactStage1Coverage,
                         resumedTranscriptCount: nil,
                         transcriptCount: store.conversation?.messages.count,
-                        serviceMode: store.conversation?.serviceStatus.isLiveRemote == true ? "liveRemote" : "localFallback",
-                        serviceTitle: store.conversation?.serviceStatus.title,
-                        serviceDetail: store.conversation?.serviceStatus.detail,
+                        serviceMode: currentServiceStatus.isLiveRemote ? "liveRemote" : "localFallback",
+                        serviceTitle: currentServiceStatus.title,
+                        serviceDetail: currentServiceStatus.detail,
                         replyPreview: store.conversation?.messages.last?.text,
                         sessionID: store.conversation?.session.id,
                         error: error.localizedDescription
@@ -197,6 +197,7 @@ private extension MasterStage1Automation {
         ) async throws -> Result {
             if requireExactDirectoryCoverage {
                 _ = try directorySnapshotResult()
+                try ensureLiveStage2PreflightReady()
             }
             let profile = try targetMaster()
             store.openConversation(for: profile)
@@ -311,6 +312,17 @@ private extension MasterStage1Automation {
             }
             guard conversation.serviceStatus.isLiveRemote else {
                 throw AutomationError("实时大师服务未接通：\(conversation.serviceStatus.detail)")
+            }
+        }
+
+        private var currentServiceStatus: MasterConversationServiceStatus {
+            store.conversation?.serviceStatus ?? store.conversationServiceStatus
+        }
+
+        private func ensureLiveStage2PreflightReady() throws {
+            let status = currentServiceStatus
+            guard status.isLiveRemote || status.isLiveCandidateConfigured else {
+                throw AutomationError("进入真实对话前的 k2p5 预检未通过：\(status.detail)")
             }
         }
 

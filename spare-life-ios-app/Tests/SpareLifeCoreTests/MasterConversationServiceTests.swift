@@ -270,6 +270,61 @@ final class MasterConversationServiceTests: XCTestCase {
     }
 
     @MainActor
+    func testMasterExperienceStoreRefreshCatalogAppliesInvalidAPIKeyPreflightStatusToEntry() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("master-store-k2p5-preflight-invalid-key-\(UUID().uuidString)", isDirectory: true)
+        let archiveURL = tempDirectory.appendingPathComponent("master-conversations.json", isDirectory: false)
+        let suiteName = "master-chat-preflight-invalid-key-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated user defaults suite")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        let probe = MasterExperienceStore.makeDefaultChatLiveStatusProbe(
+            environment: [
+                "ANTHROPIC_BASE_URL": "http://24.199.97.185:8080",
+                "ANTHROPIC_AUTH_TOKEN": "legacy-invalid-token"
+            ],
+            userDefaults: defaults
+        ) { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 401,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let payload = #"{"code":"INVALID_API_KEY","message":"Invalid API key"}"#
+            return (payload.data(using: .utf8)!, response)
+        }
+
+        let store = MasterExperienceStore(
+            catalogLoader: { try MasterCatalogLoader.load() },
+            conversationService: FailingConversationService(),
+            chatLiveStatusProbe: probe,
+            localStateStore: MasterConversationLocalStateStore(archiveURL: archiveURL)
+        )
+
+        await store.refreshCatalog()
+
+        XCTAssertEqual(store.conversationServiceStatus.title, "k2p5 鉴权失效")
+        XCTAssertFalse(store.conversationServiceStatus.isLiveRemote)
+        XCTAssertTrue(store.conversationServiceStatus.detail.contains("/v1/models"))
+        XCTAssertTrue(store.conversationServiceStatus.detail.contains("401"))
+        XCTAssertTrue(store.conversationServiceStatus.detail.contains("INVALID_API_KEY"))
+        XCTAssertTrue(store.conversationServiceStatus.detail.contains("legacy env(ANTHROPIC_AUTH_TOKEN)"))
+
+        let profile = try XCTUnwrap(store.visibleDirectoryMasters.first)
+        store.openConversation(for: profile)
+
+        XCTAssertEqual(store.conversation?.serviceStatus.title, "k2p5 鉴权失效")
+        XCTAssertTrue(store.conversation?.serviceStatus.detail.contains("INVALID_API_KEY") == true)
+    }
+
+    @MainActor
     func testK2P5ServiceBuildsOpenAICompatibleRequestAndKeepsFullContext() async throws {
         let capture = ConversationRequestCapture()
         let configuration = MasterChatConfiguration(
@@ -639,6 +694,69 @@ final class MasterConversationServiceTests: XCTestCase {
         XCTAssertTrue((payload["serviceDetail"] as? String)?.contains("does not advertise 'k2p5'") == true)
         XCTAssertTrue((payload["error"] as? String)?.contains("进入真实对话前的 k2p5 预检未通过") == true)
         XCTAssertNil(payload["sessionID"] as? String)
+        XCTAssertNotNil(store)
+    }
+
+    @MainActor
+    func testMasterStage1AutomationWritesInvalidAPIKeyPreflightBlockerBeforeStage2SmokeSend() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("master-store-automation-stage2-invalid-key-\(UUID().uuidString)", isDirectory: true)
+        let archiveURL = tempDirectory.appendingPathComponent("master-conversations.json", isDirectory: false)
+        let stateStore = MasterConversationLocalStateStore(archiveURL: archiveURL)
+        let resultURL = stateStore.resultFileURL
+        let suiteName = "master-chat-automation-invalid-key-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated user defaults suite")
+            return
+        }
+        let environmentKeys = [
+            "SPARE_MASTERS_AUTOMATION_COMMAND",
+            "SPARE_MASTERS_AUTOMATION_MASTER_ID"
+        ]
+        defer {
+            environmentKeys.forEach { unsetenv($0) }
+            defaults.removePersistentDomain(forName: suiteName)
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        setenv("SPARE_MASTERS_AUTOMATION_COMMAND", "stage2_smoke", 1)
+        setenv("SPARE_MASTERS_AUTOMATION_MASTER_ID", "001546", 1)
+
+        let probe = MasterExperienceStore.makeDefaultChatLiveStatusProbe(
+            environment: [
+                "ANTHROPIC_BASE_URL": "http://24.199.97.185:8080",
+                "ANTHROPIC_AUTH_TOKEN": "legacy-invalid-token"
+            ],
+            userDefaults: defaults
+        ) { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 401,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let payload = #"{"code":"INVALID_API_KEY","message":"Invalid API key"}"#
+            return (payload.data(using: .utf8)!, response)
+        }
+
+        let store = MasterExperienceStore(
+            catalogLoader: { try MasterCatalogLoader.load() },
+            conversationService: FailingConversationService(),
+            chatLiveStatusProbe: probe,
+            localStateStore: stateStore
+        )
+
+        let data = try await Self.waitForAutomationResult(at: resultURL)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(payload["command"] as? String, "stage2_smoke")
+        XCTAssertEqual(payload["success"] as? Bool, false)
+        XCTAssertEqual(payload["masterID"] as? String, "001546")
+        XCTAssertEqual(payload["serviceMode"] as? String, "localFallback")
+        XCTAssertEqual(payload["serviceTitle"] as? String, "k2p5 鉴权失效")
+        XCTAssertTrue((payload["serviceDetail"] as? String)?.contains("401") == true)
+        XCTAssertTrue((payload["serviceDetail"] as? String)?.contains("INVALID_API_KEY") == true)
+        XCTAssertTrue((payload["error"] as? String)?.contains("进入真实对话前的 k2p5 预检未通过") == true)
         XCTAssertNotNil(store)
     }
 

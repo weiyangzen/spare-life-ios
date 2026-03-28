@@ -887,12 +887,14 @@ final class MasterExperienceStore: ObservableObject {
         environment["XCTestConfigurationFilePath"] == nil
     }
 
-    private static func makeDefaultChatLiveStatusProbe(
-        processInfo: ProcessInfo = .processInfo,
-        userDefaults: UserDefaults = .standard
+    static func makeDefaultChatLiveStatusProbe(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        userDefaults: UserDefaults = .standard,
+        transport: @escaping MasterConversationTransport = { request in
+            try await URLSession.shared.data(for: request)
+        }
     ) -> (() async -> MasterConversationServiceStatus?) {
         {
-            let environment = processInfo.environment
             let candidate: MasterChatLiveProbeCandidate
             do {
                 candidate = try MasterChatLiveProbe.resolveCandidate(
@@ -932,7 +934,8 @@ final class MasterExperienceStore: ObservableObject {
 
             do {
                 let availableModels = try await MasterChatLiveProbe.ensureExpectedModelAdvertised(
-                    candidate: candidate
+                    candidate: candidate,
+                    transport: transport
                 )
                 let advertisedModels = availableModels.isEmpty
                     ? "未返回模型列表"
@@ -944,14 +947,10 @@ final class MasterExperienceStore: ObservableObject {
                     detailOverride: "已对 \(catalogURL) 做 live `/v1/models` 预检，确认端点广告 \(candidate.configuration.model)；available=\(advertisedModels)。目标 \(candidate.configuration.chatCompletionsURL.absoluteString)。来源：\(candidate.sourceSummary)。在收到首条真实远端回复前，只能视为 live 候选配置已注入。"
                 )
             } catch let error as MasterChatLiveProbeError {
-                return MasterConversationServiceStatus(
-                    providerName: candidate.configuration.model,
-                    modelName: candidate.configuration.model,
-                    credentialSource: candidate.configuration.credentialSource,
-                    deliveryMode: .localFallback,
-                    tone: .warning,
-                    title: "k2p5 预检未通过",
-                    detail: "已对 \(catalogURL) 做 live `/v1/models` 预检，但还不能把会话记为已接通。阻塞：\(error.localizedDescription)"
+                return preflightFailureStatus(
+                    candidate: candidate,
+                    catalogURL: catalogURL,
+                    error: error
                 )
             } catch {
                 return MasterConversationServiceStatus(
@@ -965,6 +964,32 @@ final class MasterExperienceStore: ObservableObject {
                 )
             }
         }
+    }
+
+    private static func preflightFailureStatus(
+        candidate: MasterChatLiveProbeCandidate,
+        catalogURL: String,
+        error: MasterChatLiveProbeError
+    ) -> MasterConversationServiceStatus {
+        let isCredentialFailure: Bool
+        switch error {
+        case .invalidStatusCode(_, _, let statusCode, _) where statusCode == 401 || statusCode == 403:
+            isCredentialFailure = true
+        default:
+            isCredentialFailure = false
+        }
+
+        return MasterConversationServiceStatus(
+            providerName: candidate.configuration.model,
+            modelName: candidate.configuration.model,
+            credentialSource: candidate.configuration.credentialSource,
+            deliveryMode: .localFallback,
+            tone: .warning,
+            title: isCredentialFailure ? "k2p5 鉴权失效" : "k2p5 预检未通过",
+            detail: isCredentialFailure
+                ? "已对 \(catalogURL) 做 live `/v1/models` 预检，但当前候选鉴权未通过。阻塞：\(error.localizedDescription)"
+                : "已对 \(catalogURL) 做 live `/v1/models` 预检，但还不能把会话记为已接通。阻塞：\(error.localizedDescription)"
+        )
     }
 
     private func refreshChatLiveDiagnosticsIfNeeded() async {

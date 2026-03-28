@@ -22,11 +22,13 @@ enum MasterCredentialSource: String, Hashable {
 
 enum MasterConversationDeliveryMode: Hashable {
     case liveRemote
+    case configuredCandidate
     case localFallback
 }
 
 enum MasterConversationStatusTone: Hashable {
     case success
+    case ready
     case warning
 }
 
@@ -43,6 +45,10 @@ struct MasterConversationServiceStatus: Hashable {
         deliveryMode == .liveRemote
     }
 
+    var isLiveCandidateConfigured: Bool {
+        deliveryMode == .configuredCandidate
+    }
+
     static func live(
         modelName: String,
         credentialSource: MasterCredentialSource,
@@ -57,6 +63,23 @@ struct MasterConversationServiceStatus: Hashable {
             title: "实时对话已接通",
             detail: detailOverride ??
                 "回复走 \(modelName) / chat/completions，密钥只在本机 \(credentialSource.label) 读取，不写进页面配置或版本化文档。"
+        )
+    }
+
+    static func candidate(
+        modelName: String,
+        credentialSource: MasterCredentialSource,
+        detailOverride: String? = nil
+    ) -> MasterConversationServiceStatus {
+        MasterConversationServiceStatus(
+            providerName: modelName,
+            modelName: modelName,
+            credentialSource: credentialSource,
+            deliveryMode: .configuredCandidate,
+            tone: .ready,
+            title: "k2p5 live 候选已注入",
+            detail: detailOverride ??
+                "当前已注入 \(modelName) / chat/completions 候选配置，但尚未收到真实远端回复，不能把会话记为已接通。"
         )
     }
 
@@ -355,10 +378,10 @@ private struct MasterChatConfigurationResolution {
 
     var status: MasterConversationServiceStatus {
         if let configuration {
-            return .live(
+            return .candidate(
                 modelName: configuration.model,
                 credentialSource: configuration.credentialSource,
-                detailOverride: "回复走 \(configuration.model) / chat/completions，请求 \(configuration.chatCompletionsURL.absoluteString)。来源：\(sourceAuditSummary)。"
+                detailOverride: "当前将请求 \(configuration.model) / chat/completions，目标 \(configuration.chatCompletionsURL.absoluteString)。来源：\(sourceAuditSummary)。但在收到首条真实远端回复前，只能视为 live 候选配置已注入。"
             )
         }
 
@@ -476,10 +499,10 @@ final class K2P5MasterConversationService: MasterConversationReplying {
     ) {
         self.resolveConfiguration = { configuration }
         self.resolveStatus = {
-            .live(
+            .candidate(
                 modelName: configuration.model,
                 credentialSource: configuration.credentialSource,
-                detailOverride: "回复走 \(configuration.model) / chat/completions，请求 \(configuration.chatCompletionsURL.absoluteString)。来源：baseURL=显式配置；model=显式配置；apiKey=\(configuration.credentialSource.label)。"
+                detailOverride: "当前将请求 \(configuration.model) / chat/completions，目标 \(configuration.chatCompletionsURL.absoluteString)。来源：baseURL=显式配置；model=显式配置；apiKey=\(configuration.credentialSource.label)。但在收到首条真实远端回复前，只能视为 live 候选配置已注入。"
             )
         }
         self.transport = transport

@@ -54,11 +54,13 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [x] 拆分：大师对话服务已支持 OpenAI-compatible `chat/completions` 请求体与 `k2p5` 默认模型配置。
 - [x] 拆分：大师对话服务现已优先读取 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY / MASTER_CHAT_MODEL`（`baseURL` 同时支持 `defaults(masters.chat.baseURL)`），并通过本地单测验证 `/v1/chat/completions` 请求体、`k2p5` 默认模型与全量 context 发送。
 - [x] 拆分：大师对话配置诊断现已区分 `baseURL` 未注入、`API key` 缺失、以及 live `k2p5` 候选已注入三种状态，并明确列出 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY / MASTER_CHAT_MODEL`、`defaults(masters.chat.baseURL / masters.chat.model)` 与本机钥匙串来源；本地单测已覆盖。
+- [x] 拆分：大师对话页服务状态现已明确区分“`k2p5` live 候选已注入”和“实时对话已接通”；仅注入 `MASTER_CHAT_*` 但尚未收到远端回复时只显示候选，不再误报主链路已接通；本地单测已覆盖。
 - [x] 拆分：当当前 shell 只有 legacy `ANTHROPIC_*` 配置时，`k2p5` 诊断会明确标注这只是旁路线索，Stage 2 主链路仍只认 `MASTER_CHAT_*`；本地单测已覆盖。
 - [x] 拆分：已补充本地 `MasterExperienceStore` 集成测试，覆盖 8 张大师卡装载、进入一对一、经 `K2P5MasterConversationService` 连续发送两轮消息、落盘后 `restoreSession` 恢复，以及恢复后继续携带完整历史 context 发送；本地单测已覆盖。
 - [x] 拆分：2026-03-28 当前执行环境仍未提供 `MASTER_CHAT_BASE_URL` / `MASTER_CHAT_API_KEY` 的 Stage 2 live `k2p5` 配置；shell 仅见 legacy `ANTHROPIC_*`，带鉴权请求 `http://24.199.97.185:8080/v1/models` 仍只枚举 Claude 系列。
 - [x] 拆分：已补充 `MASTER_CHAT_LIVE_SMOKE=1` 驱动的 `MasterExperienceStore` 一对一聊天 smoke test，直接覆盖 `openConversation -> sendMessage -> k2p5` 实际发送链路；拿到 live `MASTER_CHAT_*` 配置后可直接复跑。
 - [x] 拆分：2026-03-28 以当前 shell 的 `ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN` 临时映射到 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY` 执行上述 smoke 时，首轮即返回 `503 No available accounts: no available accounts`；因此基于 live `k2p5` 端点的一对一聊天自动化验证主项仍不能诚实勾选。
+- [x] 拆分：2026-03-28 再次以当前 shell 的 `ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN` 临时映射到 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY` 执行上述 smoke 时，首轮改为返回 `404`，并在错误详情里回显 `model: k2p5`；因此基于 live `k2p5` 端点的一对一聊天自动化验证仍未完成。
 - [ ] 拆分：基于 live `k2p5` 端点的一对一聊天自动化验证仍未完成，主项暂不勾。
 - [ ] 大师回复必须符合上下文和角色设定，像“小说场景中的角色台词”，而不是通用助手口吻。
 - [ ] 闲聊页面完成当前 8 位大师卡片与至少 1 条真实对话链路的本机验证。

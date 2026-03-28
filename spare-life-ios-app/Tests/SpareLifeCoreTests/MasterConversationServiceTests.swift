@@ -106,13 +106,16 @@ final class MasterConversationServiceTests: XCTestCase {
             persistAPIKey: { _ in false }
         )
 
-        XCTAssertEqual(status.title, "实时对话已接通")
-        XCTAssertTrue(status.isLiveRemote)
+        XCTAssertEqual(status.tone, .ready)
+        XCTAssertEqual(status.title, "k2p5 live 候选已注入")
+        XCTAssertFalse(status.isLiveRemote)
+        XCTAssertTrue(status.isLiveCandidateConfigured)
         XCTAssertEqual(status.modelName, "stage2-k2p5")
         XCTAssertTrue(status.detail.contains("https://chat.example.com/gateway/v1/chat/completions"))
         XCTAssertTrue(status.detail.contains("baseURL=env(MASTER_CHAT_BASE_URL)"))
         XCTAssertTrue(status.detail.contains("model=env(MASTER_CHAT_MODEL)"))
         XCTAssertTrue(status.detail.contains("apiKey=env(MASTER_CHAT_API_KEY)"))
+        XCTAssertTrue(status.detail.contains("live 候选配置已注入"))
     }
 
     @MainActor
@@ -384,6 +387,58 @@ final class MasterConversationServiceTests: XCTestCase {
         XCTAssertTrue(messages.contains { ($0["content"] as? String) == secondPrompt })
         XCTAssertTrue(messages.contains { ($0["content"] as? String) == "今天只做一件事：把一个可交付样本发给三个能给真实反馈的人。" })
         XCTAssertTrue(messages.contains { ($0["content"] as? String) == resumePrompt })
+    }
+
+    @MainActor
+    func testMasterExperienceStoreShowsCandidateBeforeFirstLiveReplyThenPromotesToLive() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("master-store-k2p5-candidate-\(UUID().uuidString)", isDirectory: true)
+        let archiveURL = tempDirectory.appendingPathComponent("master-conversations.json", isDirectory: false)
+        defer {
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        let configuration = MasterChatConfiguration(
+            apiKey: "secret-token",
+            credentialSource: .environmentFallback,
+            chatCompletionsURL: URL(string: "https://chat.example.com/v1/chat/completions")!,
+            model: "k2p5"
+        )
+        let service = K2P5MasterConversationService(configuration: configuration) { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (#"{"model":"k2p5","choices":[{"message":{"role":"assistant","content":"先把你的验证动作缩成一周内能交付的样本。"}}]}"#.data(using: .utf8)!, response)
+        }
+
+        let store = MasterExperienceStore(
+            catalogLoader: { try MasterCatalogLoader.load() },
+            conversationService: service,
+            localStateStore: MasterConversationLocalStateStore(archiveURL: archiveURL)
+        )
+
+        await store.refreshCatalog()
+
+        let profile = try XCTUnwrap(store.visibleDirectoryMasters.first)
+        store.openConversation(for: profile)
+
+        let initialConversation = try XCTUnwrap(store.conversation)
+        XCTAssertEqual(initialConversation.serviceStatus.tone, .ready)
+        XCTAssertEqual(initialConversation.serviceStatus.title, "k2p5 live 候选已注入")
+        XCTAssertFalse(initialConversation.serviceStatus.isLiveRemote)
+        XCTAssertTrue(initialConversation.serviceStatus.isLiveCandidateConfigured)
+
+        await store.sendMessage("我该先收缩现金流，还是继续推进转岗样本？")
+
+        let updatedConversation = try XCTUnwrap(store.conversation)
+        XCTAssertEqual(updatedConversation.serviceStatus.tone, .success)
+        XCTAssertEqual(updatedConversation.serviceStatus.title, "实时对话已接通")
+        XCTAssertTrue(updatedConversation.serviceStatus.isLiveRemote)
+        XCTAssertFalse(updatedConversation.serviceStatus.isLiveCandidateConfigured)
+        XCTAssertEqual(updatedConversation.serviceStatus.modelName, "k2p5")
     }
 
     private func makeRequest(messagePairCount: Int) throws -> MasterConversationRequest {

@@ -1512,10 +1512,32 @@ struct MasterConversationView: View {
 private struct ConversationStatusBanner: View {
     let status: MasterConversationServiceStatus
 
+    private var iconName: String {
+        switch status.tone {
+        case .success:
+            return "checkmark.shield.fill"
+        case .ready:
+            return "bolt.shield.fill"
+        case .warning:
+            return "lock.trianglebadge.exclamationmark"
+        }
+    }
+
+    private var accentColor: Color {
+        switch status.tone {
+        case .success:
+            return .emotionPositive
+        case .ready:
+            return .spareYellow
+        case .warning:
+            return .orange
+        }
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: Spacing.sm) {
-            Image(systemName: status.tone == .success ? "checkmark.shield.fill" : "lock.trianglebadge.exclamationmark")
-                .foregroundColor(status.tone == .success ? .emotionPositive : .orange)
+            Image(systemName: iconName)
+                .foregroundColor(accentColor)
 
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text(status.title)
@@ -1529,17 +1551,13 @@ private struct ConversationStatusBanner: View {
         }
         .padding(Spacing.md)
         .background(
-            status.tone == .success
-                ? Color.emotionPositive.opacity(0.08)
-                : Color.orange.opacity(0.08),
+            accentColor.opacity(0.08),
             in: RoundedRectangle(cornerRadius: CornerRadius.lg)
         )
         .overlay(
             RoundedRectangle(cornerRadius: CornerRadius.lg)
                 .stroke(
-                    status.tone == .success
-                        ? Color.emotionPositive.opacity(0.16)
-                        : Color.orange.opacity(0.2),
+                    accentColor.opacity(status.tone == .warning ? 0.2 : 0.16),
                     lineWidth: 1
                 )
         )
@@ -1614,10 +1632,31 @@ private struct ConversationIdentityCard: View {
 private struct ConversationStatusPill: View {
     let status: MasterConversationServiceStatus
 
+    private var label: String {
+        if status.isLiveRemote {
+            return "实时"
+        }
+        if status.isLiveCandidateConfigured {
+            return "live 候选"
+        }
+        return "本地回退"
+    }
+
+    private var iconName: String {
+        switch status.tone {
+        case .success:
+            return "checkmark.circle.fill"
+        case .ready:
+            return "bolt.circle.fill"
+        case .warning:
+            return "exclamationmark.triangle.fill"
+        }
+    }
+
     var body: some View {
         HStack(spacing: Spacing.xs) {
-            Image(systemName: status.tone == .success ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-            Text(status.isLiveRemote ? "实时" : "本地回退")
+            Image(systemName: iconName)
+            Text(label)
         }
         .font(.spareMicro)
         .foregroundColor(.white)

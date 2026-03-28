@@ -122,6 +122,7 @@ enum MasterConversationServiceError: LocalizedError, Equatable {
     case emptyResponse
     case invalidResponse
     case invalidStatusCode(Int, String)
+    case unexpectedModel(expected: String, actual: String)
     case transport(String)
 
     var errorDescription: String? {
@@ -137,6 +138,8 @@ enum MasterConversationServiceError: LocalizedError, Equatable {
         case .invalidStatusCode(let code, let detail):
             let suffix = detail.isEmpty ? "" : " \(detail)"
             return "大师服务请求失败，状态码 \(code)。\(suffix)".trimmingCharacters(in: .whitespacesAndNewlines)
+        case .unexpectedModel(let expected, let actual):
+            return "大师服务返回的模型是 `\(actual)`，与当前 Stage 2 要求的 `\(expected)` 不一致。"
         case .transport(let detail):
             return detail.isEmpty ? "大师服务暂时不可用。" : detail
         }
@@ -542,12 +545,14 @@ final class K2P5MasterConversationService: MasterConversationReplying {
                 throw MasterConversationServiceError.emptyResponse
             }
 
+            let resolvedModelName = Self.extractModelName(from: data) ?? configuration.model
+            try Self.validateReturnedModel(resolvedModelName, expected: configuration.model)
             let styledText = MasterRoleplayReplyComposer.remoteReply(from: text, for: request)
 
             return MasterConversationServiceResult(
                 text: styledText,
                 status: .live(
-                    modelName: Self.extractModelName(from: data) ?? configuration.model,
+                    modelName: resolvedModelName,
                     credentialSource: configuration.credentialSource
                 )
             )
@@ -740,6 +745,28 @@ final class K2P5MasterConversationService: MasterConversationReplying {
             return nil
         }
         return model.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+
+    private static func validateReturnedModel(
+        _ actualModel: String,
+        expected expectedModel: String
+    ) throws {
+        guard normalizedModelSignature(actualModel) == normalizedModelSignature(expectedModel) else {
+            throw MasterConversationServiceError.unexpectedModel(
+                expected: expectedModel,
+                actual: actualModel
+            )
+        }
+    }
+
+    private static func normalizedModelSignature(_ rawValue: String) -> String {
+        let normalized = rawValue
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if normalized.contains(K2P5MasterConversationService.modelFallback) {
+            return K2P5MasterConversationService.modelFallback
+        }
+        return normalized
     }
 
     nonisolated static func keychainAPIKey() -> String? {

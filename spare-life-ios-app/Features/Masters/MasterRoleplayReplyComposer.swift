@@ -3,7 +3,7 @@ import Foundation
 enum MasterRoleplayReplyComposer {
     static func remoteReply(from rawText: String, for request: MasterConversationRequest) -> String {
         let sanitized = sanitize(rawText)
-        guard shouldRewrite(sanitized) else {
+        guard !shouldPreserveAsDialogue(sanitized, for: request) else {
             return sanitized
         }
         return composeDialogue(for: request, seedText: sanitized)
@@ -128,6 +128,52 @@ enum MasterRoleplayReplyComposer {
             text.contains("最后")
     }
 
+    private static func shouldPreserveAsDialogue(
+        _ text: String,
+        for request: MasterConversationRequest
+    ) -> Bool {
+        guard !text.isEmpty else {
+            return false
+        }
+
+        guard !shouldRewrite(text) else {
+            return false
+        }
+
+        let seedLines = extractedSeedLines(from: text)
+        guard seedLines.count >= 2 else {
+            return false
+        }
+
+        return hasDialogueAnchors(text, request: request)
+    }
+
+    private static func hasDialogueAnchors(
+        _ text: String,
+        request: MasterConversationRequest
+    ) -> Bool {
+        let lowered = text.lowercased()
+
+        if request.relevantStories.contains(where: { lowered.contains($0.title.lowercased()) }) {
+            return true
+        }
+
+        if request.authorizedMemories.contains(where: { lowered.contains($0.label.lowercased()) }) {
+            return true
+        }
+
+        if request.profile.boundaries
+            .map(boundaryAnchorFragment)
+            .contains(where: { fragment in
+                guard let fragment else { return false }
+                return lowered.contains(fragment.lowercased())
+            }) {
+            return true
+        }
+
+        return speakerPresenceMarkers.contains(where: text.contains)
+    }
+
     private static func extractedSeedLines(from seedText: String?) -> [String] {
         guard let seedText,
               !seedText.isEmpty else {
@@ -184,6 +230,14 @@ enum MasterRoleplayReplyComposer {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private static func boundaryAnchorFragment(from boundary: String) -> String? {
+        boundary
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: CharacterSet(charactersIn: "，。；;、 "))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first(where: { $0.count >= 3 })
+    }
+
     private static func normalizedSentence(_ text: String?) -> String? {
         guard let text else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -211,4 +265,5 @@ enum MasterRoleplayReplyComposer {
         "以下是",
         "建议如下"
     ]
+    private static let speakerPresenceMarkers = ["你", "我", "咱们", "我们", "让我"]
 }

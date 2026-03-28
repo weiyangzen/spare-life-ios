@@ -210,14 +210,17 @@ final class MasterConversationServiceTests: XCTestCase {
                 httpVersion: nil,
                 headerFields: ["Content-Type": "application/json"]
             )!
-            return (#"{"model":"k2p5","choices":[{"message":{"role":"assistant","content":"联通成功"}}]}"#.data(using: .utf8)!, response)
+            let payload = #"""
+            {"model":"k2p5","choices":[{"message":{"role":"assistant","content":"这件事我先不绕。你先把现金流收住，再把下一步缩到一周内能见反馈的动作。"}}]}
+            """#
+            return (payload.data(using: .utf8)!, response)
         }
 
         let result = try await service.generateReply(for: makeRequest(messagePairCount: 7))
         let capturedRequest = await capture.load()
         let request = try XCTUnwrap(capturedRequest)
 
-        XCTAssertEqual(result.text, "联通成功")
+        XCTAssertEqual(result.text, "这件事我先不绕。你先把现金流收住，再把下一步缩到一周内能见反馈的动作。")
         XCTAssertEqual(result.status.modelName, "k2p5")
         XCTAssertEqual(request.httpMethod, "POST")
         XCTAssertEqual(request.url?.absoluteString, "https://chat.example.com/v1/chat/completions")
@@ -256,11 +259,14 @@ final class MasterConversationServiceTests: XCTestCase {
                 httpVersion: nil,
                 headerFields: ["Content-Type": "application/json"]
             )!
-            return (#"{"choices":[{"message":{"role":"assistant","content":[{"type":"output_text","text":"第一句"},{"type":"output_text","text":"第二句"}]}}]}"#.data(using: .utf8)!, response)
+            let payload = #"""
+            {"choices":[{"message":{"role":"assistant","content":[{"type":"output_text","text":"这件事我先不绕。"},{"type":"output_text","text":"你先把现金流收住，再把动作压成七天实验。"}]}}]}
+            """#
+            return (payload.data(using: .utf8)!, response)
         }
 
         let result = try await service.generateReply(for: makeRequest(messagePairCount: 1))
-        XCTAssertEqual(result.text, "第一句\n\n第二句")
+        XCTAssertEqual(result.text, "这件事我先不绕。\n\n你先把现金流收住，再把动作压成七天实验。")
     }
 
     @MainActor
@@ -293,6 +299,66 @@ final class MasterConversationServiceTests: XCTestCase {
         XCTAssertTrue(result.text.contains("先收缩现金流"))
         XCTAssertTrue(result.text.contains("七天实验"))
         XCTAssertTrue(result.text.contains(request.relevantStories[0].title))
+    }
+
+    @MainActor
+    func testK2P5ServiceRewritesPlainProseReplyIntoCharacterDialogueWhenItLacksSceneAnchors() async throws {
+        let request = try makeRequest(messagePairCount: 1)
+        let configuration = MasterChatConfiguration(
+            apiKey: "secret-token",
+            credentialSource: .environmentFallback,
+            chatCompletionsURL: URL(string: "https://chat.example.com/v1/chat/completions")!,
+            model: "k2p5"
+        )
+        let rawReply = "先收缩现金流，再把转岗动作压成一个七天实验。结果出来前不要裸辞。"
+        let service = K2P5MasterConversationService(configuration: configuration) { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let payload = #"{"model":"k2p5","choices":[{"message":{"role":"assistant","content":"\#(rawReply)"}}]}"#
+            return (payload.data(using: .utf8)!, response)
+        }
+
+        let result = try await service.generateReply(for: request)
+
+        XCTAssertNotEqual(result.text, rawReply)
+        XCTAssertTrue(result.text.contains("别再绕背景了，我们直接下判断。"))
+        XCTAssertTrue(result.text.contains(request.relevantStories[0].title))
+        XCTAssertTrue(result.text.contains("先收缩现金流"))
+        XCTAssertTrue(result.text.contains("七天实验"))
+    }
+
+    @MainActor
+    func testK2P5ServiceRejectsUnexpectedReturnedModel() async throws {
+        let configuration = MasterChatConfiguration(
+            apiKey: "secret-token",
+            credentialSource: .environmentFallback,
+            chatCompletionsURL: URL(string: "https://chat.example.com/v1/chat/completions")!,
+            model: "k2p5"
+        )
+        let service = K2P5MasterConversationService(configuration: configuration) { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let payload = #"{"model":"claude-sonnet-4-5","choices":[{"message":{"role":"assistant","content":"这件事我先不绕。你先把现金流收住。"}}]}"#
+            return (payload.data(using: .utf8)!, response)
+        }
+
+        do {
+            _ = try await service.generateReply(for: makeRequest(messagePairCount: 1))
+            XCTFail("Expected mismatched model to be rejected")
+        } catch let error as MasterConversationServiceError {
+            XCTAssertEqual(
+                error,
+                .unexpectedModel(expected: "k2p5", actual: "claude-sonnet-4-5")
+            )
+        }
     }
 
     @MainActor
@@ -460,11 +526,11 @@ final class MasterConversationServiceTests: XCTestCase {
             let reply: String
             switch turn {
             case 1:
-                reply = "先收缩现金流口子，再把转岗动作压成一个七天实验。"
+                reply = "这件事我先不绕。你先把现金流口子收住，再把转岗动作压成一个七天实验。"
             case 2:
-                reply = "今天只做一件事：把一个可交付样本发给三个能给真实反馈的人。"
+                reply = "我只催你一件事：今天就把一个可交付样本发给三个能给真实反馈的人。再往后拖，你会继续拿准备感冒充推进。"
             default:
-                reply = "恢复后继续追问：你最可能自欺的是拿准备感代替真实曝光。"
+                reply = "我继续追问你一句：你最可能自欺的地方，就是拿准备感代替真实曝光。别让准备感替你演完了行动。"
             }
 
             let response = HTTPURLResponse(
@@ -501,9 +567,9 @@ final class MasterConversationServiceTests: XCTestCase {
         XCTAssertEqual(firstConversation.serviceStatus.modelName, "k2p5")
         XCTAssertEqual(firstConversation.messages.count, 5)
         XCTAssertEqual(firstConversation.messages[1].text, firstPrompt)
-        XCTAssertEqual(firstConversation.messages[2].text, "先收缩现金流口子，再把转岗动作压成一个七天实验。")
+        XCTAssertEqual(firstConversation.messages[2].text, "这件事我先不绕。你先把现金流口子收住，再把转岗动作压成一个七天实验。")
         XCTAssertEqual(firstConversation.messages[3].text, secondPrompt)
-        XCTAssertEqual(firstConversation.messages[4].text, "今天只做一件事：把一个可交付样本发给三个能给真实反馈的人。")
+        XCTAssertEqual(firstConversation.messages[4].text, "我只催你一件事：今天就把一个可交付样本发给三个能给真实反馈的人。再往后拖，你会继续拿准备感冒充推进。")
 
         let reloadedStore = MasterExperienceStore(
             catalogLoader: { try MasterCatalogLoader.load() },
@@ -527,7 +593,7 @@ final class MasterConversationServiceTests: XCTestCase {
         XCTAssertEqual(resumedConversation.serviceStatus.modelName, "k2p5")
         XCTAssertEqual(resumedConversation.messages.count, 7)
         XCTAssertEqual(resumedConversation.messages[5].text, resumePrompt)
-        XCTAssertEqual(resumedConversation.messages[6].text, "恢复后继续追问：你最可能自欺的是拿准备感代替真实曝光。")
+        XCTAssertEqual(resumedConversation.messages[6].text, "我继续追问你一句：你最可能自欺的地方，就是拿准备感代替真实曝光。别让准备感替你演完了行动。")
 
         let requests = await capture.all()
         XCTAssertEqual(requests.count, 3)
@@ -544,9 +610,9 @@ final class MasterConversationServiceTests: XCTestCase {
         XCTAssertEqual(messages.count, 7)
         XCTAssertEqual(messages.first?["role"] as? String, "system")
         XCTAssertTrue(messages.contains { ($0["content"] as? String) == firstPrompt })
-        XCTAssertTrue(messages.contains { ($0["content"] as? String) == "先收缩现金流口子，再把转岗动作压成一个七天实验。" })
+        XCTAssertTrue(messages.contains { ($0["content"] as? String) == "这件事我先不绕。你先把现金流口子收住，再把转岗动作压成一个七天实验。" })
         XCTAssertTrue(messages.contains { ($0["content"] as? String) == secondPrompt })
-        XCTAssertTrue(messages.contains { ($0["content"] as? String) == "今天只做一件事：把一个可交付样本发给三个能给真实反馈的人。" })
+        XCTAssertTrue(messages.contains { ($0["content"] as? String) == "我只催你一件事：今天就把一个可交付样本发给三个能给真实反馈的人。再往后拖，你会继续拿准备感冒充推进。" })
         XCTAssertTrue(messages.contains { ($0["content"] as? String) == resumePrompt })
     }
 

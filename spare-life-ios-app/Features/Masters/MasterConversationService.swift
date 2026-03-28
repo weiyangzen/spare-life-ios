@@ -542,8 +542,10 @@ final class K2P5MasterConversationService: MasterConversationReplying {
                 throw MasterConversationServiceError.emptyResponse
             }
 
+            let styledText = MasterRoleplayReplyComposer.remoteReply(from: text, for: request)
+
             return MasterConversationServiceResult(
-                text: text,
+                text: styledText,
                 status: .live(
                     modelName: Self.extractModelName(from: data) ?? configuration.model,
                     credentialSource: configuration.credentialSource
@@ -602,11 +604,13 @@ final class K2P5MasterConversationService: MasterConversationReplying {
         \(storySummary)
 
         回复要求：
-        - 用简体中文回复，像成熟的一对一聊天，不要写成调试日志。
+        - 用简体中文回复，把这轮输出写成小说场景里这位角色当面对用户说出的台词，默认保持 2-4 句连贯对白。
         - 先承接用户这轮问题和最近上下文，再给判断或陪伴，不要忽略连续性。
         - 如果合适，可以自然提到相关故事，但不要像数据库检索结果。
         - 如果用户问题超出你的边界，要直接收敛并说明原因，不要装懂。
         - 尽量给出一个当下可执行的下一步，或一个能推进澄清的追问。
+        - 禁止出现“作为 AI / 模型 / 助手”“建议如下”“首先 / 其次 / 最后”“1. 2. 3.” 这类通用助手口吻。
+        - 不要解释你的回复策略，也不要复述“说话风格 / 建议风格 / 决策风格”等字段名。
         - 除非用户明确要求，否则不要输出项目符号清单，也不要冗长说教。
         """
     }

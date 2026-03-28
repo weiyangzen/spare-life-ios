@@ -231,6 +231,10 @@ final class MasterConversationServiceTests: XCTestCase {
         let messages = try XCTUnwrap(payload["messages"] as? [[String: Any]])
         XCTAssertEqual(messages.count, 15)
         XCTAssertEqual(messages.first?["role"] as? String, "system")
+        let systemPrompt = try XCTUnwrap(messages.first?["content"] as? String)
+        XCTAssertTrue(systemPrompt.contains("小说场景里这位角色当面对用户说出的台词"))
+        XCTAssertTrue(systemPrompt.contains("禁止出现“作为 AI / 模型 / 助手”"))
+        XCTAssertTrue(systemPrompt.contains("不要解释你的回复策略"))
         XCTAssertTrue(messages.contains { ($0["content"] as? String) == "用户消息 0" })
         XCTAssertTrue(messages.contains { ($0["content"] as? String) == "助手消息 0" })
         XCTAssertTrue(messages.contains { ($0["content"] as? String) == "用户消息 6" })
@@ -257,6 +261,76 @@ final class MasterConversationServiceTests: XCTestCase {
 
         let result = try await service.generateReply(for: makeRequest(messagePairCount: 1))
         XCTAssertEqual(result.text, "第一句\n\n第二句")
+    }
+
+    @MainActor
+    func testK2P5ServiceRewritesGenericAssistantReplyIntoCharacterDialogue() async throws {
+        let request = try makeRequest(messagePairCount: 1)
+        let configuration = MasterChatConfiguration(
+            apiKey: "secret-token",
+            credentialSource: .environmentFallback,
+            chatCompletionsURL: URL(string: "https://chat.example.com/v1/chat/completions")!,
+            model: "k2p5"
+        )
+        let service = K2P5MasterConversationService(configuration: configuration) { request in
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let payload = #"""
+            {"model":"k2p5","choices":[{"message":{"role":"assistant","content":"作为 AI 助手，我建议你：\n1. 先收缩现金流。\n2. 用七天实验验证转岗样本。\n3. 不要裸辞。"}}]}
+            """#
+            return (payload.data(using: .utf8)!, response)
+        }
+
+        let result = try await service.generateReply(for: request)
+
+        XCTAssertFalse(result.text.contains("作为 AI"))
+        XCTAssertFalse(result.text.contains("1."))
+        XCTAssertTrue(result.text.contains("别再绕背景了，我们直接下判断。"))
+        XCTAssertTrue(result.text.contains("先收缩现金流"))
+        XCTAssertTrue(result.text.contains("七天实验"))
+        XCTAssertTrue(result.text.contains(request.relevantStories[0].title))
+    }
+
+    @MainActor
+    func testMasterExperienceStoreFallbackReplyUsesInCharacterDialogueInsteadOfMetaNarration() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("master-store-local-roleplay-\(UUID().uuidString)", isDirectory: true)
+        let archiveURL = tempDirectory.appendingPathComponent("master-conversations.json", isDirectory: false)
+        defer {
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        let store = MasterExperienceStore(
+            catalogLoader: { try MasterCatalogLoader.load() },
+            conversationService: FailingConversationService(),
+            localStateStore: MasterConversationLocalStateStore(archiveURL: archiveURL)
+        )
+
+        await store.refreshCatalog()
+
+        let profile = try XCTUnwrap(store.visibleDirectoryMasters.first)
+        store.openConversation(for: profile)
+
+        var conversation = try XCTUnwrap(store.conversation)
+        conversation.mode = .mentor
+        store.conversation = conversation
+
+        await store.sendMessage("我准备在三个月内从内容运营转到 AI 产品，但现金流很紧。你先别安慰我，直接判断我现在最该收缩还是推进。")
+
+        let updatedConversation = try XCTUnwrap(store.conversation)
+        let reply = try XCTUnwrap(updatedConversation.messages.last)
+
+        XCTAssertEqual(updatedConversation.serviceStatus.title, "当前使用本地故事引擎")
+        XCTAssertEqual(reply.role, .assistant)
+        XCTAssertFalse(reply.text.contains("会按"))
+        XCTAssertFalse(reply.text.contains("我的立场是"))
+        XCTAssertTrue(reply.text.contains("别再绕背景了，我们直接下判断。"))
+        XCTAssertFalse(reply.referencedStoryTitles.isEmpty)
+        XCTAssertTrue(reply.text.contains(reply.referencedStoryTitles[0]))
     }
 
     @MainActor
@@ -716,5 +790,19 @@ private actor ConversationRequestCapture {
 
     func all() -> [URLRequest] {
         requests
+    }
+}
+
+@MainActor
+private final class FailingConversationService: MasterConversationReplying {
+    var status: MasterConversationServiceStatus {
+        .candidate(
+            modelName: "k2p5",
+            credentialSource: .environmentFallback
+        )
+    }
+
+    func generateReply(for request: MasterConversationRequest) async throws -> MasterConversationServiceResult {
+        throw MasterConversationServiceError.transport("network down")
     }
 }

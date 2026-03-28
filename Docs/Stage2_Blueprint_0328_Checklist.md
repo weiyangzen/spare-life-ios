@@ -67,6 +67,9 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [x] 拆分：`MASTER_CHAT_LIVE_SMOKE=1` 的一对一聊天 smoke 现已在发起首轮消息前预检候选端点 `/v1/models`；若未枚举到 `k2p5` 会直接回报精确阻塞并跳过，不再等聊天请求 `404` 后才暴露问题。本地单测与当前 shell 映射实测已覆盖。
 - [x] 拆分：2026-03-28 已把 `MASTER_CHAT_LIVE_SMOKE=1` 的一对一聊天 smoke 补到可在缺少 `MASTER_CHAT_*` 时自动借用当前 shell 的 legacy `ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY` 做只读预检；本机实测 `http://24.199.97.185:8080/v1/models` 仍只枚举 Claude 系列，未广告 `k2p5`，因此基于 live `k2p5` 端点的一对一聊天自动化验证仍未完成，主项暂不勾。
 - [ ] 大师回复必须符合上下文和角色设定，像“小说场景中的角色台词”，而不是通用助手口吻。
+- [x] 拆分：`/v1/chat/completions` 的 system prompt 现已明确要求把回复写成“小说场景里的角色台词”，并禁止输出“作为 AI / 模型 / 助手”“建议如下”“1. 2. 3.” 等通用助手口吻；本地单测已覆盖。
+- [x] 拆分：当 `k2p5` 或兼容后端返回通用助手式文案时，聊天服务会在落地前改写成贴合当前故事与上下文的角色对白，再展示到一对一会话；本地单测已覆盖。
+- [x] 拆分：本地故事引擎回退与会诊回复已改成角色对白风格，沿用相关故事与授权记忆，不再输出“会按某风格回应 / 我的立场是”这类元叙述；本地单测已覆盖。
 - [ ] 闲聊页面完成当前 8 位大师卡片与至少 1 条真实对话链路的本机验证。
 
 ### 4.4 赚闲能

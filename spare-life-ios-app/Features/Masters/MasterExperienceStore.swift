@@ -974,48 +974,25 @@ final class MasterExperienceStore: ObservableObject {
     ) -> MasterMessage {
         let stories = rankedStories(for: profile, query: message)
         let memories = Array(profile.memoryNotes.prefix(memoryScope == .sessionOnly ? 0 : 2))
-        let storyLine = stories.isEmpty
-            ? "这轮先不强行套故事，而是根据你现在的问题直接拆节奏。"
-            : "这让我最先想到“\(stories[0].title)”，因为它正好对应你现在卡住的那根杠杆。"
-        let memoryLine = memories.isEmpty
-            ? "你这轮还没有授权长期记忆，所以我只根据当前问题给建议。"
-            : "我会沿用你授权我记住的 \(memories.map(\.label).joined(separator: "、"))，但不会把它扩散到别的大师。"
-
-        let stance = stanceLabel(for: profile.decisionStyle)
-        let opening: String
-        switch mode {
-        case .storyFirst:
-            opening = "\(storyLine) 先借故事搭一个可信的框，再谈动作。"
-        case .adviceFirst:
-            opening = "我先给结论，再回到故事和边界。你现在最需要的是把问题收成一个可执行动作。"
-        case .companion:
-            opening = "先别急着证明自己。我们先稳住心气和秩序，再决定下一步向谁表达。"
-        case .mentor:
-            opening = "别再铺陈背景了，先把这件事拉回到可验证的推进节奏里。"
-        }
-
-        let actionLine: String
-        switch profile.decisionStyle {
-        case "steady_execution":
-            actionLine = "今天先定一条底线、一个周目标、一个明天就能开始的动作，不要三线并行。"
-        case "act_then_reflect":
-            actionLine = "今天就去做一个会带来反馈的小动作，别继续靠想象来拖延。"
-        case "small_bets_profit":
-            actionLine = "先做一个七天内能算账、能止损的小实验，再决定要不要加大投入。"
-        default:
-            actionLine = "先稳住表达和关系，再把真正要开口的一句话说出去。"
-        }
-
-        let body = [
-            "\(profile.displayName)会按“\(profile.adviceStyle)”来回应。",
-            opening,
-            memoryLine,
-            "关于“\(clip(message, limit: 34))”，我的立场是\(stance)。",
-            actionLine,
-            profile.boundaries.first.map { "别做的是：\($0)。" }
-        ]
-            .compactMap { $0 }
-            .joined(separator: " ")
+        let request = MasterConversationRequest(
+            profile: profile,
+            mode: mode,
+            memoryScope: memoryScope,
+            authorizedMemories: memories,
+            relevantStories: stories,
+            recentMessages: [
+                MasterMessage(
+                    id: "user-fallback-\(UUID().uuidString)",
+                    role: .user,
+                    text: message,
+                    timestamp: "刚刚",
+                    referencedStoryTitles: [],
+                    referencedMemoryLabels: [],
+                    ctas: []
+                )
+            ]
+        )
+        let body = MasterRoleplayReplyComposer.fallbackReply(for: request)
 
         return MasterMessage(
             id: "assistant-\(UUID().uuidString)",

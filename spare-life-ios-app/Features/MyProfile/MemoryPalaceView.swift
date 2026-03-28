@@ -4,6 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Models
 
@@ -144,7 +147,7 @@ struct MemoryPalaceView: View {
                 contentBody
             }
             .navigationTitle("记忆宫殿")
-            .navigationBarTitleDisplayMode(.large)
+            .spareNavigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -430,7 +433,7 @@ private struct MemoryEditSheet: View {
                 Section { Button("保存") { dismiss() }.frame(maxWidth: .infinity, alignment: .center) }
             }
             .navigationTitle("编辑记忆")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } } }
         }
     }
@@ -467,7 +470,7 @@ private struct MemoryAddSheet: View {
                 Section { Button("添加") { dismiss() }.frame(maxWidth: .infinity, alignment: .center).disabled(title.isEmpty) }
             }
             .navigationTitle("添加记忆")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } } }
         }
     }

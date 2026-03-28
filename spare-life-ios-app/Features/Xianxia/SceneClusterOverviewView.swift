@@ -5,6 +5,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - SceneHotOverviewSection
 // Pinned header shown at the top of the "热点话题" segment.

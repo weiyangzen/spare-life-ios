@@ -4,6 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Contact Mask Store
 
@@ -120,7 +123,7 @@ struct ContactMaskView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("面具设置")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }

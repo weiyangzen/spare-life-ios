@@ -4,6 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Models
 
@@ -143,7 +146,7 @@ struct GrowthStatsView: View {
                 contentBody
             }
             .navigationTitle("成长统计")
-            .navigationBarTitleDisplayMode(.large)
+            .spareNavigationBarTitleDisplayMode(.large)
         }
         .task { store.load() }
     }

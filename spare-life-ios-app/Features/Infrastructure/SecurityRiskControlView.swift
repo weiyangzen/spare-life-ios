@@ -4,6 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Models
 
@@ -269,7 +272,7 @@ struct SecurityRiskControlView: View {
                 }
             }
             .navigationTitle("安全与风控")
-            .navigationBarTitleDisplayMode(.large)
+            .spareNavigationBarTitleDisplayMode(.large)
             .task { store.load() }
         }
     }

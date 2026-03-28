@@ -26,7 +26,7 @@ enum MasterCatalogSourceMode: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .synced:
-            return "优先展示最新导入的大师目录和最近上下文。"
+            return "优先展示通过服务端目录索引到本地角色资产的 Stage 1 大师目录。"
         case .cached:
             return "只读本地缓存，适合弱网或离线继续找大师。"
         case .degraded:
@@ -52,6 +52,28 @@ enum MasterCatalogSourceMode: String, CaseIterable, Identifiable {
         case .degraded: return .orange
         case .unavailable: return .emotionNegative
         }
+    }
+}
+
+enum MasterCatalogAccessPolicy: String, Equatable {
+    case browseAndChatOnly
+
+    var title: String {
+        switch self {
+        case .browseAndChatOnly:
+            return "大师目录只读"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .browseAndChatOnly:
+            return "Stage 1 只允许浏览目录并进入一对一对话。字段固定来自 ./assets/char，图片固定来自 ./assets/assets；不能在端侧新建、删除或编辑大师资产。"
+        }
+    }
+
+    var allowsMasterMutation: Bool {
+        false
     }
 }
 
@@ -166,11 +188,22 @@ struct MasterAssetBundleInfo: Hashable {
     let bundleID: String
     let version: String
     let portraitPackage: String
+    let directoryManifestPath: String
     let characterFields: [String]
     let storyFields: [String]
     let manifestFields: [String]
     let importNote: String
     let isOfficial: Bool
+    let characterAssetPath: String
+    let imageDirectoryPath: String
+    let mappedImageFiles: [String]
+}
+
+struct MasterImageSet: Hashable {
+    let assetID: String
+    let avatarPath: String
+    let portraitPath: String
+    let backgroundPath: String
 }
 
 struct MasterActionRecommendation: Identifiable, Hashable {
@@ -209,12 +242,13 @@ struct MasterProfile: Identifiable {
     let boundaries: [String]
     let featuredTemplates: [MasterQuestionTemplate]
     let stories: [MasterStory]
-    let memoryNotes: [MasterMemoryNote]
-    let goalSnapshots: [MasterGoalSnapshot]
+    var memoryNotes: [MasterMemoryNote]
+    var goalSnapshots: [MasterGoalSnapshot]
     let assetBundle: MasterAssetBundleInfo
     let portraitSymbol: String
     let palette: [Color]
     let promptPreview: String
+    let imageSet: MasterImageSet
 }
 
 struct MasterRecentSession: Identifiable, Hashable {
@@ -270,30 +304,11 @@ struct MasterConversationDraft: Identifiable, Hashable {
     var session: MasterRecentSession
     var mode: MasterConversationMode
     var memoryScope: MasterMemoryScope
+    var serviceStatus: MasterConversationServiceStatus
     var messages: [MasterMessage]
     var prefilledPrompt: String
     var isReplying: Bool
     var inlineError: String?
-}
-
-enum MasterHomeFeedCard: Identifiable {
-    case master(MasterProfile)
-    case resume(MasterRecentSession)
-    case template(masterID: String, template: MasterQuestionTemplate)
-    case consultation(featuredMasterIDs: [String])
-
-    var id: String {
-        switch self {
-        case .master(let profile):
-            return "master-\(profile.id)"
-        case .resume(let session):
-            return "resume-\(session.id)"
-        case .template(let masterID, let template):
-            return "template-\(masterID)-\(template.id)"
-        case .consultation(let featuredMasterIDs):
-            return "consult-\(featuredMasterIDs.joined(separator: "-"))"
-        }
-    }
 }
 
 struct MasterRoutePreview: Identifiable, Hashable {
@@ -302,8 +317,67 @@ struct MasterRoutePreview: Identifiable, Hashable {
     let sourceTitle: String
 }
 
+struct MasterCatalogCoverage: Hashable {
+    let directoryManifestPath: String
+    let characterRootPath: String
+    let imageRootPath: String
+    let serviceDirectoryAssetIDs: [String]
+    let localCharacterAssetIDs: [String]
+    let localImageAssetIDs: [String]
+    let matchedAssetIDs: [String]
+    let mappedImageFiles: [String]
+
+    var directoryManifestName: String {
+        URL(fileURLWithPath: directoryManifestPath).lastPathComponent
+    }
+
+    var fieldSourceDisplayPath: String {
+        "./assets/char"
+    }
+
+    var imageSourceDisplayPath: String {
+        "./assets/assets"
+    }
+
+    var imageIndexDisplayPath: String {
+        "./assets/assets/char"
+    }
+
+    var matchedAssetCount: Int {
+        matchedAssetIDs.count
+    }
+
+    var serviceDirectoryAssetCount: Int {
+        serviceDirectoryAssetIDs.count
+    }
+
+    var localCharacterAssetCount: Int {
+        localCharacterAssetIDs.count
+    }
+
+    var localImageAssetCount: Int {
+        localImageAssetIDs.count
+    }
+
+    var hasExactStage1Coverage: Bool {
+        serviceDirectoryAssetIDs == matchedAssetIDs &&
+        localCharacterAssetIDs == matchedAssetIDs &&
+        localImageAssetIDs == matchedAssetIDs
+    }
+
+    var indexCoverageSummary: String {
+        "目录\(serviceDirectoryAssetCount) · 字段\(localCharacterAssetCount) · 图片\(localImageAssetCount)"
+    }
+
+    var mappingSummary: String {
+        "\(matchedAssetCount)/\(serviceDirectoryAssetCount) 已匹配"
+    }
+}
+
 @MainActor
 final class MasterExperienceStore: ObservableObject {
+    private static let directoryPageSize = 8
+
     @Published var query = ""
     @Published var selectedDomainID: String? = nil
     @Published var catalogSourceMode: MasterCatalogSourceMode = .synced
@@ -311,15 +385,37 @@ final class MasterExperienceStore: ObservableObject {
     @Published private(set) var degradedMessage: String? = nil
     @Published private(set) var fatalErrorMessage: String? = nil
     @Published private(set) var domains: [MasterDomain] = []
+    @Published private(set) var domainIndex: [String: MasterDomain] = [:]
     @Published private(set) var masters: [MasterProfile] = []
+    @Published private(set) var masterIndex: [String: Int] = [:]
+    @Published private(set) var catalogCoverage: MasterCatalogCoverage? = nil
     @Published private(set) var recentSessions: [MasterRecentSession] = []
-    @Published var selectedMasterID: String? = nil
+    @Published private(set) var conversationServiceStatus: MasterConversationServiceStatus = .fallback(
+        detail: "当前还没有加载到大师对话服务状态。"
+    )
+    @Published private(set) var visibleDirectoryMasterCount = 0
     @Published var conversation: MasterConversationDraft? = nil
     @Published var consultation: MasterConsultationDraft? = nil
     @Published var routePreview: MasterRoutePreview? = nil
 
     private var hasLoaded = false
-    private let seed = MasterSeedCatalog.make()
+    private let catalogLoader: () throws -> MasterCatalogSnapshot
+    private let conversationService: MasterConversationReplying
+    private let localStateStore: MasterConversationLocalStateStore
+    let catalogAccessPolicy: MasterCatalogAccessPolicy = .browseAndChatOnly
+    private var sessionTranscripts: [String: [MasterMessage]] = [:]
+
+    init(
+        catalogLoader: @escaping () throws -> MasterCatalogSnapshot = { try MasterCatalogLoader.load() },
+        conversationService: MasterConversationReplying? = nil,
+        localStateStore: MasterConversationLocalStateStore = MasterConversationLocalStateStore()
+    ) {
+        self.catalogLoader = catalogLoader
+        let resolvedConversationService = conversationService ?? AnthropicMasterConversationService()
+        self.conversationService = resolvedConversationService
+        self.localStateStore = localStateStore
+        self.conversationServiceStatus = resolvedConversationService.status
+    }
 
     var filteredMasters: [MasterProfile] {
         let trimmed = searchable(query)
@@ -356,26 +452,16 @@ final class MasterExperienceStore: ObservableObject {
         }
     }
 
-    var homeCards: [MasterHomeFeedCard] {
-        var cards = filteredMasters.map(MasterHomeFeedCard.master)
+    var directoryMasters: [MasterProfile] {
+        filteredMasters
+    }
 
-        if query.isEmpty {
-            let resumeCards = prioritizedSessions.prefix(2).map(MasterHomeFeedCard.resume)
-            let templateCards = filteredMasters
-                .prefix(3)
-                .flatMap { profile in
-                    profile.featuredTemplates.prefix(1).map { MasterHomeFeedCard.template(masterID: profile.id, template: $0) }
-                }
-            if !cards.isEmpty {
-                cards.insert(contentsOf: resumeCards, at: min(1, cards.count))
-            } else {
-                cards.append(contentsOf: resumeCards)
-            }
-            cards.append(contentsOf: templateCards)
-            cards.append(.consultation(featuredMasterIDs: filteredMasters.prefix(3).map(\.id)))
-        }
+    var visibleDirectoryMasters: [MasterProfile] {
+        Array(filteredMasters.prefix(visibleDirectoryMasterCount))
+    }
 
-        return cards
+    var hasMoreDirectoryMastersToLoad: Bool {
+        visibleDirectoryMasterCount < filteredMasters.count
     }
 
     var recentStripSessions: [MasterRecentSession] {
@@ -386,8 +472,25 @@ final class MasterExperienceStore: ObservableObject {
         degradedMessage != nil || catalogSourceMode == .cached
     }
 
+    var directoryManifestName: String {
+        if let catalogCoverage {
+            return catalogCoverage.directoryManifestName
+        }
+        guard let path = masters.first?.assetBundle.directoryManifestPath else {
+            return "master_service_directory.json"
+        }
+        return URL(fileURLWithPath: path).lastPathComponent
+    }
+
+    var resourceMappingSummary: String {
+        catalogCoverage?.mappingSummary ?? "\(masters.count)/8 已匹配"
+    }
+
     func master(withID id: String) -> MasterProfile? {
-        masters.first(where: { $0.id == id })
+        guard let position = masterIndex[id], masters.indices.contains(position) else {
+            return nil
+        }
+        return masters[position]
     }
 
     func loadIfNeeded() {
@@ -400,34 +503,79 @@ final class MasterExperienceStore: ObservableObject {
         isLoading = true
         degradedMessage = nil
         fatalErrorMessage = nil
+        conversationServiceStatus = conversationService.status
 
-        try? await Task.sleep(nanoseconds: 380_000_000)
-
-        domains = seed.domains
-
-        switch catalogSourceMode {
-        case .synced:
-            masters = seed.masters
-            recentSessions = seed.sessions
-        case .cached:
-            masters = seed.cachedMasters
-            recentSessions = seed.cachedSessions
-            degradedMessage = "当前展示上次导入缓存，可继续找人、恢复会话与查看故事资产。"
-        case .degraded:
-            masters = seed.cachedMasters
-            recentSessions = seed.cachedSessions
-            degradedMessage = "请求异常，已自动退回缓存目录。最近会话、长期记忆和会诊入口仍可继续。"
-        case .unavailable:
-            masters = []
-            recentSessions = []
-            fatalErrorMessage = "大师目录暂时不可用，当前也没有可恢复的本地缓存。请稍后重试。"
+        let previousMasters = Dictionary(uniqueKeysWithValues: masters.map { ($0.id, $0) })
+        let previousSessions = recentSessions
+        let previousTranscripts = sessionTranscripts
+        let persistedState: MasterConversationLocalState
+        do {
+            persistedState = try localStateStore.load()
+        } catch {
+            persistedState = .empty
         }
 
-        if let selectedDomainID, !domains.contains(where: { $0.id == selectedDomainID }) {
+        do {
+            let snapshot = try catalogLoader()
+            catalogSourceMode = .synced
+            domains = snapshot.domains
+            domainIndex = snapshot.domainIndex
+            let mergedMasters = snapshot.masters.map { incoming -> MasterProfile in
+                var merged = incoming
+                if let existing = previousMasters[incoming.id] {
+                    if !existing.memoryNotes.isEmpty {
+                        merged.memoryNotes = existing.memoryNotes
+                    }
+                    if !existing.goalSnapshots.isEmpty {
+                        merged.goalSnapshots = existing.goalSnapshots
+                    }
+                } else if let persistedNotes = persistedState.memoryNotesByMasterID[incoming.id], !persistedNotes.isEmpty {
+                    merged.memoryNotes = persistedNotes
+                }
+
+                return merged
+            }
+            masters = mergedMasters
+            masterIndex = Dictionary(uniqueKeysWithValues: mergedMasters.enumerated().map { ($1.id, $0) })
+            catalogCoverage = snapshot.catalogCoverage
+            let persistedSessions = persistedState.recentSessions.compactMap { session -> MasterRecentSession? in
+                guard let position = masterIndex[session.masterID], masters.indices.contains(position) else {
+                    return nil
+                }
+                return session.materialize(seedMessages: seedMessages(for: masters[position]))
+            }
+            let preferredSessions = snapshot.sessions.isEmpty
+                ? (previousSessions.isEmpty ? persistedSessions : previousSessions)
+                : snapshot.sessions
+            recentSessions = preferredSessions.filter { masterIndex[$0.masterID] != nil }
+            sessionTranscripts = previousTranscripts
+            let validSessionIDs = Set(recentSessions.map(\.id))
+            for (sessionID, messages) in persistedState.sessionTranscripts where validSessionIDs.contains(sessionID) {
+                if sessionTranscripts[sessionID] == nil || sessionTranscripts[sessionID]?.isEmpty == true {
+                    sessionTranscripts[sessionID] = messages
+                }
+            }
+        } catch {
+            catalogSourceMode = .unavailable
+            domains = []
+            domainIndex = [:]
+            masters = []
+            masterIndex = [:]
+            catalogCoverage = nil
+            recentSessions = previousSessions
+            sessionTranscripts = previousTranscripts
+            visibleDirectoryMasterCount = 0
+            fatalErrorMessage = error.localizedDescription
+        }
+
+        if let selectedDomainID, domainIndex[selectedDomainID] == nil {
             self.selectedDomainID = nil
         }
 
+        resetDirectoryPagination()
+
         isLoading = false
+        persistLocalState()
     }
 
     func applyCatalogSourceMode(_ mode: MasterCatalogSourceMode) {
@@ -439,14 +587,28 @@ final class MasterExperienceStore: ObservableObject {
         guard let index = recentSessions.firstIndex(where: { $0.id == session.id }) else { return }
         recentSessions[index].isPinned.toggle()
         syncConversationSession(recentSessions[index])
+        persistLocalState()
     }
 
-    func openMaster(_ profile: MasterProfile) {
-        selectedMasterID = profile.id
+    func resetDirectoryPagination() {
+        visibleDirectoryMasterCount = min(filteredMasters.count, Self.directoryPageSize)
+    }
+
+    func loadNextDirectoryBatchIfNeeded(after profile: MasterProfile) {
+        guard hasMoreDirectoryMastersToLoad,
+              visibleDirectoryMasters.last?.id == profile.id else {
+            return
+        }
+
+        visibleDirectoryMasterCount = min(
+            filteredMasters.count,
+            visibleDirectoryMasterCount + Self.directoryPageSize
+        )
     }
 
     func openConversation(for profile: MasterProfile, template: MasterQuestionTemplate? = nil) {
         let existingSession = recentSessions.first(where: { $0.masterID == profile.id })
+        let defaultSeedMessages = seedMessages(for: profile)
         let session = existingSession ?? MasterRecentSession(
             id: "session-\(profile.id)",
             masterID: profile.id,
@@ -457,25 +619,7 @@ final class MasterExperienceStore: ObservableObject {
             unreadCount: 0,
             lastMessageAt: "刚刚",
             isPinned: false,
-            seedMessages: [
-                MasterMessage(
-                    id: "opening-\(profile.id)",
-                    role: .assistant,
-                    text: "\(profile.displayName)在这里。你可以直接问问题，也可以先挑一个问题模板，我会沿用你授权的长期记忆，但不会跨大师乱共享。",
-                    timestamp: "刚刚",
-                    referencedStoryTitles: [],
-                    referencedMemoryLabels: [],
-                    ctas: [
-                        MasterActionRecommendation(
-                            id: "profile-memory-\(profile.id)",
-                            label: "检查记忆授权",
-                            reason: "先确认长期记忆范围，避免把隐私记过头。",
-                            route: "sparelife://my/profile?highlight=memory",
-                            target: .profile
-                        )
-                    ]
-                )
-            ]
+            seedMessages: defaultSeedMessages
         )
 
         conversation = MasterConversationDraft(
@@ -484,7 +628,8 @@ final class MasterExperienceStore: ObservableObject {
             session: session,
             mode: template?.mode ?? .storyFirst,
             memoryScope: .masterOnly,
-            messages: session.seedMessages,
+            serviceStatus: conversationServiceStatus,
+            messages: sessionTranscripts[session.id] ?? session.seedMessages.nonEmpty ?? defaultSeedMessages,
             prefilledPrompt: template?.prompt ?? "",
             isReplying: false,
             inlineError: nil
@@ -493,13 +638,15 @@ final class MasterExperienceStore: ObservableObject {
 
     func restoreSession(_ session: MasterRecentSession) {
         guard let profile = master(withID: session.masterID) else { return }
+        let defaultSeedMessages = seedMessages(for: profile)
         conversation = MasterConversationDraft(
             id: session.id,
             masterID: profile.id,
             session: session,
             mode: .storyFirst,
             memoryScope: .masterOnly,
-            messages: session.seedMessages,
+            serviceStatus: conversationServiceStatus,
+            messages: sessionTranscripts[session.id] ?? session.seedMessages.nonEmpty ?? defaultSeedMessages,
             prefilledPrompt: "",
             isReplying: false,
             inlineError: nil
@@ -508,33 +655,8 @@ final class MasterExperienceStore: ObservableObject {
     }
 
     func clearMemories(for masterID: String) {
-        guard let index = masters.firstIndex(where: { $0.id == masterID }) else { return }
-        let profile = masters[index]
-        masters[index] = MasterProfile(
-            id: profile.id,
-            displayName: profile.displayName,
-            title: profile.title,
-            tagline: profile.tagline,
-            headline: profile.headline,
-            domainID: profile.domainID,
-            domainTitle: profile.domainTitle,
-            sourceLabel: profile.sourceLabel,
-            voice: profile.voice,
-            adviceStyle: profile.adviceStyle,
-            decisionStyle: profile.decisionStyle,
-            riskAppetite: profile.riskAppetite,
-            expertiseTags: profile.expertiseTags,
-            focusTags: profile.focusTags,
-            boundaries: profile.boundaries,
-            featuredTemplates: profile.featuredTemplates,
-            stories: profile.stories,
-            memoryNotes: [],
-            goalSnapshots: profile.goalSnapshots,
-            assetBundle: profile.assetBundle,
-            portraitSymbol: profile.portraitSymbol,
-            palette: profile.palette,
-            promptPreview: profile.promptPreview
-        )
+        guard let index = masterIndex[masterID], masters.indices.contains(index) else { return }
+        masters[index].memoryNotes = []
 
         if conversation?.masterID == masterID {
             conversation?.messages.append(
@@ -548,6 +670,10 @@ final class MasterExperienceStore: ObservableObject {
                     ctas: []
                 )
             )
+            if let conversation {
+                sessionTranscripts[conversation.session.id] = conversation.messages
+                persistLocalState()
+            }
         }
     }
 
@@ -631,6 +757,8 @@ final class MasterExperienceStore: ObservableObject {
             )
         )
         self.conversation = conversation
+        sessionTranscripts[conversation.session.id] = conversation.messages
+        persistLocalState()
 
         try? await Task.sleep(nanoseconds: 420_000_000)
 
@@ -641,12 +769,45 @@ final class MasterExperienceStore: ObservableObject {
             return
         }
 
-        let reply = composeReply(
-            for: profile,
-            message: text,
-            mode: conversation.mode,
-            memoryScope: conversation.memoryScope
-        )
+        let relevantStories = rankedStories(for: profile, query: text)
+        let authorizedMemories = Array(profile.memoryNotes.prefix(conversation.memoryScope == .sessionOnly ? 0 : 3))
+        let reply: MasterMessage
+        do {
+            let remoteReply = try await conversationService.generateReply(
+                for: MasterConversationRequest(
+                    profile: profile,
+                    mode: conversation.mode,
+                    memoryScope: conversation.memoryScope,
+                    authorizedMemories: authorizedMemories,
+                    relevantStories: relevantStories,
+                    recentMessages: conversation.messages
+                )
+            )
+            conversation.serviceStatus = remoteReply.status
+            conversationServiceStatus = remoteReply.status
+            reply = MasterMessage(
+                id: "assistant-\(UUID().uuidString)",
+                role: .assistant,
+                text: remoteReply.text,
+                timestamp: "刚刚",
+                referencedStoryTitles: relevantStories.map(\.title),
+                referencedMemoryLabels: authorizedMemories.map(\.label),
+                ctas: recommendedActions(for: profile, message: text)
+            )
+        } catch {
+            let fallbackStatus = MasterConversationServiceStatus.fallback(
+                detail: "实时大师服务这轮不可用，已回退到本地故事与记忆引擎继续回复。原因：\(error.localizedDescription)"
+            )
+            conversation.serviceStatus = fallbackStatus
+            conversationServiceStatus = fallbackStatus
+            reply = composeReply(
+                for: profile,
+                message: text,
+                mode: conversation.mode,
+                memoryScope: conversation.memoryScope
+            )
+        }
+
         conversation.messages.append(reply)
         conversation.session.topic = clip(text, limit: 18)
         conversation.session.preview = reply.text
@@ -661,6 +822,8 @@ final class MasterExperienceStore: ObservableObject {
         }
 
         self.conversation = conversation
+        sessionTranscripts[conversation.session.id] = conversation.messages
+        persistLocalState()
     }
 
     func presentRoutePreview(_ action: MasterActionRecommendation, sourceTitle: String) {
@@ -668,7 +831,7 @@ final class MasterExperienceStore: ObservableObject {
     }
 
     func isActionAdopted(_ actionID: String) -> Bool {
-        seed.adoptedActionIDs.contains(actionID) || adoptedActionIDs.contains(actionID)
+        adoptedActionIDs.contains(actionID)
     }
 
     func markActionAdopted(_ actionID: String) {
@@ -677,10 +840,45 @@ final class MasterExperienceStore: ObservableObject {
 
     private var adoptedActionIDs: Set<String> = []
 
+    private func seedMessages(for profile: MasterProfile) -> [MasterMessage] {
+        [
+            MasterMessage(
+                id: "opening-\(profile.id)",
+                role: .assistant,
+                text: "\(profile.displayName)在这里。你可以直接问问题，也可以先挑一个问题模板，我会沿用你授权的长期记忆，但不会跨大师乱共享。",
+                timestamp: "刚刚",
+                referencedStoryTitles: [],
+                referencedMemoryLabels: [],
+                ctas: [
+                    MasterActionRecommendation(
+                        id: "profile-memory-\(profile.id)",
+                        label: "检查记忆授权",
+                        reason: "先确认长期记忆范围，避免把隐私记过头。",
+                        route: "sparelife://my/profile?highlight=memory",
+                        target: .profile
+                    )
+                ]
+            )
+        ]
+    }
+
+    private func persistLocalState() {
+        do {
+            try localStateStore.save(
+                recentSessions: recentSessions,
+                sessionTranscripts: sessionTranscripts,
+                masters: masters
+            )
+        } catch {
+            // Local persistence is best-effort. UI state should stay usable even if writing fails.
+        }
+    }
+
     private func markSessionRead(_ sessionID: String) {
         guard let index = recentSessions.firstIndex(where: { $0.id == sessionID }) else { return }
         recentSessions[index].unreadCount = 0
         syncConversationSession(recentSessions[index])
+        persistLocalState()
     }
 
     private func syncConversationSession(_ session: MasterRecentSession) {
@@ -696,40 +894,15 @@ final class MasterExperienceStore: ObservableObject {
             recentSessions.insert(session, at: 0)
         }
         syncConversationSession(session)
+        persistLocalState()
     }
 
     private func appendAuthorizedMemory(for masterID: String, from message: String, scope: MasterMemoryScope) {
-        guard let index = masters.firstIndex(where: { $0.id == masterID }) else { return }
+        guard let index = masterIndex[masterID], masters.indices.contains(index) else { return }
         let newMemory = makeMemoryNote(from: message, scope: scope)
-        var profile = masters[index]
-        let notes = [newMemory] + profile.memoryNotes.filter { $0.summary != newMemory.summary }
-        profile = MasterProfile(
-            id: profile.id,
-            displayName: profile.displayName,
-            title: profile.title,
-            tagline: profile.tagline,
-            headline: profile.headline,
-            domainID: profile.domainID,
-            domainTitle: profile.domainTitle,
-            sourceLabel: profile.sourceLabel,
-            voice: profile.voice,
-            adviceStyle: profile.adviceStyle,
-            decisionStyle: profile.decisionStyle,
-            riskAppetite: profile.riskAppetite,
-            expertiseTags: profile.expertiseTags,
-            focusTags: profile.focusTags,
-            boundaries: profile.boundaries,
-            featuredTemplates: profile.featuredTemplates,
-            stories: profile.stories,
-            memoryNotes: Array(notes.prefix(5)),
-            goalSnapshots: profile.goalSnapshots,
-            assetBundle: profile.assetBundle,
-            portraitSymbol: profile.portraitSymbol,
-            palette: profile.palette,
-            promptPreview: profile.promptPreview
-        )
-        masters[index] = profile
-
+        let notes = [newMemory] + masters[index].memoryNotes.filter { $0.summary != newMemory.summary }
+        masters[index].memoryNotes = Array(notes.prefix(5))
+        persistLocalState()
     }
 
     private func buildConsultationResult(
@@ -966,235 +1139,788 @@ final class MasterExperienceStore: ObservableObject {
     }
 }
 
-private struct MasterSeedCatalog {
+struct MasterCatalogSnapshot {
     let domains: [MasterDomain]
+    let domainIndex: [String: MasterDomain]
     let masters: [MasterProfile]
+    let masterIndex: [String: Int]
+    let catalogCoverage: MasterCatalogCoverage
     let sessions: [MasterRecentSession]
-    let cachedMasters: [MasterProfile]
-    let cachedSessions: [MasterRecentSession]
-    let adoptedActionIDs: Set<String>
+}
 
-    static func make() -> MasterSeedCatalog {
-        let domains = [
-            MasterDomain(id: "career", title: "职业跃迁", description: "帮你拆转岗、求职、现金流与长期职业布局。", symbol: "briefcase.fill"),
-            MasterDomain(id: "leadership", title: "统筹执行", description: "把复杂目标拆成稳得住的推进节奏。", symbol: "list.bullet.clipboard.fill"),
-            MasterDomain(id: "mindset", title: "决断与校准", description: "当目标模糊或犹豫拖延时，先校准再行动。", symbol: "scope"),
-            MasterDomain(id: "life", title: "关系与韧性", description: "处理情绪、表达、关系和人生低谷。", symbol: "heart.text.square.fill")
+private struct MasterDirectoryIndexCoverage {
+    let serviceDirectoryAssetIDs: [String]
+    let localCharacterAssetIDs: [String]
+    let localImageAssetIDs: [String]
+}
+
+enum MasterCatalogLoader {
+    private static let stage1MasterAssetIDs: Set<String> = [
+        "001546",
+        "001550",
+        "001560",
+        "001565",
+        "001567",
+        "001570",
+        "001572",
+        "001580"
+    ]
+    private static let requiredImageFiles = ["avatar.png", "image.png", "background.jpg"]
+
+    static func load() throws -> MasterCatalogSnapshot {
+        let roots = try resolveAssetRoots()
+        let serviceDirectory = try MasterServiceDirectory.load()
+        let domainLookup = Dictionary(uniqueKeysWithValues: serviceDirectory.domains.map { ($0.id, $0) })
+        let decoder = JSONDecoder()
+        let indexCoverage = try validateStage1AssetCoverage(serviceDirectory: serviceDirectory, roots: roots)
+
+        let masters = try serviceDirectory.entries
+            .sorted { $0.sortOrder < $1.sortOrder }
+            .map { entry -> MasterProfile in
+                guard let domain = domainLookup[entry.domainID] else {
+                    throw MasterCatalogLoadError.directory("未知的大师领域：\(entry.domainID)")
+                }
+
+                let characterURL = roots.charDirectory.appendingPathComponent("\(entry.assetID).json")
+                guard FileManager.default.fileExists(atPath: characterURL.path) else {
+                    throw MasterCatalogLoadError.missingCharacter(entry.assetID)
+                }
+
+                let imageDirectory = roots.imageDirectory.appendingPathComponent(entry.assetID, isDirectory: true)
+                try validateImageDirectory(at: imageDirectory, assetID: entry.assetID)
+                let avatarPath = imageDirectory.appendingPathComponent(requiredImageFiles[0]).path
+                let portraitPath = imageDirectory.appendingPathComponent(requiredImageFiles[1]).path
+                let backgroundPath = imageDirectory.appendingPathComponent(requiredImageFiles[2]).path
+
+                let data = try Data(contentsOf: characterURL)
+                let document: MasterCharacterResourceDocument
+                do {
+                    document = try decoder.decode(MasterCharacterResourceDocument.self, from: data)
+                } catch {
+                    throw MasterCatalogLoadError.invalidCharacter(entry.assetID, error.localizedDescription)
+                }
+
+                let internalAssetID = String(format: "%06d", document.metadata.id)
+                guard internalAssetID == entry.assetID else {
+                    throw MasterCatalogLoadError.mismatchedCharacterIdentifier(
+                        expected: entry.assetID,
+                        actual: internalAssetID
+                    )
+                }
+
+                return makeProfile(
+                    entry: entry,
+                    domain: domain,
+                    document: document,
+                    characterURL: characterURL,
+                    imageDirectory: imageDirectory,
+                    directoryManifestPath: serviceDirectory.sourceURL.path,
+                    imageSet: MasterImageSet(
+                        assetID: entry.assetID,
+                        avatarPath: avatarPath,
+                        portraitPath: portraitPath,
+                        backgroundPath: backgroundPath
+                    )
+                )
+            }
+
+        let masterIndex = Dictionary(uniqueKeysWithValues: masters.enumerated().map { ($1.id, $0) })
+        return MasterCatalogSnapshot(
+            domains: serviceDirectory.domains,
+            domainIndex: domainLookup,
+            masters: masters,
+            masterIndex: masterIndex,
+            catalogCoverage: MasterCatalogCoverage(
+                directoryManifestPath: serviceDirectory.sourceURL.path,
+                characterRootPath: roots.charDirectory.path,
+                imageRootPath: roots.imageDirectory.path,
+                serviceDirectoryAssetIDs: indexCoverage.serviceDirectoryAssetIDs,
+                localCharacterAssetIDs: indexCoverage.localCharacterAssetIDs,
+                localImageAssetIDs: indexCoverage.localImageAssetIDs,
+                matchedAssetIDs: masters.map(\.id).sorted(),
+                mappedImageFiles: requiredImageFiles
+            ),
+            sessions: []
+        )
+    }
+
+    private static func validateStage1AssetCoverage(
+        serviceDirectory: MasterServiceDirectory.DirectorySnapshot,
+        roots: MasterAssetRoots
+    ) throws -> MasterDirectoryIndexCoverage {
+        let directoryAssetIDs = serviceDirectory.entries.map(\.assetID).sorted()
+        let directoryAssetIDSet = Set(directoryAssetIDs)
+        guard directoryAssetIDSet == stage1MasterAssetIDs else {
+            throw MasterCatalogLoadError.directory(
+                mismatchMessage(
+                    title: "大师目录索引必须固定命中 Stage 1 的 8 位大师",
+                    expected: stage1MasterAssetIDs,
+                    actual: directoryAssetIDSet
+                )
+            )
+        }
+
+        let localCharacterAssetIDs = Array(try resourceFileIDs(in: roots.charDirectory, pathExtension: "json")).sorted()
+        let localCharacterAssetIDSet = Set(localCharacterAssetIDs)
+        guard localCharacterAssetIDSet == stage1MasterAssetIDs else {
+            throw MasterCatalogLoadError.directory(
+                mismatchMessage(
+                    title: "./assets/char 与 Stage 1 大师目录不一致",
+                    expected: stage1MasterAssetIDs,
+                    actual: localCharacterAssetIDSet
+                )
+            )
+        }
+
+        let localImageAssetIDs = Array(try resourceDirectoryIDs(in: roots.imageDirectory)).sorted()
+        let localImageAssetIDSet = Set(localImageAssetIDs)
+        guard localImageAssetIDSet == stage1MasterAssetIDs else {
+            throw MasterCatalogLoadError.directory(
+                mismatchMessage(
+                    title: "./assets/assets/char 与 Stage 1 大师目录不一致",
+                    expected: stage1MasterAssetIDs,
+                    actual: localImageAssetIDSet
+                )
+            )
+        }
+
+        for assetID in stage1MasterAssetIDs {
+            let imageDirectory = roots.imageDirectory.appendingPathComponent(assetID, isDirectory: true)
+            try validateImageDirectory(at: imageDirectory, assetID: assetID)
+        }
+
+        return MasterDirectoryIndexCoverage(
+            serviceDirectoryAssetIDs: directoryAssetIDs,
+            localCharacterAssetIDs: localCharacterAssetIDs,
+            localImageAssetIDs: localImageAssetIDs
+        )
+    }
+
+    private static func resolveAssetRoots() throws -> MasterAssetRoots {
+        let fileManager = FileManager.default
+        let bundleCandidates: [MasterAssetRoots] = [
+            Bundle.main.resourceURL.map {
+                MasterAssetRoots(
+                    charDirectory: $0.appendingPathComponent("char", isDirectory: true),
+                    imageDirectory: $0.appendingPathComponent("assets/char", isDirectory: true)
+                )
+            },
+            Bundle.main.resourceURL.map {
+                MasterAssetRoots(
+                    charDirectory: $0.appendingPathComponent("MasterCharAssets", isDirectory: true),
+                    imageDirectory: $0.appendingPathComponent("MasterImageAssets/char", isDirectory: true)
+                )
+            }
         ]
+        .compactMap { $0 }
 
-        let bundle = MasterAssetBundleInfo(
-            bundleID: "sparelife_masters_foundation_cn",
-            version: "2026.03.25",
-            portraitPackage: "master_portraits/*.svg",
-            characterFields: ["name", "description", "good_at", "speech_style", "relationship_with_player"],
-            storyFields: ["story_id", "title", "description", "story_beats", "cover_image_portrait"],
-            manifestFields: ["master_domain", "master_sort_order", "is_featured", "status"],
-            importNote: "资产包由后台幂等导入，App 仅消费、缓存和展示，不提供端侧编辑入口。",
-            isOfficial: true
+        for candidate in bundleCandidates where fileManager.fileExists(atPath: candidate.charDirectory.path) &&
+            fileManager.fileExists(atPath: candidate.imageDirectory.path) {
+            return candidate
+        }
+
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+
+        let sourceRoots = MasterAssetRoots(
+            charDirectory: repoRoot.appendingPathComponent("assets/char", isDirectory: true),
+            imageDirectory: repoRoot.appendingPathComponent("assets/assets/char", isDirectory: true)
         )
 
-        let zeng = MasterProfile(
-            id: "zeng-guofan",
-            displayName: "曾国藩",
-            title: "统筹与带队顾问",
-            tagline: "擅长从混乱中立规矩，把大目标拆成可执行的周节奏。",
-            headline: "先结硬寨，后打呆仗。",
-            domainID: "leadership",
-            domainTitle: "统筹执行",
-            sourceLabel: "真专家映射分身",
-            voice: "克制、具体、强调边界与节奏。",
-            adviceStyle: "先定边界，再把目标拆进周节奏",
-            decisionStyle: "steady_execution",
-            riskAppetite: "steady",
-            expertiseTags: ["带队", "执行", "复盘", "求职", "转岗"],
-            focusTags: ["AI 产品", "周计划", "简历叙事"],
-            boundaries: ["不要用夸大包装换取短期通过", "不要同时并行三条以上主线"],
-            featuredTemplates: [
-                MasterQuestionTemplate(id: "z1", title: "把目标拆进周节奏", prompt: "我想在八周内完成转岗准备，请帮我把目标拆成每周节奏。", mode: .adviceFirst),
-                MasterQuestionTemplate(id: "z2", title: "带队先立什么规矩", prompt: "我要带一个混乱的小团队，第一周应该先立哪些规矩？", mode: .storyFirst)
-            ],
-            stories: [
-                MasterStory(id: "xiang", title: "湘军重建", summary: "先立军纪，再扩编成可持续作战的队伍。", beats: ["从最可信的一小批人开始", "用军纪和复盘机制替代情绪动员", "打一仗固化一次经验"], tags: ["带队", "执行", "纪律"]),
-                MasterStory(id: "letters", title: "家书复盘法", summary: "靠长期书写和复盘修正急躁与失序。", beats: ["先看自己是否越界或贪快", "每天只抓一两个改进点", "让复盘成为长期机制"], tags: ["复盘", "习惯", "节奏"]),
-                MasterStory(id: "late", title: "屡败后的迟熟成才", summary: "反复受挫后才逐渐建立系统能力。", beats: ["承认自己不是短跑型选手", "失败先当校准", "长期积累比一次惊艳更重要"], tags: ["挫折", "成长", "长期主义"])
-            ],
-            memoryNotes: [
-                MasterMemoryNote(id: "zm1", label: "目标", summary: "目标：8 周内完成 AI 产品转岗准备。", scope: .masterOnly, updatedAt: "昨天", isSensitive: false),
-                MasterMemoryNote(id: "zm2", label: "约束", summary: "约束：现金流只够支撑 3 个月。", scope: .masterOnly, updatedAt: "前天", isSensitive: true)
-            ],
-            goalSnapshots: [
-                MasterGoalSnapshot(id: "zg1", title: "AI 产品转岗", nextAction: "本周完成两段可复用项目叙事。", status: "进行中", updatedAt: "昨天")
-            ],
-            assetBundle: bundle,
-            portraitSymbol: "shield.lefthalf.filled",
-            palette: [Color(red: 0.09, green: 0.13, blue: 0.19), Color(red: 0.84, green: 0.69, blue: 0.42)],
-            promptPreview: "先复述用户当前目标，再结合记忆和故事材料给出三步执行建议。"
+        guard fileManager.fileExists(atPath: sourceRoots.charDirectory.path),
+              fileManager.fileExists(atPath: sourceRoots.imageDirectory.path) else {
+            throw MasterCatalogLoadError.assetRootsUnavailable
+        }
+
+        return sourceRoots
+    }
+
+    private static func resourceFileIDs(in directory: URL, pathExtension: String) throws -> Set<String> {
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
         )
 
-        let yangming = MasterProfile(
-            id: "wang-yangming",
-            displayName: "王阳明",
-            title: "决断与知行顾问",
-            tagline: "擅长在焦虑和犹豫里找到那个立刻可做的第一步。",
-            headline: "知是行之始，行是知之成。",
-            domainID: "mindset",
-            domainTitle: "决断与校准",
-            sourceLabel: "真专家映射分身",
-            voice: "直接、点破犹豫，把抽象念头压成行动。",
-            adviceStyle: "先破除自我设限，再要求今天就有动作",
-            decisionStyle: "act_then_reflect",
-            riskAppetite: "experimental",
-            expertiseTags: ["决断", "行动", "拖延", "创业", "转岗"],
-            focusTags: ["校准", "AI 学习", "突破犹豫"],
-            boundaries: ["不要把思考伪装成行动", "不要靠拖延来维持安全感"],
-            featuredTemplates: [
-                MasterQuestionTemplate(id: "y1", title: "今天就能开始的一步", prompt: "我已经纠结很久了，请帮我找出今天就能开始的一步。", mode: .mentor),
-                MasterQuestionTemplate(id: "y2", title: "破除自我设限", prompt: "我总觉得自己不够格，怎么识别是真风险还是自我设限？", mode: .companion)
-            ],
-            stories: [
-                MasterStory(id: "dragon", title: "龙场悟道", summary: "把外部困局转成内在秩序。", beats: ["环境越差越要收回注意力", "心安来自做正确的事", "先行动，秩序才会长出来"], tags: ["困境", "行动", "心态"]),
-                MasterStory(id: "campaign", title: "南赣平乱", summary: "复杂局面先抓关键矛盾。", beats: ["先抓一个关键杠杆", "用行动验证判断", "边做边修正"], tags: ["决断", "杠杆", "实验"]),
-                MasterStory(id: "students", title: "给弟子的知行要求", summary: "别把抽象理解当成完成任务。", beats: ["每次卡住都问今天能做什么", "行动会逼出真正问题", "理解不等于完成"], tags: ["拖延", "学习", "行动"])
-            ],
-            memoryNotes: [
-                MasterMemoryNote(id: "ym1", label: "近况", summary: "近况：正在犹豫是否辞职转岗。", scope: .masterOnly, updatedAt: "2 小时前", isSensitive: false)
-            ],
-            goalSnapshots: [
-                MasterGoalSnapshot(id: "yg1", title: "把犹豫压成行动", nextAction: "今天完成 1 次岗位拆解和 1 封请教消息。", status: "待启动", updatedAt: "今天")
-            ],
-            assetBundle: bundle,
-            portraitSymbol: "bolt.heart.fill",
-            palette: [Color(red: 0.13, green: 0.20, blue: 0.24), Color(red: 0.84, green: 0.89, blue: 0.72)],
-            promptPreview: "指出用户真正卡住的执念，并给出今天就能执行的一步。"
+        return Set(contents.compactMap { url in
+            guard url.pathExtension.lowercased() == pathExtension.lowercased() else { return nil }
+            return url.deletingPathExtension().lastPathComponent
+        })
+    }
+
+    private static func resourceDirectoryIDs(in directory: URL) throws -> Set<String> {
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
         )
 
-        let daosheng = MasterProfile(
-            id: "daosheng-hefu",
-            displayName: "稻盛和夫",
-            title: "经营与职业跃迁顾问",
-            tagline: "擅长把理想、现金流和长期能力放到同一张账里看。",
-            headline: "付出不亚于任何人的努力，但先把账算清楚。",
-            domainID: "career",
-            domainTitle: "职业跃迁",
-            sourceLabel: "真专家映射分身",
-            voice: "冷静算账，强调可持续、诚实和长期积累。",
-            adviceStyle: "先算现金流与验证成本，再扩大投入",
-            decisionStyle: "small_bets_profit",
-            riskAppetite: "steady",
-            expertiseTags: ["经营", "求职", "职业选择", "现金流", "AI 产品经理"],
-            focusTags: ["转岗", "作品集", "机会评估"],
-            boundaries: ["不要用透支现金流来换虚假的职业跃迁", "不要把短期热闹当成长期壁垒"],
-            featuredTemplates: [
-                MasterQuestionTemplate(id: "d1", title: "算七天验证账", prompt: "我想转岗 AI 产品，但现金流有限，请帮我先算七天验证账。", mode: .adviceFirst),
-                MasterQuestionTemplate(id: "d2", title: "先拿什么小订单", prompt: "如果我想先验证能力，第一批小机会应该怎么选？", mode: .storyFirst)
-            ],
-            stories: [
-                MasterStory(id: "kyocera", title: "京瓷第一批订单", summary: "先拿下能证明团队可靠性的第一批订单。", beats: ["先验证能力的小机会", "交付形成信誉资产", "现金流跟着成长走"], tags: ["创业", "现金流", "作品集"]),
-                MasterStory(id: "amoeba", title: "阿米巴经营", summary: "把大组织拆成可核算的小单元。", beats: ["目标越大越要拆单元", "每一步投入都有验证指标", "职责清楚成长才可持续"], tags: ["经营", "指标", "优先级"]),
-                MasterStory(id: "jal", title: "日航重整", summary: "先恢复基本秩序和现金安全。", beats: ["先稳住基本盘", "让团队先看到短周期改善", "秩序恢复后再谈升级"], tags: ["止损", "现金流", "秩序"])
-            ],
-            memoryNotes: [
-                MasterMemoryNote(id: "ds1", label: "目标", summary: "目标：3 个月内拿到至少 2 个 AI 产品面试。", scope: .masterOnly, updatedAt: "昨天", isSensitive: false),
-                MasterMemoryNote(id: "ds2", label: "经历", summary: "经历：当前在运营岗，缺少完整项目案例。", scope: .masterOnly, updatedAt: "昨天", isSensitive: false)
-            ],
-            goalSnapshots: [
-                MasterGoalSnapshot(id: "dg1", title: "转岗面试", nextAction: "先做 1 个能证明能力的小项目并形成案例页。", status: "进行中", updatedAt: "昨天")
-            ],
-            assetBundle: bundle,
-            portraitSymbol: "chart.line.uptrend.xyaxis",
-            palette: [Color(red: 0.11, green: 0.18, blue: 0.27), Color(red: 0.91, green: 0.78, blue: 0.43)],
-            promptPreview: "把用户目标、记忆、故事证据放进一张经营账里，给出优先级和止损线。"
+        return Set(contents.compactMap { url in
+            guard (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { return nil }
+            return url.lastPathComponent
+        })
+    }
+
+    private static func validateImageDirectory(at directory: URL, assetID: String) throws {
+        let contents = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
         )
 
-        let sushi = MasterProfile(
-            id: "su-shi",
-            displayName: "苏轼",
-            title: "韧性与表达顾问",
-            tagline: "擅长在低谷里稳住心气，也帮你把难说的话说得更有人味。",
-            headline: "此心安处是吾乡。",
-            domainID: "life",
-            domainTitle: "关系与韧性",
-            sourceLabel: "真专家映射分身",
-            voice: "豁达但不空泛，总能把苦处化成可承受的节奏。",
-            adviceStyle: "先稳住心气和表达，再安排外部动作",
-            decisionStyle: "resilient_expression",
-            riskAppetite: "balanced",
-            expertiseTags: ["低谷", "表达", "关系", "韧性", "职业低潮"],
-            focusTags: ["沟通", "复原力", "生活秩序"],
-            boundaries: ["不要在情绪最满的时候做最终决定", "不要把一时失意写成永久身份"],
-            featuredTemplates: [
-                MasterQuestionTemplate(id: "s1", title: "低谷时怎么开口", prompt: "我最近状态很差，但又需要和重要的人沟通，怎么开这个口？", mode: .companion),
-                MasterQuestionTemplate(id: "s2", title: "先稳住心气", prompt: "我有点被一次失败钉住了，怎样先把日常秩序搭起来？", mode: .storyFirst)
-            ],
-            stories: [
-                MasterStory(id: "wutai", title: "乌台诗案后的重建", summary: "重大打击后先重建生活秩序和表达方式。", beats: ["先把生活秩序搭起来", "表达方式可以调整", "低谷不是永久身份"], tags: ["低谷", "韧性", "表达"]),
-                MasterStory(id: "chibi", title: "赤壁夜游", summary: "在失意中重建视角。", beats: ["当下成败不必立刻定义人生", "拉长时间尺度", "先稳住心再判断"], tags: ["尺度", "情绪", "关系"]),
-                MasterStory(id: "hainan", title: "海南晚年", summary: "继续写作、交往和生活，让自己保持生成感。", beats: ["留下和世界连接的动作", "关系和表达是恢复心气的重要抓手", "只要还在生成就没被彻底打败"], tags: ["连接", "恢复", "表达"])
-            ],
-            memoryNotes: [
-                MasterMemoryNote(id: "ss1", label: "约束", summary: "约束：最近情绪波动大，不想把负面情绪带给伴侣。", scope: .masterOnly, updatedAt: "今天", isSensitive: true)
-            ],
-            goalSnapshots: [
-                MasterGoalSnapshot(id: "sg1", title: "关系修复", nextAction: "先写一段不带指责的真实近况，再约一次轻量沟通。", status: "待启动", updatedAt: "今天")
-            ],
-            assetBundle: bundle,
-            portraitSymbol: "leaf.fill",
-            palette: [Color(red: 0.15, green: 0.19, blue: 0.28), Color(red: 0.85, green: 0.76, blue: 0.55)],
-            promptPreview: "先帮用户稳住心气，再给一个能向外表达的动作。"
-        )
+        let actualFiles = Set<String>(contents.compactMap { url in
+            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { return nil }
+            return url.lastPathComponent
+        })
+        let expectedFiles = Set(requiredImageFiles)
 
-        let sessions = [
-            MasterRecentSession(
-                id: "recent-daosheng",
-                masterID: daosheng.id,
-                displayName: daosheng.displayName,
-                title: daosheng.title,
-                topic: "转岗 AI 产品但现金流紧",
-                preview: "先做七天验证账，再决定是否全职投入。",
-                unreadCount: 2,
-                lastMessageAt: "09:10",
-                isPinned: true,
-                seedMessages: [
-                    MasterMessage(id: "dmsg1", role: .assistant, text: "我们先不急着辞职，先把现金流和验证成本算清楚。", timestamp: "昨天", referencedStoryTitles: ["京瓷第一批订单"], referencedMemoryLabels: ["目标"], ctas: [])
-                ]
+        if let missingFile = expectedFiles.subtracting(actualFiles).sorted().first {
+            throw MasterCatalogLoadError.missingImage(assetID, missingFile)
+        }
+
+        guard actualFiles == expectedFiles else {
+            throw MasterCatalogLoadError.directory(
+                "大师图片资源目录与映射规则不一致：asset_id=\(assetID)。expected=[\(requiredImageFiles.joined(separator: ", "))] actual=[\(actualFiles.sorted().joined(separator: ", "))]"
+            )
+        }
+    }
+
+    private static func mismatchMessage(title: String, expected: Set<String>, actual: Set<String>) -> String {
+        let expectedList = expected.sorted().joined(separator: ", ")
+        let actualList = actual.sorted().joined(separator: ", ")
+        return "\(title)。expected=[\(expectedList)] actual=[\(actualList)]"
+    }
+
+    private static func makeProfile(
+        entry: MasterServiceDirectory.Entry,
+        domain: MasterDomain,
+        document: MasterCharacterResourceDocument,
+        characterURL: URL,
+        imageDirectory: URL,
+        directoryManifestPath: String,
+        imageSet: MasterImageSet
+    ) -> MasterProfile {
+        let description = cleanText(document.metadata.description)
+        let expertiseTags = Array(uniqueStrings(document.metadata.tags).prefix(4))
+        let focusTags = Array(uniqueStrings([domain.title] + Array(document.metadata.tags.dropFirst(2).prefix(2))).prefix(3))
+        let templates = makeTemplates(for: entry, name: document.chinese.name.fullName, domainTitle: domain.title, tags: expertiseTags)
+        let stories = makeStories(document: document, entry: entry, expertiseTags: expertiseTags, domain: domain)
+        let promptPreview = clip(
+            firstNonEmpty(
+                document.metadata.openingMessage,
+                document.chinese.greetingMessage,
+                document.metadata.personalityTraits,
+                document.chinese.personality,
+                description
             ),
-            MasterRecentSession(
-                id: "recent-sushi",
-                masterID: sushi.id,
-                displayName: sushi.displayName,
-                title: sushi.title,
-                topic: "情绪低谷里如何说真话",
-                preview: "先把难受写成一句不带指责的话，再决定和谁说。",
-                unreadCount: 0,
-                lastMessageAt: "昨天",
-                isPinned: false,
-                seedMessages: [
-                    MasterMessage(id: "smsg1", role: .assistant, text: "先别急着解释自己，先把情绪落到一句能对外表达的话。", timestamp: "昨天", referencedStoryTitles: ["乌台诗案后的重建"], referencedMemoryLabels: ["约束"], ctas: [])
-                ]
+            limit: 100
+        )
+
+        return MasterProfile(
+            id: entry.assetID,
+            displayName: document.chinese.name.fullName,
+            title: clip(leadClause(description), limit: 24),
+            tagline: clip(
+                firstNonEmpty(document.metadata.personalityTraits, document.chinese.personality, description),
+                limit: 72
             ),
-            MasterRecentSession(
-                id: "recent-zeng",
-                masterID: zeng.id,
-                displayName: zeng.displayName,
-                title: zeng.title,
-                topic: "把求职准备拆进周计划",
-                preview: "一周只抓最关键的两个动作，不要三线并行。",
-                unreadCount: 1,
-                lastMessageAt: "周二",
-                isPinned: false,
-                seedMessages: [
-                    MasterMessage(id: "zmsg1", role: .assistant, text: "这周先完成项目叙事和 2 次岗位拆解，不求面面俱到。", timestamp: "周二", referencedStoryTitles: ["家书复盘法"], referencedMemoryLabels: ["目标"], ctas: [])
-                ]
+            headline: clip(
+                firstNonEmpty(document.metadata.description, document.metadata.importantPast, document.chinese.background),
+                limit: 52
+            ),
+            domainID: domain.id,
+            domainTitle: domain.title,
+            sourceLabel: "预置角色资源",
+            voice: clip(
+                firstNonEmpty(document.metadata.speechStyle, document.chinese.interactionStyleTags, document.chinese.personality),
+                limit: 88
+            ),
+            adviceStyle: adviceStyle(for: entry.domainID),
+            decisionStyle: entry.decisionStyle,
+            riskAppetite: entry.riskAppetite,
+            expertiseTags: expertiseTags,
+            focusTags: focusTags,
+            boundaries: boundaries(for: entry.domainID),
+            featuredTemplates: templates,
+            stories: stories,
+            memoryNotes: [],
+            goalSnapshots: [
+                MasterGoalSnapshot(
+                    id: "goal-\(entry.assetID)",
+                    title: "建议起手式",
+                    nextAction: clip(templates.first?.prompt ?? promptPreview, limit: 44),
+                    status: "可直接开聊",
+                    updatedAt: "本地目录"
+                )
+            ],
+            assetBundle: MasterAssetBundleInfo(
+                bundleID: "masters_stage1_local_assets",
+                version: "2026-03-27",
+                portraitPackage: imageDirectory.path,
+                directoryManifestPath: directoryManifestPath,
+                characterFields: [
+                    "Simplified Chinese.name.full_name",
+                    "metadata.description",
+                    "metadata.personality_traits",
+                    "metadata.speech_style",
+                    "metadata.tags",
+                    "metadata.opening_message"
+                ],
+                storyFields: [
+                    "metadata.important_past",
+                    "Simplified Chinese.background",
+                    "Simplified Chinese.world_settings"
+                ],
+                manifestFields: ["asset_id", "domain_id", "sort_order", "decision_style", "risk_appetite"],
+                importNote: "Stage 1 目录索引固定指向 ./assets/char 与 ./assets/assets 的 8 套匹配资源，端侧只读消费。",
+                isOfficial: true,
+                characterAssetPath: characterURL.path,
+                imageDirectoryPath: imageDirectory.path,
+                mappedImageFiles: requiredImageFiles
+            ),
+            portraitSymbol: entry.portraitSymbol,
+            palette: entry.palette,
+            promptPreview: promptPreview,
+            imageSet: imageSet
+        )
+    }
+
+    private static func makeTemplates(
+        for entry: MasterServiceDirectory.Entry,
+        name: String,
+        domainTitle: String,
+        tags: [String]
+    ) -> [MasterQuestionTemplate] {
+        let firstTag = tags.first ?? domainTitle
+        let secondTag = tags.dropFirst().first ?? "当前问题"
+
+        return [
+            MasterQuestionTemplate(
+                id: "\(entry.assetID)-t1",
+                title: "从\(firstTag)切入",
+                prompt: "如果我想请\(name)从\(firstTag)角度判断我当前的问题，应该先补充哪些关键背景？",
+                mode: .storyFirst
+            ),
+            MasterQuestionTemplate(
+                id: "\(entry.assetID)-t2",
+                title: "用\(name)的方法拆解",
+                prompt: "请结合你的经历与方法，把这件关于\(secondTag)的事拆成一个今天就能开始的动作。",
+                mode: mode(for: entry.decisionStyle)
             )
         ]
+    }
 
-        return MasterSeedCatalog(
-            domains: domains,
-            masters: [zeng, yangming, daosheng, sushi],
-            sessions: sessions,
-            cachedMasters: [zeng, daosheng, sushi],
-            cachedSessions: Array(sessions.prefix(2)),
-            adoptedActionIDs: []
+    private static func makeStories(
+        document: MasterCharacterResourceDocument,
+        entry: MasterServiceDirectory.Entry,
+        expertiseTags: [String],
+        domain: MasterDomain
+    ) -> [MasterStory] {
+        let backgroundStory = makeStory(
+            id: "\(entry.assetID)-background",
+            title: "关键生平",
+            sourceText: firstNonEmpty(document.metadata.importantPast, document.chinese.background, document.metadata.description),
+            fallbackText: document.metadata.description,
+            tags: Array(uniqueStrings(expertiseTags + [domain.title]).prefix(4))
         )
+        let methodStory = makeStory(
+            id: "\(entry.assetID)-method",
+            title: "方法与立场",
+            sourceText: firstNonEmpty(document.metadata.speechStyle, document.chinese.interactionStyleTags, document.chinese.personality),
+            fallbackText: document.metadata.description,
+            tags: Array(uniqueStrings(Array(expertiseTags.prefix(2)) + ["方法", "判断"]).prefix(4))
+        )
+        let worldStory = makeStory(
+            id: "\(entry.assetID)-world",
+            title: "时代与处境",
+            sourceText: firstNonEmpty(document.chinese.worldSettings, document.chinese.setting, document.metadata.worldSettings),
+            fallbackText: document.chinese.background,
+            tags: Array(uniqueStrings([domain.title, "处境", "时代"] + Array(expertiseTags.prefix(1))).prefix(4))
+        )
+
+        return [backgroundStory, methodStory, worldStory]
+    }
+
+    private static func makeStory(
+        id: String,
+        title: String,
+        sourceText: String,
+        fallbackText: String,
+        tags: [String]
+    ) -> MasterStory {
+        let basis = cleanText(sourceText).isEmpty ? fallbackText : sourceText
+        var beats = storyBeats(from: basis)
+
+        if beats.isEmpty {
+            beats = [clip(cleanText(basis), limit: 30)]
+        }
+        while beats.count < 3 {
+            beats.append(beats.last ?? clip(cleanText(basis), limit: 30))
+        }
+
+        return MasterStory(
+            id: id,
+            title: title,
+            summary: clip(beats[0], limit: 48),
+            beats: Array(beats.prefix(3)),
+            tags: Array(uniqueStrings(tags).prefix(4))
+        )
+    }
+
+    private static func storyBeats(from text: String) -> [String] {
+        let normalized = cleanText(text)
+        guard !normalized.isEmpty else { return [] }
+
+        var segments: [String] = normalized
+            .components(separatedBy: .newlines)
+            .map(normalizeSegment)
+            .filter { $0.count >= 8 }
+
+        if segments.count < 3 {
+            let punctuationSeparated = normalized
+                .components(separatedBy: CharacterSet(charactersIn: "。！？；;"))
+                .map(normalizeSegment)
+                .filter { $0.count >= 8 }
+            segments.append(contentsOf: punctuationSeparated)
+        }
+
+        if segments.count < 3 {
+            let commaSeparated = normalized
+                .components(separatedBy: CharacterSet(charactersIn: "，,:："))
+                .map(normalizeSegment)
+                .filter { $0.count >= 8 }
+            segments.append(contentsOf: commaSeparated)
+        }
+
+        return Array(uniqueStrings(segments).prefix(3))
+    }
+
+    private static func mode(for decisionStyle: String) -> MasterConversationMode {
+        switch decisionStyle {
+        case "act_then_reflect":
+            return .mentor
+        case "resilient_expression":
+            return .companion
+        case "small_bets_profit":
+            return .adviceFirst
+        default:
+            return .storyFirst
+        }
+    }
+
+    private static func adviceStyle(for domainID: String) -> String {
+        switch domainID {
+        case "theory":
+            return "先澄清定义和前提，再把问题压成可论证的一步"
+        case "discovery":
+            return "先回到证据、实验和可验证现象，再给判断"
+        case "invention":
+            return "先把收益、风险和代价摆到同一张表上"
+        case "humanity":
+            return "先对齐处境与价值，再决定如何表达和行动"
+        default:
+            return "先把问题说实，再给下一步建议"
+        }
+    }
+
+    private static func boundaries(for domainID: String) -> [String] {
+        switch domainID {
+        case "theory":
+            return ["不要跳过定义与前提直接下结论", "不要把猜想包装成已经证明的答案"]
+        case "discovery":
+            return ["不要拿单次现象替代重复验证", "不要绕开证据直接诉诸权威"]
+        case "invention":
+            return ["不要只谈效率不谈代价与安全", "不要把技术成就当成免检通行证"]
+        case "humanity":
+            return ["不要用宏大叙事掩盖真实处境", "不要急着替自己写终局结论"]
+        default:
+            return ["不要让情绪抢跑于判断"]
+        }
+    }
+
+    private static func firstNonEmpty(_ values: String?...) -> String {
+        values.map(cleanText).first(where: { !$0.isEmpty }) ?? ""
+    }
+
+    private static func leadClause(_ value: String) -> String {
+        let candidates = value
+            .components(separatedBy: CharacterSet(charactersIn: "，。；;"))
+            .map(normalizeSegment)
+            .filter { !$0.isEmpty }
+        return candidates.first ?? clip(cleanText(value), limit: 24)
+    }
+
+    private static func normalizeSegment(_ value: String) -> String {
+        cleanText(value)
+            .replacingOccurrences(of: "- ", with: "")
+            .replacingOccurrences(of: "• ", with: "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "-• "))
+    }
+
+    private static func cleanText(_ value: String?) -> String {
+        guard let value else { return "" }
+        return value
+            .replacingOccurrences(of: "[English Version] - ", with: "")
+            .replacingOccurrences(of: "[日本語版] - ", with: "")
+            .replacingOccurrences(of: "\r", with: "")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func uniqueStrings<S: Sequence>(_ values: S) -> [String] where S.Element == String {
+        var seen = Set<String>()
+        return values.compactMap { raw in
+            let cleaned = cleanText(raw)
+            guard !cleaned.isEmpty, seen.insert(cleaned).inserted else { return nil }
+            return cleaned
+        }
+    }
+
+    private static func clip(_ value: String, limit: Int) -> String {
+        guard value.count > limit else { return value }
+        return String(value.prefix(limit)) + "…"
+    }
+}
+
+private struct MasterAssetRoots {
+    let charDirectory: URL
+    let imageDirectory: URL
+}
+
+private enum MasterCatalogLoadError: LocalizedError {
+    case assetRootsUnavailable
+    case missingCharacter(String)
+    case missingImage(String, String)
+    case invalidCharacter(String, String)
+    case mismatchedCharacterIdentifier(expected: String, actual: String)
+    case directory(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .assetRootsUnavailable:
+            return "未找到大师本地资源目录。需要 ./assets/char 与 ./assets/assets/char。"
+        case .missingCharacter(let assetID):
+            return "缺少大师字段资源：./assets/char/\(assetID).json"
+        case .missingImage(let assetID, let fileName):
+            return "缺少大师图片资源：./assets/assets/char/\(assetID)/\(fileName)"
+        case .invalidCharacter(let assetID, let detail):
+            return "解析大师字段资源失败：\(assetID).json，\(detail)"
+        case .mismatchedCharacterIdentifier(let expected, let actual):
+            return "大师字段资源与目录索引不一致：期望 asset_id=\(expected)，实际 metadata.id=\(actual)"
+        case .directory(let message):
+            return message
+        }
+    }
+}
+
+private struct MasterCharacterResourceDocument: Decodable {
+    let chinese: MasterLocalizedCharacter
+    let metadata: MasterCharacterMetadata
+
+    enum CodingKeys: String, CodingKey {
+        case chinese = "Simplified Chinese"
+        case metadata
+    }
+}
+
+private struct MasterLocalizedCharacter: Decodable {
+    let background: String
+    let greetingMessage: String
+    let interactionStyleTags: String
+    let name: MasterLocalizedName
+    let personality: String
+    let setting: String?
+    let worldSettings: String?
+
+    enum CodingKeys: String, CodingKey {
+        case background
+        case greetingMessage = "greeting_message"
+        case interactionStyleTags = "interaction_style_tags"
+        case name
+        case personality
+        case setting
+        case worldSettings = "world_settings"
+    }
+}
+
+private struct MasterLocalizedName: Decodable {
+    let fullName: String
+
+    enum CodingKeys: String, CodingKey {
+        case fullName = "full_name"
+    }
+}
+
+private struct MasterCharacterMetadata: Decodable {
+    let description: String
+    let id: Int
+    let tags: [String]
+    let openingMessage: String?
+    let personalityTraits: String?
+    let speechStyle: String?
+    let importantPast: String?
+    let worldSettings: String?
+
+    enum CodingKeys: String, CodingKey {
+        case description
+        case id
+        case tags
+        case openingMessage = "opening_message"
+        case personalityTraits = "personality_traits"
+        case speechStyle = "speech_style"
+        case importantPast = "important_past"
+        case worldSettings = "world_settings"
+    }
+}
+
+private enum MasterServiceDirectory {
+    struct Entry {
+        let assetID: String
+        let domainID: String
+        let sortOrder: Int
+        let decisionStyle: String
+        let riskAppetite: String
+        let portraitSymbol: String
+        let palette: [Color]
+    }
+
+    struct DirectorySnapshot {
+        let sourceURL: URL
+        let domains: [MasterDomain]
+        let entries: [Entry]
+    }
+
+    static func load() throws -> DirectorySnapshot {
+        let url = try resolveDirectoryURL()
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            throw MasterCatalogLoadError.directory("读取大师目录索引失败：\(url.lastPathComponent)，\(error.localizedDescription)")
+        }
+
+        let document: MasterServiceDirectoryDocument
+        do {
+            document = try JSONDecoder().decode(MasterServiceDirectoryDocument.self, from: data)
+        } catch {
+            throw MasterCatalogLoadError.directory("解析大师目录索引失败：\(url.lastPathComponent)，\(error.localizedDescription)")
+        }
+
+        let domains = document.domains.map(\.domain)
+        let domainIDs = Set(domains.map(\.id))
+        guard domainIDs.count == domains.count else {
+            throw MasterCatalogLoadError.directory("大师目录索引存在重复 domain_id。")
+        }
+
+        var seenAssetIDs = Set<String>()
+        let entries = try document.entries.map { entryRecord -> Entry in
+            guard domainIDs.contains(entryRecord.domainID) else {
+                throw MasterCatalogLoadError.directory("大师目录索引引用了未知领域：\(entryRecord.domainID)")
+            }
+            guard seenAssetIDs.insert(entryRecord.assetID).inserted else {
+                throw MasterCatalogLoadError.directory("大师目录索引存在重复 asset_id：\(entryRecord.assetID)")
+            }
+            return try entryRecord.entry
+        }
+
+        return DirectorySnapshot(
+            sourceURL: url,
+            domains: domains,
+            entries: entries
+        )
+    }
+
+    private static func resolveDirectoryURL() throws -> URL {
+        if let bundled = Bundle.main.url(forResource: "master_service_directory", withExtension: "json") {
+            return bundled
+        }
+
+        let supportPath = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Support/master_service_directory.json")
+        guard FileManager.default.fileExists(atPath: supportPath.path) else {
+            throw MasterCatalogLoadError.directory("未找到大师目录索引：Features/Masters/Support/master_service_directory.json")
+        }
+        return supportPath
+    }
+}
+
+private struct MasterServiceDirectoryDocument: Decodable {
+    let domains: [DomainRecord]
+    let entries: [EntryRecord]
+
+    struct DomainRecord: Decodable {
+        let id: String
+        let title: String
+        let description: String
+        let symbol: String
+
+        var domain: MasterDomain {
+            MasterDomain(
+                id: id,
+                title: title,
+                description: description,
+                symbol: symbol
+            )
+        }
+    }
+
+    struct EntryRecord: Decodable {
+        let assetID: String
+        let domainID: String
+        let sortOrder: Int
+        let decisionStyle: String
+        let riskAppetite: String
+        let portraitSymbol: String
+        let paletteHex: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case assetID = "asset_id"
+            case domainID = "domain_id"
+            case sortOrder = "sort_order"
+            case decisionStyle = "decision_style"
+            case riskAppetite = "risk_appetite"
+            case portraitSymbol = "portrait_symbol"
+            case paletteHex = "palette_hex"
+        }
+
+        var entry: MasterServiceDirectory.Entry {
+            get throws {
+                MasterServiceDirectory.Entry(
+                    assetID: assetID,
+                    domainID: domainID,
+                    sortOrder: sortOrder,
+                    decisionStyle: decisionStyle,
+                    riskAppetite: riskAppetite,
+                    portraitSymbol: portraitSymbol,
+                    palette: try paletteHex.map(Self.color(fromHex:))
+                )
+            }
+        }
+
+        private static func color(fromHex hex: String) throws -> Color {
+            let normalized = hex
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "#", with: "")
+            guard normalized.count == 6, let value = Int(normalized, radix: 16) else {
+                throw MasterCatalogLoadError.directory("大师目录索引存在非法 palette_hex：\(hex)")
+            }
+
+            let red = Double((value >> 16) & 0xFF) / 255.0
+            let green = Double((value >> 8) & 0xFF) / 255.0
+            let blue = Double(value & 0xFF) / 255.0
+            return Color(red: red, green: green, blue: blue)
+        }
+    }
+}
+
+private extension Array where Element == MasterMessage {
+    var nonEmpty: [MasterMessage]? {
+        isEmpty ? nil : self
     }
 }

@@ -4,6 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Lead Result Models
 
@@ -254,7 +257,7 @@ struct LeadResultView: View {
             }
         }
         .navigationTitle("撮合结果")
-        .navigationBarTitleDisplayMode(.inline)
+        .spareNavigationBarTitleDisplayMode(.inline)
         .task { store.load() }
         .sheet(isPresented: $store.showReviewSheet) {
             reviewSheet
@@ -581,7 +584,7 @@ struct LeadResultView: View {
             }
             .padding(Spacing.xl)
             .navigationTitle("评价撮合")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { store.closeReview() }
@@ -623,7 +626,7 @@ struct LeadResultsListView: View {
             }
         }
         .navigationTitle("\(lane.shortcut)结果")
-        .navigationBarTitleDisplayMode(.inline)
+        .spareNavigationBarTitleDisplayMode(.inline)
         .task {
             try? await Task.sleep(nanoseconds: 500_000_000)
             mockLeads = Self.buildMockList(lane: lane)

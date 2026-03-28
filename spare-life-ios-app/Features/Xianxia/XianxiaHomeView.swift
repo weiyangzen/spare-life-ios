@@ -1,18 +1,13 @@
 // XianxiaHomeView.swift
-// Spare Life – 咸虾 tab main page
-// Blueprint §3.1: 扫码进场景、双列瀑布流、分类 chips
-// UIUX lane – slot 2
+// Spare Life – 咸虾 Stage 1 topic feed
 
 import SwiftUI
 
-// MARK: - XianxiaHomeView
-
 struct XianxiaHomeView: View {
     @StateObject private var vm = XianxiaHomeViewModel()
-    @State private var showScanner = false
-    @State private var selectedCategory: SceneCategory = .all
-    @State private var searchText = ""
     @StateObject private var scrollState = WaterfallScrollState()
+
+    private static let feedTopAnchor = "xianxia_topic_feed_top"
 
     var body: some View {
         NavigationStack {
@@ -20,242 +15,170 @@ struct XianxiaHomeView: View {
                 Color(.systemGroupedBackground).ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // ── Top nav ──────────────────────────────────────────
                     topBar
-
-                    // ── Search + category chips ──────────────────────────
-                    filterRow
-                        .padding(.horizontal, Spacing.lg)
-                        .padding(.vertical, Spacing.sm)
-
-                    // ── "最近扫过" or "现在最热场景" horizontal strip ──────
-                    if !vm.recentScenes.isEmpty {
-                        recentScenesStrip
-                            .padding(.bottom, Spacing.sm)
-                    }
-
                     Divider()
-
-                    // ── Main waterfall feed ──────────────────────────────
                     feedBody
                 }
             }
-            .navigationBarHidden(true)
-            .sheet(isPresented: $showScanner) {
-                QRScanView { target in
-                    showScanner = false
-                    vm.handleScanTarget(target)
+            .spareNavigationBarHidden(true)
+            .navigationDestination(isPresented: Binding(
+                get: { vm.activeTopic != nil },
+                set: { if !$0 { vm.activeTopic = nil } }
+            )) {
+                if let topic = vm.activeTopic {
+                    SceneTopicView(topic: topic, repository: vm.repository)
                 }
             }
-            .navigationDestination(isPresented: Binding(
-                get: { vm.activeScene != nil },
-                set: { if !$0 { vm.activeScene = nil } }
-            )) {
-                if let scene = vm.activeScene {
-                    SceneTopicView(scene: scene,
-                                   isFromScan: vm.scannedSceneIDs.contains(scene.id))
-                }
+            .task {
+                vm.loadIfNeeded()
             }
         }
     }
 
-    // MARK: - Top Bar
-
     private var topBar: some View {
-        HStack(alignment: .center) {
-            Text("咸虾")
-                .font(.spareTitle1)
-                .foregroundColor(.primary)
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text("闲虾")
+                        .font(.spareTitle1)
+                        .foregroundColor(.primary)
 
-            Spacer()
-
-            Button {
-                showScanner = true
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(Color.spareYellow)
-                        .frame(width: 40, height: 40)
-                    Image(systemName: "qrcode.viewfinder")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.spareDark)
+                    Text("Stage 1 首页只保留 topic feed。")
+                        .font(.spareCaption)
+                        .foregroundColor(.secondary)
                 }
+
+                Spacer()
+
+                Button {
+                    vm.refresh()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.primary)
+                        .frame(width: 40, height: 40)
+                        .background(Color(.secondarySystemGroupedBackground), in: Circle())
+                }
+                .accessibilityLabel("刷新话题流")
+                .accessibilityIdentifier("xianxia.feed.refresh")
             }
-            .accessibilityLabel("扫码进入场景")
+
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: "tray.full")
+                    .foregroundColor(.secondary)
+                Text("统一 topic 数据源 · 双列瀑布流 · 本地缓存回退")
+                    .font(.spareCaption)
+                    .foregroundColor(.secondary)
+            }
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.top, Spacing.lg)
-        .padding(.bottom, Spacing.sm)
+        .padding(.bottom, Spacing.md)
     }
-
-    // MARK: - Search + Filter Row
-
-    private var filterRow: some View {
-        VStack(spacing: Spacing.sm) {
-            // Search bar
-            HStack(spacing: Spacing.sm) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                TextField("搜索场景、话题或人物", text: $searchText)
-                    .font(.spareBody)
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            .padding(Spacing.md)
-            .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: CornerRadius.md))
-
-            // Category chip strip
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.sm) {
-                    ForEach(SceneCategory.allCases) { cat in
-                        CategoryChip(
-                            category: cat,
-                            isSelected: selectedCategory == cat
-                        ) {
-                            UISelectionFeedbackGenerator().selectionChanged()
-                            withAnimation(.spareFast) {
-                                selectedCategory = cat
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 1)   // allow shadow breathing room
-            }
-        }
-    }
-
-    // MARK: - Recent Scenes Horizontal Strip
-
-    private var recentScenesStrip: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("最近扫过")
-                .font(.spareCaptionSB)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, Spacing.lg)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.md) {
-                    ForEach(vm.recentScenes) { scene in
-                        RecentScenePill(scene: scene) {
-                            vm.activeScene = scene
-                        }
-                    }
-                }
-                .padding(.horizontal, Spacing.lg)
-            }
-        }
-    }
-
-    // MARK: - Feed Body
 
     @ViewBuilder
     private var feedBody: some View {
-        let filtered = vm.filteredFeed(category: selectedCategory, search: searchText)
-
         switch vm.feedState {
-        case .loading:
+        case .idle, .loading:
             WaterfallSkeleton(count: 8)
                 .transition(.opacity)
 
         case .empty:
             ScrollView {
                 EmptyStateView(
-                    icon: "qrcode.viewfinder",
-                    title: "扫码探索周边场景",
-                    message: "扫一扫「龙虾码」，进入餐厅、活动、品牌等场景，看大家都在说什么。",
-                    actionLabel: "扫码试试",
-                    action: { showScanner = true }
+                    icon: "tray",
+                    title: "还没有可浏览的话题",
+                    message: "当前 topic 数据源没有返回内容，稍后下拉刷新再试。",
+                    actionLabel: "重新拉取",
+                    action: { vm.refresh() }
                 )
                 .padding(.top, Spacing.xxxl)
             }
 
-        case .error(let msg):
+        case .error(let message):
             ScrollView {
                 ErrorStateView(
-                    message: msg,
+                    message: message,
                     cached: false,
                     retry: { vm.refresh() }
                 )
                 .padding(.top, Spacing.xxxl)
             }
 
-        case .loadedFromCache(let items):
-            feedList(items: items, showCacheBanner: true)
-
-        case .loaded(let items):
-            feedList(items: filtered, showCacheBanner: false)
-
-        case .idle:
-            WaterfallSkeleton(count: 6)
-                .transition(.opacity)
-                .onAppear { vm.loadFeed() }
+        case .loadedFromCache, .loaded:
+            feedList(showCacheBanner: vm.feedState == .loadedFromCache)
         }
     }
 
-    private static let feedTopAnchor = "xianxia_feed_top"
-
-    private func feedList(items: [SceneFeedItem], showCacheBanner: Bool) -> some View {
+    private func feedList(showCacheBanner: Bool) -> some View {
         ScrollViewReader { proxy in
             ZStack(alignment: .bottomTrailing) {
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(spacing: 0) {
-                        // Invisible scroll offset tracker + anchor
-                        GeometryReader { geo in
+                        GeometryReader { geometry in
                             Color.clear.preference(
                                 key: XianxiaScrollOffsetKey.self,
-                                value: geo.frame(in: .named("xianxiaFeedScroll")).minY
+                                value: geometry.frame(in: .named("xianxiaTopicFeed")).minY
                             )
                         }
                         .frame(height: 0)
                         .id(Self.feedTopAnchor)
 
                         if showCacheBanner {
-                            CacheBanner()
-                                .padding(.horizontal, Spacing.lg)
-                                .padding(.vertical, Spacing.sm)
+                            TopicFeedCacheBanner(
+                                text: "已复用本地 topics 缓存，网络恢复后会自动刷新。"
+                            )
+                            .padding(.horizontal, Spacing.lg)
+                            .padding(.top, Spacing.sm)
                         }
 
                         FeedSectionHeader(
-                            title: "场景卡片流",
-                            subtitle: "\(items.count) 条内容",
-                            trailingLabel: nil
+                            title: "Topic Feed",
+                            subtitle: "\(vm.topics.count) 个话题",
+                            trailingLabel: vm.nextCursor == nil ? "已到底部" : "持续分页"
                         )
                         .padding(.top, Spacing.md)
                         .padding(.bottom, Spacing.xs)
 
-                        GeometryReader { proxy in
-                            WaterfallLayout(columns: WaterfallColumns.count(for: proxy.size.width), spacing: Spacing.md) {
-                                ForEach(items) { item in
-                                    feedCard(for: item)
-                                        .transition(.asymmetric(
-                                            insertion: .scale(scale: 0.92).combined(with: .opacity),
-                                            removal: .opacity
-                                        ))
+                        GeometryReader { geometry in
+                            WaterfallLayout(
+                                columns: WaterfallColumns.count(for: geometry.size.width),
+                                spacing: Spacing.md
+                            ) {
+                                ForEach(vm.topics) { topic in
+                                    TopicFeedCardView(topic: topic) {
+                                        vm.open(topic)
+                                    }
+                                    .onAppear {
+                                        vm.loadMoreIfNeeded(after: topic)
+                                    }
                                 }
                             }
                             .padding(.horizontal, Spacing.lg)
                             .padding(.top, Spacing.md)
-                            .padding(.bottom, Spacing.xxxl)
                         }
-                        .frame(minHeight: CGFloat(items.count / 2 + 1) * 200)
+                        .frame(minHeight: CGFloat(max(vm.topics.count / 2 + 1, 1)) * 216)
+
+                        if vm.isLoadingMore {
+                            ProgressView("加载更多 topics…")
+                                .font(.spareCaption)
+                                .padding(.vertical, Spacing.xl)
+                        }
+
+                        Color.clear
+                            .frame(height: 96)
                     }
                 }
-                .coordinateSpace(name: "xianxiaFeedScroll")
+                .accessibilityIdentifier("xianxia.feed.scrollView")
+                .coordinateSpace(name: "xianxiaTopicFeed")
                 .onPreferenceChange(XianxiaScrollOffsetKey.self) { offset in
                     scrollState.offsetY = offset
                     scrollState.isAtTop = offset > -40
                 }
                 .refreshable {
-                    await vm.refreshAsync()
+                    await vm.refreshFromPullToRefresh()
                 }
 
-                // Scroll-to-top FAB
                 if !scrollState.isAtTop {
                     ScrollToTopButton(isVisible: true) {
                         withAnimation(.spareSpring) {
@@ -270,183 +193,148 @@ struct XianxiaHomeView: View {
             .animation(.spareSpring, value: scrollState.isAtTop)
         }
     }
-
-    @ViewBuilder
-    private func feedCard(for item: SceneFeedItem) -> some View {
-        switch item {
-        case .summary(let card):
-            SceneSummaryCardView(card: card) {
-                vm.openSceneForSummary(card)
-            }
-
-        case .hotTake(let card):
-            HotTakeCardView(card: card)
-
-        case .avatarRadar(let card):
-            AvatarRadarCardView(card: card) {
-                vm.initiateStrangerSocial(from: card.agentID)
-            }
-
-        case .socialPrompt(let card):
-            SceneSocialPromptCardView(card: card) {
-                vm.initiateStrangerSocial(from: card.sceneID)
-            }
-        }
-    }
 }
 
-// MARK: - CategoryChip
+private struct TopicFeedCacheBanner: View {
+    let text: String
 
-private struct CategoryChip: View {
-    let category: SceneCategory
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: Spacing.xs) {
-                Image(systemName: category.icon)
-                    .font(.system(size: 12, weight: .medium))
-                Text(category.rawValue)
-                    .font(.spareCaption)
-            }
-            .foregroundColor(isSelected ? .spareDark : .primary)
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-            .background(
-                Capsule()
-                    .fill(isSelected ? Color.spareYellow : Color(.systemGray5))
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - RecentScenePill
-
-private struct RecentScenePill: View {
-    let scene: Scene
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: Spacing.xs) {
-                ZStack {
-                    Color.avatarGradient(seed: abs(scene.id.hashValue))
-                    Image(systemName: scene.category.icon)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.white)
-                }
-                .frame(width: 52, height: 52)
-                .clipShape(RoundedRectangle(cornerRadius: CornerRadius.sm))
-                .cardShadow()
-
-                Text(scene.name)
-                    .font(.spareMicro)
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-                    .frame(width: 60)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - CacheBanner
-
-private struct CacheBanner: View {
     var body: some View {
         HStack(spacing: Spacing.sm) {
-            Image(systemName: "clock.arrow.circlepath")
+            Image(systemName: "externaldrive.badge.checkmark")
                 .foregroundColor(.emotionNeutral)
-            Text("网络不佳，已显示上次缓存内容")
+            Text(text)
                 .font(.spareCaption)
                 .foregroundColor(.secondary)
             Spacer()
         }
         .padding(Spacing.md)
-        .background(Color(.systemYellow).opacity(0.12), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+        .background(Color(.systemYellow).opacity(0.10), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+        .accessibilityIdentifier("xianxia.feed.cacheBanner")
     }
 }
 
-// MARK: - Scroll Offset Key
-
 private struct XianxiaScrollOffsetKey: PreferenceKey {
     nonisolated(unsafe) static var defaultValue: CGFloat = 0
+
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }
 }
 
-// MARK: - XianxiaHomeViewModel
-
 @MainActor
 final class XianxiaHomeViewModel: ObservableObject {
-    @Published var feedState: SceneFeedState = .idle
-    @Published var recentScenes: [Scene] = []
-    @Published var activeScene: Scene? = nil
-    /// Tracks scene IDs entered via QR scan so SceneTopicView can show
-    /// the scan-entry banner on first arrival.
-    var scannedSceneIDs: Set<String> = []
+    @Published private(set) var feedState: XianxiaTopicFeedState = .idle
+    @Published private(set) var topics: [XianxiaTopic] = []
+    @Published private(set) var isLoadingMore = false
+    @Published var activeTopic: XianxiaTopic? = nil
 
-    // Inject real repository here once FUNC lane wires it up.
-    // For now the VM exposes the full state machine so UI is driven correctly.
+    let repository: XianxiaTopicRepository
+    private(set) var nextCursor: String?
+    private var hasStartedInitialLoad = false
 
-    func loadFeed() {
-        guard case .idle = feedState else { return }
-        feedState = .loading
-        // Will be replaced by real repository call when FUNC lane implements SceneRepository.
-        // Show empty state by default so UI path is exercised without fake data.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-            self?.feedState = .empty
+    init(repository: XianxiaTopicRepository = XianxiaTopicRepository()) {
+        self.repository = repository
+    }
+
+    func loadIfNeeded() {
+        guard !hasStartedInitialLoad else { return }
+        hasStartedInitialLoad = true
+        Task {
+            await loadInitial()
         }
     }
 
     func refresh() {
-        feedState = .loading
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-            self?.feedState = .empty
+        Task {
+            await loadInitial(forceRefresh: true)
         }
     }
 
-    func refreshAsync() async {
-        feedState = .loading
-        try? await Task.sleep(nanoseconds: 600_000_000)
-        feedState = .empty
+    func refreshFromPullToRefresh() async {
+        await loadInitial(forceRefresh: true)
     }
 
-    func handleScanTarget(_ target: ScanTarget) {
-        // Add to recent scenes and navigate
-        let scene = Scene(
-            id: target.sceneID,
-            name: target.displayName,
-            category: target.sceneCategory,
-            description: nil,
-            coverImageURL: nil,
-            participantCount: 0,
-            activeAvatarCount: 0,
-            lastActivityAt: Date()
-        )
-        if !recentScenes.contains(scene) {
-            recentScenes.insert(scene, at: 0)
-            if recentScenes.count > 8 { recentScenes = Array(recentScenes.prefix(8)) }
+    func loadInitial(forceRefresh: Bool = false) async {
+        if !forceRefresh {
+            await hydrateFeedFromCacheIfPresent()
+        } else if topics.isEmpty {
+            feedState = .loading
         }
-        // Mark this scene as entered via scan so the topic view shows entry banner.
-        scannedSceneIDs.insert(scene.id)
-        activeScene = scene
+
+        do {
+            let batch = try await repository.fetchTopics(cursor: nil)
+            topics = batch.items
+            nextCursor = batch.nextCursor
+            feedState = batch.items.isEmpty ? .empty : .loaded
+        } catch {
+            if !topics.isEmpty {
+                feedState = .loadedFromCache
+                return
+            }
+
+            await hydrateFeedFromCacheIfPresent()
+            if topics.isEmpty {
+                feedState = .error(error.xianxiaUserFacingMessage)
+            } else {
+                feedState = .loadedFromCache
+            }
+        }
     }
 
-    func openSceneForSummary(_ card: SceneSummaryCard) {
-        // FUNC lane will resolve the scene by sceneID from the repository.
-        // Placeholder navigation state for now.
+    func loadMoreIfNeeded(after topic: XianxiaTopic) {
+        guard shouldPrefetch(after: topic) else { return }
+        Task {
+            await loadMore()
+        }
     }
 
-    func initiateStrangerSocial(from sceneID: String) {
-        // Navigation handled by SceneTopicView; parent VM just needs to know.
+    func open(_ topic: XianxiaTopic) {
+        activeTopic = topic
     }
 
-    func filteredFeed(category: SceneCategory, search: String) -> [SceneFeedItem] {
-        guard case .loaded(let items) = feedState else { return [] }
-        return items // FUNC lane will add real filtering when items are real.
+    func loadMore() async {
+        guard let nextCursor, !nextCursor.isEmpty else { return }
+        guard !isLoadingMore else { return }
+
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+
+        do {
+            let batch = try await repository.fetchTopics(cursor: nextCursor)
+            topics = batch.items
+            self.nextCursor = batch.nextCursor
+            feedState = batch.items.isEmpty ? .empty : .loaded
+        } catch {
+            if topics.isEmpty {
+                feedState = .error(error.xianxiaUserFacingMessage)
+            } else {
+                feedState = .loadedFromCache
+            }
+        }
+    }
+
+    private func shouldPrefetch(after topic: XianxiaTopic) -> Bool {
+        guard let nextCursor, !nextCursor.isEmpty else { return false }
+        let threshold = Set(topics.suffix(4).map(\.id))
+        return threshold.contains(topic.id)
+    }
+
+    private func hydrateFeedFromCacheIfPresent() async {
+        do {
+            guard let snapshot = try await repository.cachedTopics(), !snapshot.items.isEmpty else {
+                if topics.isEmpty {
+                    feedState = .loading
+                }
+                return
+            }
+
+            topics = snapshot.items
+            nextCursor = snapshot.nextCursor
+            feedState = .loadedFromCache
+        } catch {
+            if topics.isEmpty {
+                feedState = .loading
+            }
+        }
     }
 }

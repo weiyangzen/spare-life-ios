@@ -1,529 +1,846 @@
 // SceneTopicView.swift
-// Spare Life – 咸虾 场景话题页 (scene public discussion layer)
-// Blueprint §3.1 功能点1-4: scene topic feed, AI summaries, avatar radar, social intent
-// UIUX lane – slot 2
+// Spare Life – 咸虾 Stage 1 topic shards detail
 
 import SwiftUI
 
-// MARK: - SceneTopicView
-
 struct SceneTopicView: View {
-    let scene: Scene
-    let isFromScan: Bool
+    let topic: XianxiaTopic
+    let repository: XianxiaTopicRepository
+
     @StateObject private var vm: SceneTopicViewModel
-    @State private var showSocialIntent = false
-    @State private var showAvatarRadar = false
-    @State private var selectedSegment: Segment = .feed
-    @State private var showScanBanner = false
-    @State private var activeClusterFilter: TopicCluster? = nil
     @Environment(\.dismiss) private var dismiss
 
-    init(scene: Scene, isFromScan: Bool = false) {
-        self.scene = scene
-        self.isFromScan = isFromScan
-        _vm = StateObject(wrappedValue: SceneTopicViewModel(sceneID: scene.id))
-    }
-
-    enum Segment: String, CaseIterable, Identifiable {
-        case feed     = "大家说什么"
-        case avatars  = "活跃分身"
-        case hot      = "热点话题"
-
-        var id: String { rawValue }
-        var icon: String {
-            switch self {
-            case .feed:    return "bubble.left.and.bubble.right"
-            case .avatars: return "person.2.wave.2"
-            case .hot:     return "flame"
-            }
-        }
+    init(topic: XianxiaTopic, repository: XianxiaTopicRepository = XianxiaTopicRepository()) {
+        self.topic = topic
+        self.repository = repository
+        _vm = StateObject(wrappedValue: SceneTopicViewModel(topic: topic, repository: repository))
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
             Color(.systemGroupedBackground).ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // ── Custom nav header ─────────────────────────────────
-                sceneHeader
-
-                // ── Scan entry banner (auto-dismiss after 3 s) ────────
-                if showScanBanner {
-                    ScanEntryBanner(sceneName: scene.name, category: scene.category)
-                        .padding(.horizontal, Spacing.lg)
-                        .padding(.top, Spacing.xs)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
-                // ── Scene AI summary strip ────────────────────────────
-                if case .loaded = vm.feedState, let summary = vm.primarySummary {
-                    SceneSummaryBanner(summary: summary)
-                        .padding(.horizontal, Spacing.lg)
-                        .padding(.vertical, Spacing.sm)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-
-                // ── Segment switcher ──────────────────────────────────
-                segmentSwitcher
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.bottom, Spacing.sm)
-
+                header
                 Divider()
-
-                // ── Content area ──────────────────────────────────────
-                contentArea
-            }
-
-            // ── Floating "发起社交" button ────────────────────────────
-            floatingSocialButton
-                .padding(.bottom, Spacing.xl)
-        }
-        .navigationBarHidden(true)
-        .onAppear {
-            vm.loadFeed()
-            if isFromScan {
-                withAnimation(.spareSpring) { showScanBanner = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                    withAnimation(.spareEase) { showScanBanner = false }
-                }
+                content
             }
         }
-        .sheet(isPresented: $showSocialIntent) {
-            SceneSocialIntentView(scene: scene)
-        }
-        .sheet(isPresented: $showAvatarRadar) {
-            SceneAvatarRadarView(
-                scene: scene,
-                avatars: vm.avatarCards,
-                isLoading: vm.avatarsLoading
-            )
+        .spareNavigationBarHidden(true)
+        .task {
+            vm.loadIfNeeded()
         }
     }
 
-    // MARK: - Scene Header
+    private var header: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            HStack(alignment: .top, spacing: Spacing.md) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(.primary)
+                        .frame(width: 36, height: 36)
+                        .background(Color(.secondarySystemGroupedBackground), in: Circle())
+                }
+                .accessibilityLabel("返回")
+                .accessibilityIdentifier("xianxia.topicDetail.back")
 
-    private var sceneHeader: some View {
-        ZStack {
-            // Background gradient based on scene category
-            Color.avatarGradient(seed: abs(scene.id.hashValue))
-                .opacity(0.15)
-                .ignoresSafeArea(edges: .top)
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text(topic.title)
+                        .font(.spareTitle2)
+                        .foregroundColor(.primary)
+
+                    Text(topic.topicPath)
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+            }
 
             VStack(alignment: .leading, spacing: Spacing.sm) {
-                HStack {
-                    Button { dismiss() } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(.primary)
-                            .frame(width: 36, height: 36)
-                            .background(Color(.systemBackground).opacity(0.8), in: Circle())
-                    }
-                    .accessibilityLabel("返回")
+                Text(topic.summaryText)
+                    .font(.spareBody)
+                    .foregroundColor(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    Spacer()
-
-                    shareButton
-                }
-
-                HStack(alignment: .bottom, spacing: Spacing.sm) {
-                    VStack(alignment: .leading, spacing: Spacing.xs) {
-                        HStack(spacing: Spacing.xs) {
-                            Image(systemName: scene.category.icon)
-                                .font(.spareMicro)
-                                .foregroundColor(.secondary)
-                            Text(scene.category.rawValue)
-                                .font(.spareMicro)
-                                .foregroundColor(.secondary)
-                        }
-
-                        Text(scene.name)
-                            .font(.spareTitle2)
-                            .lineLimit(2)
-                    }
-
-                    Spacer()
-
-                    // Participant count badge
-                    if scene.participantCount > 0 {
-                        VStack(spacing: 2) {
-                            Text("\(scene.participantCount)")
-                                .font(.spareBodySB)
-                            Text("在场")
-                                .font(.spareMicro)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(Spacing.sm)
-                        .background(Color(.systemBackground).opacity(0.8), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+                HStack(spacing: Spacing.sm) {
+                    PillTag(label: "\(topic.messageCount) 条消息", color: .secondary)
+                    PillTag(label: topic.shardCount > 0 ? "\(topic.shardCount) 个 shards" : "单页话题", color: .secondary)
+                    if let updatedAt = topic.updatedAt {
+                        PillTag(label: XianxiaRelativeTime.string(for: updatedAt), color: .secondary)
                     }
                 }
             }
-            .padding(.horizontal, Spacing.lg)
-            .padding(.top, Spacing.lg)
-            .padding(.bottom, Spacing.md)
+            .padding(Spacing.md)
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: CornerRadius.md))
         }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.top, Spacing.lg)
+        .padding(.bottom, Spacing.md)
     }
-
-    private var shareButton: some View {
-        Menu {
-            Button(action: {}) {
-                Label("分享场景码", systemImage: "qrcode")
-            }
-            Button(action: {}) {
-                Label("复制场景链接", systemImage: "link")
-            }
-        } label: {
-            Image(systemName: "square.and.arrow.up")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.primary)
-                .frame(width: 36, height: 36)
-                .background(Color(.systemBackground).opacity(0.8), in: Circle())
-        }
-    }
-
-    // MARK: - Segment Switcher
-
-    private var segmentSwitcher: some View {
-        HStack(spacing: Spacing.xs) {
-            ForEach(Segment.allCases) { seg in
-                Button {
-                    withAnimation(.spareSpring) {
-                        selectedSegment = seg
-                    }
-                } label: {
-                    HStack(spacing: Spacing.xs) {
-                        Image(systemName: seg.icon)
-                            .font(.system(size: 12, weight: .medium))
-                        Text(seg.rawValue)
-                            .font(.spareCaption)
-                    }
-                    .foregroundColor(selectedSegment == seg ? .spareDark : .secondary)
-                    .padding(.horizontal, Spacing.md)
-                    .padding(.vertical, Spacing.sm)
-                    .background(
-                        Capsule()
-                            .fill(selectedSegment == seg ? Color.spareYellow : Color.clear)
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-            Spacer()
-        }
-    }
-
-    // MARK: - Content Area
 
     @ViewBuilder
-    private var contentArea: some View {
-        switch vm.feedState {
-        case .loading, .idle:
-            WaterfallSkeleton(count: 6)
-                .transition(.opacity)
+    private var content: some View {
+        switch vm.loadState {
+        case .idle, .loading:
+            ScrollView {
+                TopicShardSkeleton()
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.top, Spacing.lg)
+            }
 
         case .empty:
             ScrollView {
                 EmptyStateView(
-                    icon: "bubble.left.and.bubble.right",
-                    title: "这里还很安静",
-                    message: "还没有人讨论这个场景。\n成为第一个发起话题的人！",
-                    actionLabel: "发起话题",
-                    action: { showSocialIntent = true }
+                    icon: "text.bubble",
+                    title: "这个 topic 还没有 shards",
+                    message: "当前数据源没有返回 shard 内容，稍后下拉刷新再试。",
+                    actionLabel: "重新拉取",
+                    action: { vm.refresh() }
                 )
                 .padding(.top, Spacing.xxxl)
             }
 
-        case .error(let msg):
+        case .error(let message):
             ScrollView {
                 ErrorStateView(
-                    message: msg,
+                    message: message,
                     cached: false,
-                    retry: { vm.loadFeed() }
+                    retry: { vm.refresh() }
                 )
                 .padding(.top, Spacing.xxxl)
             }
 
-        case .loadedFromCache(let items):
-            feedScrollView(items: items, showCacheBanner: true)
-
-        case .loaded(let items):
-            let segmentItems = vm.items(
-                for: selectedSegment,
-                from: items,
-                clusterFilter: selectedSegment == .hot ? activeClusterFilter : nil
-            )
-            feedScrollView(items: segmentItems, showCacheBanner: false)
-        }
-    }
-
-    private func feedScrollView(items: [SceneFeedItem], showCacheBanner: Bool) -> some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(spacing: 0) {
-                if showCacheBanner {
-                    CachedContentBanner()
-                        .padding(.horizontal, Spacing.lg)
-                        .padding(.bottom, Spacing.sm)
-                }
-
-                // Hot segment: show AI cluster overview before card waterfall
-                if selectedSegment == .hot {
-                    let hotItems = items.filter {
-                        if case .hotTake = $0 { return true }
-                        if case .summary = $0 { return true }
-                        return false
+        case .loadedFromCache, .loaded:
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: Spacing.md) {
+                    if vm.loadState == .loadedFromCache {
+                        TopicShardCacheBanner(
+                            text: "已显示本地 shard 缓存，网络恢复后会自动刷新。"
+                        )
                     }
-                    SceneHotOverviewSection(
-                        summary: vm.primarySummary,
-                        hotTakeCount: hotItems.count,
-                        onClusterTap: { cluster in
-                            withAnimation(.spareSpring) {
-                                activeClusterFilter = (activeClusterFilter?.id == cluster.id) ? nil : cluster
+
+                    ForEach(vm.shards) { shard in
+                        TopicShardCardView(shard: shard)
+                            .onAppear {
+                                vm.loadMoreIfNeeded(after: shard)
                             }
-                        }
-                    )
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.top, Spacing.md)
-                    .padding(.bottom, Spacing.sm)
-                    .transition(.opacity)
-
-                    // Active cluster filter banner
-                    if let cluster = activeClusterFilter {
-                        ClusterFilterBanner(cluster: cluster) {
-                            withAnimation(.spareSpring) { activeClusterFilter = nil }
-                        }
-                        .padding(.horizontal, Spacing.lg)
-                        .padding(.bottom, Spacing.sm)
-                        .transition(.move(edge: .top).combined(with: .opacity))
                     }
-                }
 
-                if items.isEmpty {
-                    EmptyStateView(
-                        icon: "magnifyingglass",
-                        title: "暂无内容",
-                        message: "切换到其他分类试试看。"
-                    )
-                    .padding(.top, Spacing.xxxl)
-                } else {
-                    GeometryReader { proxy in
-                        WaterfallLayout(columns: WaterfallColumns.count(for: proxy.size.width), spacing: Spacing.md) {
-                            ForEach(items) { item in
-                                sceneCard(for: item)
-                            }
-                        }
-                        .padding(.horizontal, Spacing.lg)
-                        .padding(.top, Spacing.md)
-                        .padding(.bottom, 100)   // leave room for FAB
+                    if vm.isLoadingMore {
+                        ProgressView("加载更多 shards…")
+                            .font(.spareCaption)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.vertical, Spacing.lg)
                     }
-                    .frame(minHeight: CGFloat(items.count / 2 + 1) * 200)
+
+                    Color.clear
+                        .frame(height: 48)
                 }
+                .padding(.horizontal, Spacing.lg)
+                .padding(.top, Spacing.lg)
             }
-        }
-        .refreshable {
-            await vm.refreshAsync()
-        }
-    }
-
-    @ViewBuilder
-    private func sceneCard(for item: SceneFeedItem) -> some View {
-        switch item {
-        case .summary(let c):     SceneSummaryCardView(card: c) {}
-        case .hotTake(let c):     HotTakeCardView(card: c)
-        case .avatarRadar(let c): AvatarRadarCardView(card: c) { showSocialIntent = true }
-        case .socialPrompt(let c): SceneSocialPromptCardView(card: c) { showSocialIntent = true }
-        }
-    }
-
-    // MARK: - Floating Social Button
-
-    private var floatingSocialButton: some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            showSocialIntent = true
-        } label: {
-            HStack(spacing: Spacing.sm) {
-                Image(systemName: "bolt.fill")
-                    .font(.system(size: 14, weight: .bold))
-                Text("发起社交")
-                    .font(.spareBodySB)
+            .refreshable {
+                await vm.refreshFromPullToRefresh()
             }
-            .foregroundColor(.spareDark)
-            .padding(.horizontal, Spacing.xl)
-            .padding(.vertical, Spacing.md)
-            .background(Color.spareYellow, in: Capsule())
-            .cardShadow(prominent: true)
+            .accessibilityIdentifier("xianxia.topicDetail.scrollView")
         }
     }
 }
 
-// MARK: - ClusterFilterBanner
-// Shown when a specific AI topic cluster is selected for filtering.
-
-private struct ClusterFilterBanner: View {
-    let cluster: TopicCluster
-    let onClear: () -> Void
+private struct TopicShardCacheBanner: View {
+    let text: String
 
     var body: some View {
         HStack(spacing: Spacing.sm) {
-            Circle()
-                .fill(cluster.sentiment.asBadgeEmotion.color)
-                .frame(width: 7, height: 7)
-            Text("# \(cluster.label)")
-                .font(.spareCaptionSB)
-                .foregroundColor(.primary)
-                .lineLimit(1)
-            Text("·")
-                .foregroundColor(.secondary)
-            Text("\(cluster.postCount) 条")
-                .font(.spareMicro)
-                .foregroundColor(.secondary)
-            Spacer()
-            Button {
-                onClear()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(Color(.systemGray3))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, Spacing.md)
-        .padding(.vertical, Spacing.sm)
-        .background(
-            cluster.sentiment.asBadgeEmotion.color.opacity(0.08),
-            in: RoundedRectangle(cornerRadius: CornerRadius.sm)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.sm)
-                .strokeBorder(cluster.sentiment.asBadgeEmotion.color.opacity(0.2), lineWidth: 1)
-        )
-    }
-}
-
-// MARK: - SceneSummaryBanner
-// Compact top-of-page AI overview strip
-
-private struct SceneSummaryBanner: View {
-    let summary: SceneSummaryCard
-    @State private var expanded = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(spacing: Spacing.sm) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.spareYellow)
-                Text("AI 场景摘要")
-                    .font(.spareCaptionSB)
-                    .foregroundColor(.secondary)
-                Spacer()
-                EmotionBadge(emotion: summary.emotionLabel.asBadgeEmotion)
-            }
-
-            Text(summary.oneLiner)
-                .font(.spareBodySB)
-                .lineLimit(expanded ? nil : 2)
-
-            if !summary.topicClusters.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: Spacing.xs) {
-                        ForEach(summary.topicClusters.prefix(4)) { cluster in
-                            PillTag(
-                                label: "\(cluster.label)·\(cluster.postCount)",
-                                color: cluster.sentiment.asBadgeEmotion.color
-                            )
-                        }
-                    }
-                }
-            }
-
-            if summary.topicClusters.count > 1 || summary.oneLiner.count > 60 {
-                Button {
-                    withAnimation(.spareEase) { expanded.toggle() }
-                } label: {
-                    Text(expanded ? "收起" : "查看更多")
-                        .font(.spareCaption)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .padding(Spacing.md)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: CornerRadius.md))
-        .cardShadow()
-    }
-}
-
-// MARK: - CachedContentBanner
-
-private struct CachedContentBanner: View {
-    var body: some View {
-        HStack(spacing: Spacing.sm) {
-            Image(systemName: "clock.arrow.circlepath")
+            Image(systemName: "externaldrive.badge.checkmark")
                 .foregroundColor(.emotionNeutral)
-            Text("已显示缓存内容，网络恢复后将自动刷新")
+            Text(text)
                 .font(.spareCaption)
                 .foregroundColor(.secondary)
             Spacer()
         }
         .padding(Spacing.md)
         .background(Color(.systemYellow).opacity(0.10), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+        .accessibilityIdentifier("xianxia.topicDetail.cacheBanner")
     }
 }
 
-// MARK: - SceneTopicViewModel
+private struct TopicShardSkeleton: View {
+    var body: some View {
+        VStack(spacing: Spacing.md) {
+            ForEach(0..<4, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: CornerRadius.md)
+                    .fill(Color(.secondarySystemGroupedBackground))
+                    .frame(height: 164)
+                    .shimmer()
+            }
+        }
+    }
+}
 
 @MainActor
 final class SceneTopicViewModel: ObservableObject {
-    let sceneID: String
-    @Published var feedState: SceneFeedState = .idle
-    @Published var avatarCards: [SceneAvatarCard] = []
-    @Published var primarySummary: SceneSummaryCard? = nil
+    @Published private(set) var loadState: XianxiaTopicShardState = .idle
+    @Published private(set) var shards: [XianxiaTopicShard] = []
+    @Published private(set) var isLoadingMore = false
 
-    init(sceneID: String) {
-        self.sceneID = sceneID
+    let topic: XianxiaTopic
+    private let repository: XianxiaTopicRepository
+    private var nextCursor: String?
+    private var hasStartedInitialLoad = false
+
+    init(topic: XianxiaTopic, repository: XianxiaTopicRepository = XianxiaTopicRepository()) {
+        self.topic = topic
+        self.repository = repository
     }
 
-    /// True while feed is loading (avatar data has not yet arrived).
-    var avatarsLoading: Bool {
-        if case .loading = feedState { return true }
-        if case .idle    = feedState { return true }
-        return false
-    }
-
-    func loadFeed() {
-        guard case .idle = feedState else { return }
-        feedState = .loading
-        // FUNC lane will inject a real SceneRepository call here.
-        // Present empty state so the full UI path is exercised.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
-            self?.feedState = .empty
+    func loadIfNeeded() {
+        guard !hasStartedInitialLoad else { return }
+        hasStartedInitialLoad = true
+        Task {
+            await loadInitial()
         }
     }
 
-    func refreshAsync() async {
-        feedState = .loading
-        try? await Task.sleep(nanoseconds: 700_000_000)
-        feedState = .empty
+    func refresh() {
+        Task {
+            await loadInitial(forceRefresh: true)
+        }
     }
 
-    /// Filters feed items for the chosen segment tab.
-    /// When `clusterFilter` is non-nil, further filters hot-take items by matching cluster label.
-    func items(
-        for segment: SceneTopicView.Segment,
-        from all: [SceneFeedItem],
-        clusterFilter: TopicCluster? = nil
-    ) -> [SceneFeedItem] {
-        switch segment {
-        case .feed:
-            return all
-        case .avatars:
-            return all.filter { if case .avatarRadar = $0 { return true }; return false }
-        case .hot:
-            let hotItems = all.filter { if case .hotTake = $0 { return true }; return false }
-            guard let cluster = clusterFilter else { return hotItems }
-            return hotItems.filter { item in
-                guard case .hotTake(let card) = item else { return false }
-                return card.tags.contains(cluster.label) || card.emotionLabel == cluster.sentiment
+    func refreshFromPullToRefresh() async {
+        await loadInitial(forceRefresh: true)
+    }
+
+    func loadInitial(forceRefresh: Bool = false) async {
+        if !forceRefresh {
+            await hydrateShardsFromCacheIfPresent()
+        } else if shards.isEmpty {
+            loadState = .loading
+        }
+
+        do {
+            let batch = try await repository.fetchShards(topicId: topic.topicId, cursor: nil)
+            shards = batch.items
+            nextCursor = batch.nextCursor
+            loadState = batch.items.isEmpty ? .empty : .loaded
+        } catch {
+            if !shards.isEmpty {
+                loadState = .loadedFromCache
+                return
+            }
+
+            await hydrateShardsFromCacheIfPresent()
+            if shards.isEmpty {
+                loadState = .error(error.xianxiaUserFacingMessage)
+            } else {
+                loadState = .loadedFromCache
             }
         }
+    }
+
+    func loadMoreIfNeeded(after shard: XianxiaTopicShard) {
+        guard shouldPrefetch(after: shard) else { return }
+        Task {
+            await loadMore()
+        }
+    }
+
+    func loadMore() async {
+        guard let nextCursor, !nextCursor.isEmpty else { return }
+        guard !isLoadingMore else { return }
+
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+
+        do {
+            let batch = try await repository.fetchShards(topicId: topic.topicId, cursor: nextCursor)
+            shards = batch.items
+            self.nextCursor = batch.nextCursor
+            loadState = batch.items.isEmpty ? .empty : .loaded
+        } catch {
+            if shards.isEmpty {
+                loadState = .error(error.xianxiaUserFacingMessage)
+            } else {
+                loadState = .loadedFromCache
+            }
+        }
+    }
+
+    private func shouldPrefetch(after shard: XianxiaTopicShard) -> Bool {
+        guard let nextCursor, !nextCursor.isEmpty else { return false }
+        let threshold = Set(shards.suffix(3).map(\.id))
+        return threshold.contains(shard.id)
+    }
+
+    private func hydrateShardsFromCacheIfPresent() async {
+        do {
+            guard let snapshot = try await repository.cachedShards(topicId: topic.topicId), !snapshot.items.isEmpty else {
+                if shards.isEmpty {
+                    loadState = .loading
+                }
+                return
+            }
+
+            shards = snapshot.items
+            nextCursor = snapshot.nextCursor
+            loadState = .loadedFromCache
+        } catch {
+            if shards.isEmpty {
+                loadState = .loading
+            }
+        }
+    }
+}
+
+// MARK: - Topic Support
+
+struct XianxiaTopic: Identifiable, Codable, Equatable, Hashable {
+    let topicId: String
+    let topicPath: String
+    let status: String
+    let messageCount: Int
+    let summary: String
+    let updatedAt: Date?
+    let shardCount: Int
+
+    var id: String { topicId }
+
+    var title: String {
+        let candidate = topicPath
+            .split(separator: "/")
+            .last
+            .map(String.init)?
+            .split(separator: ":")
+            .last
+            .map(String.init)?
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let candidate, !candidate.isEmpty {
+            return candidate
+        }
+
+        let fallback = topicId
+            .split(separator: ":")
+            .last
+            .map(String.init)?
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return (fallback?.isEmpty == false) ? fallback! : "未命名话题"
+    }
+
+    var summaryText: String {
+        let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "这个话题暂时还没有摘要。" : trimmed
+    }
+}
+
+struct XianxiaTopicShard: Identifiable, Codable, Equatable, Hashable {
+    let topicId: String
+    let canonicalTopicId: String
+    let topicPath: String
+    let status: String
+    let messageCount: Int
+    let summary: String
+    let updatedAt: Date?
+    let shardOrdinal: Int
+    let isCanonical: Bool
+
+    var id: String { topicId }
+
+    var summaryText: String {
+        let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "这个 shard 暂时还没有摘要。" : trimmed
+    }
+
+    var ordinalLabel: String {
+        if isCanonical {
+            return "主话题"
+        }
+        return "Shard #\(shardOrdinal)"
+    }
+}
+
+enum XianxiaTopicFeedState: Equatable {
+    case idle
+    case loading
+    case loaded
+    case loadedFromCache
+    case empty
+    case error(String)
+}
+
+enum XianxiaTopicShardState: Equatable {
+    case idle
+    case loading
+    case loaded
+    case loadedFromCache
+    case empty
+    case error(String)
+}
+
+struct XianxiaTopicBatch: Codable, Equatable {
+    let items: [XianxiaTopic]
+    let nextCursor: String?
+    let total: Int
+    let batchSize: Int
+    let tenantId: String
+}
+
+struct XianxiaTopicShardBatch: Codable, Equatable {
+    let items: [XianxiaTopicShard]
+    let nextCursor: String?
+    let total: Int
+    let batchSize: Int
+    let tenantId: String
+    let topicId: String
+}
+
+struct XianxiaTopicPageSnapshot: Codable, Equatable {
+    let items: [XianxiaTopic]
+    let nextCursor: String?
+    let updatedAt: Date
+}
+
+struct XianxiaTopicShardSnapshot: Codable, Equatable {
+    let topicId: String
+    let items: [XianxiaTopicShard]
+    let nextCursor: String?
+    let updatedAt: Date
+}
+
+struct XianxiaTopicAPIConfiguration: Equatable, Sendable {
+    let baseURL: URL
+    let tenantId: String
+    let feedBatchSize: Int
+    let shardBatchSize: Int
+
+    static func current(
+        processInfo: ProcessInfo = .processInfo,
+        userDefaults: UserDefaults = .standard
+    ) -> XianxiaTopicAPIConfiguration {
+        let rawBaseURL =
+            processInfo.environment["XIANXIA_TOPICS_BASE_URL"] ??
+            processInfo.environment["CLAWDB_TOPICS_BASE_URL"] ??
+            userDefaults.string(forKey: "xianxia.topic.baseURL") ??
+            userDefaults.string(forKey: "clawdbTopics.baseURL") ??
+            "http://100.82.60.69:17880/v1/clawdb-topics"
+
+        let tenantId =
+            processInfo.environment["XIANXIA_TOPICS_TENANT_ID"] ??
+            processInfo.environment["CLAWDB_TOPICS_TENANT_ID"] ??
+            userDefaults.string(forKey: "xianxia.topic.tenantId") ??
+            userDefaults.string(forKey: "clawdbTopics.tenantId") ??
+            "default"
+
+        let feedBatchSize =
+            positiveInt(processInfo.environment["XIANXIA_TOPICS_FEED_BATCH_SIZE"]) ??
+            positiveInt(processInfo.environment["CLAWDB_TOPICS_FEED_BATCH_SIZE"]) ??
+            positiveInt(userDefaults.string(forKey: "xianxia.topic.feedBatchSize")) ??
+            positiveInt(userDefaults.string(forKey: "clawdbTopics.feedBatchSize")) ??
+            20
+
+        let shardBatchSize =
+            positiveInt(processInfo.environment["XIANXIA_TOPICS_SHARD_BATCH_SIZE"]) ??
+            positiveInt(processInfo.environment["CLAWDB_TOPICS_SHARD_BATCH_SIZE"]) ??
+            positiveInt(userDefaults.string(forKey: "xianxia.topic.shardBatchSize")) ??
+            positiveInt(userDefaults.string(forKey: "clawdbTopics.shardBatchSize")) ??
+            20
+
+        return XianxiaTopicAPIConfiguration(
+            baseURL: normalizeBaseURL(rawBaseURL) ?? URL(string: "http://100.82.60.69:17880/v1/clawdb-topics")!,
+            tenantId: tenantId.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "default",
+            feedBatchSize: feedBatchSize,
+            shardBatchSize: shardBatchSize
+        )
+    }
+
+    var topicsURL: URL {
+        baseURL.appendingPathComponent("topics", isDirectory: false)
+    }
+
+    func shardsURL(topicId: String) -> URL {
+        baseURL
+            .appendingPathComponent("topics", isDirectory: true)
+            .appendingPathComponent(topicId, isDirectory: true)
+            .appendingPathComponent("shards", isDirectory: false)
+    }
+
+    private static func normalizeBaseURL(_ rawValue: String) -> URL? {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, var url = URL(string: trimmed) else {
+            return nil
+        }
+
+        let normalizedPath = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if normalizedPath.isEmpty {
+            url.appendPathComponent("v1", isDirectory: true)
+            url.appendPathComponent("clawdb-topics", isDirectory: false)
+            return url
+        }
+
+        if normalizedPath.hasSuffix("v1/clawdb-topics") {
+            return url
+        }
+
+        url.appendPathComponent("v1", isDirectory: true)
+        url.appendPathComponent("clawdb-topics", isDirectory: false)
+        return url
+    }
+
+    private static func positiveInt(_ rawValue: String?) -> Int? {
+        guard let rawValue else { return nil }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value = Int(trimmed), value > 0 else {
+            return nil
+        }
+        return value
+    }
+}
+
+enum XianxiaTopicRepositoryError: LocalizedError {
+    case invalidResponse
+    case invalidHTTPStatus(Int)
+    case gateway(String)
+    case missingPayload
+    case transport(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidResponse:
+            return "话题数据源返回了无法识别的响应。"
+        case .invalidHTTPStatus(let statusCode):
+            return "话题数据源请求失败，状态码 \(statusCode)。"
+        case .gateway(let message):
+            return message
+        case .missingPayload:
+            return "话题数据源没有返回可用数据。"
+        case .transport(let message):
+            return message
+        }
+    }
+}
+
+typealias XianxiaTopicTransport = @Sendable (URLRequest) async throws -> (Data, HTTPURLResponse)
+
+actor XianxiaTopicRepository {
+    nonisolated let configuration: XianxiaTopicAPIConfiguration
+
+    private let fileManager: FileManager
+    private let cacheRoot: URL
+    private let transport: XianxiaTopicTransport
+
+    init(
+        configuration: XianxiaTopicAPIConfiguration = .current(),
+        fileManager: FileManager = .default,
+        cacheRoot: URL? = nil,
+        transport: XianxiaTopicTransport? = nil
+    ) {
+        self.configuration = configuration
+        self.fileManager = fileManager
+        self.cacheRoot = cacheRoot ?? Self.defaultCacheRoot(fileManager: fileManager)
+        self.transport = transport ?? { request in
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw XianxiaTopicRepositoryError.invalidResponse
+                }
+                return (data, httpResponse)
+            } catch let error as XianxiaTopicRepositoryError {
+                throw error
+            } catch {
+                throw XianxiaTopicRepositoryError.transport(error.localizedDescription)
+            }
+        }
+    }
+
+    func cachedTopics() throws -> XianxiaTopicPageSnapshot? {
+        try ensureCacheDirectory()
+        return try read(XianxiaTopicPageSnapshot.self, from: topicsCacheURL())
+    }
+
+    func cachedShards(topicId: String) throws -> XianxiaTopicShardSnapshot? {
+        try ensureCacheDirectory()
+        return try read(XianxiaTopicShardSnapshot.self, from: shardsCacheURL(topicId: topicId))
+    }
+
+    @discardableResult
+    func fetchTopics(cursor: String? = nil, batchSize: Int? = nil) async throws -> XianxiaTopicBatch {
+        var components = URLComponents(url: configuration.topicsURL, resolvingAgainstBaseURL: false)
+        var queryItems = [
+            URLQueryItem(name: "batchSize", value: String(batchSize ?? configuration.feedBatchSize)),
+            URLQueryItem(name: "tenantId", value: configuration.tenantId)
+        ]
+        if let cursor, !cursor.isEmpty {
+            queryItems.append(URLQueryItem(name: "cursor", value: cursor))
+        }
+        components?.queryItems = queryItems
+
+        guard let url = components?.url else {
+            throw XianxiaTopicRepositoryError.invalidResponse
+        }
+
+        let batch: XianxiaTopicBatch = try await request(url: url)
+        let existing = try cachedTopics()?.items ?? []
+        let merged = mergeTopics(existing: existing, incoming: batch.items, resetting: cursor == nil)
+        let snapshot = XianxiaTopicPageSnapshot(
+            items: merged,
+            nextCursor: batch.nextCursor,
+            updatedAt: Date()
+        )
+        try write(snapshot, to: topicsCacheURL())
+        return XianxiaTopicBatch(
+            items: merged,
+            nextCursor: batch.nextCursor,
+            total: batch.total,
+            batchSize: batch.batchSize,
+            tenantId: batch.tenantId
+        )
+    }
+
+    @discardableResult
+    func fetchShards(
+        topicId: String,
+        cursor: String? = nil,
+        batchSize: Int? = nil
+    ) async throws -> XianxiaTopicShardBatch {
+        var components = URLComponents(url: configuration.shardsURL(topicId: topicId), resolvingAgainstBaseURL: false)
+        var queryItems = [
+            URLQueryItem(name: "batchSize", value: String(batchSize ?? configuration.shardBatchSize)),
+            URLQueryItem(name: "tenantId", value: configuration.tenantId)
+        ]
+        if let cursor, !cursor.isEmpty {
+            queryItems.append(URLQueryItem(name: "cursor", value: cursor))
+        }
+        components?.queryItems = queryItems
+
+        guard let url = components?.url else {
+            throw XianxiaTopicRepositoryError.invalidResponse
+        }
+
+        let batch: XianxiaTopicShardBatch = try await request(url: url)
+        let existing = try cachedShards(topicId: topicId)?.items ?? []
+        let merged = mergeShards(existing: existing, incoming: batch.items, resetting: cursor == nil)
+        let snapshot = XianxiaTopicShardSnapshot(
+            topicId: topicId,
+            items: merged,
+            nextCursor: batch.nextCursor,
+            updatedAt: Date()
+        )
+        try write(snapshot, to: shardsCacheURL(topicId: topicId))
+        return XianxiaTopicShardBatch(
+            items: merged,
+            nextCursor: batch.nextCursor,
+            total: batch.total,
+            batchSize: batch.batchSize,
+            tenantId: batch.tenantId,
+            topicId: batch.topicId
+        )
+    }
+
+    private func request<Payload: Decodable>(url: URL) async throws -> Payload {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 15
+
+        let (data, response) = try await transport(request)
+        guard (200..<300).contains(response.statusCode) else {
+            if let envelope = try? XianxiaTopicCoding.decoder.decode(ClawdbGatewayEnvelope<ClawdbEmptyPayload>.self, from: data),
+               let message = envelope.error,
+               !message.isEmpty {
+                throw XianxiaTopicRepositoryError.gateway(message)
+            }
+            throw XianxiaTopicRepositoryError.invalidHTTPStatus(response.statusCode)
+        }
+
+        let envelope = try XianxiaTopicCoding.decoder.decode(ClawdbGatewayEnvelope<Payload>.self, from: data)
+        guard envelope.ok else {
+            throw XianxiaTopicRepositoryError.gateway(envelope.error?.nonEmpty ?? "话题数据源返回失败。")
+        }
+        guard let payload = envelope.data else {
+            throw XianxiaTopicRepositoryError.missingPayload
+        }
+        return payload
+    }
+
+    private func ensureCacheDirectory() throws {
+        try fileManager.createDirectory(at: cacheRoot, withIntermediateDirectories: true, attributes: nil)
+    }
+
+    private func topicsCacheURL() -> URL {
+        cacheRoot.appendingPathComponent(cacheFileName(prefix: "topics"), isDirectory: false)
+    }
+
+    private func shardsCacheURL(topicId: String) -> URL {
+        cacheRoot.appendingPathComponent(cacheFileName(prefix: "shards-\(topicId)"), isDirectory: false)
+    }
+
+    private func cacheFileName(prefix: String) -> String {
+        let scope = "\(configuration.baseURL.absoluteString)|\(configuration.tenantId)|\(prefix)"
+        return "xianxia-\(StableCacheDigest.hex(scope)).json"
+    }
+
+    private func read<Payload: Decodable>(_ type: Payload.Type, from url: URL) throws -> Payload? {
+        guard fileManager.fileExists(atPath: url.path) else {
+            return nil
+        }
+        let data = try Data(contentsOf: url)
+        return try XianxiaTopicCoding.decoder.decode(Payload.self, from: data)
+    }
+
+    private func write<Payload: Encodable>(_ payload: Payload, to url: URL) throws {
+        try ensureCacheDirectory()
+        let data = try XianxiaTopicCoding.encoder.encode(payload)
+        try data.write(to: url, options: .atomic)
+    }
+
+    private func mergeTopics(
+        existing: [XianxiaTopic],
+        incoming: [XianxiaTopic],
+        resetting: Bool
+    ) -> [XianxiaTopic] {
+        if resetting {
+            return incoming
+        }
+
+        var merged = existing
+        var indexByID = Dictionary(uniqueKeysWithValues: merged.enumerated().map { ($1.id, $0) })
+        for item in incoming {
+            if let existingIndex = indexByID[item.id] {
+                merged[existingIndex] = item
+            } else {
+                indexByID[item.id] = merged.count
+                merged.append(item)
+            }
+        }
+        return merged
+    }
+
+    private func mergeShards(
+        existing: [XianxiaTopicShard],
+        incoming: [XianxiaTopicShard],
+        resetting: Bool
+    ) -> [XianxiaTopicShard] {
+        if resetting {
+            return incoming
+        }
+
+        var merged = existing
+        var indexByID = Dictionary(uniqueKeysWithValues: merged.enumerated().map { ($1.id, $0) })
+        for item in incoming {
+            if let existingIndex = indexByID[item.id] {
+                merged[existingIndex] = item
+            } else {
+                indexByID[item.id] = merged.count
+                merged.append(item)
+            }
+        }
+        return merged
+    }
+
+    private static func defaultCacheRoot(fileManager: FileManager) -> URL {
+        let baseURL =
+            (try? fileManager.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)) ??
+            fileManager.temporaryDirectory
+        return baseURL.appendingPathComponent("SpareLife/XianxiaTopics", isDirectory: true)
+    }
+}
+
+enum XianxiaRelativeTime {
+    static func string(for date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+extension Error {
+    var xianxiaUserFacingMessage: String {
+        if let error = self as? XianxiaTopicRepositoryError {
+            return error.errorDescription ?? "话题数据暂时不可用。"
+        }
+
+        let message = localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        return message.isEmpty ? "话题数据暂时不可用。" : message
+    }
+}
+
+private struct ClawdbGatewayEnvelope<Payload: Decodable>: Decodable {
+    let ok: Bool
+    let data: Payload?
+    let error: String?
+}
+
+private struct ClawdbEmptyPayload: Decodable {}
+
+private enum XianxiaTopicCoding {
+    static let encoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            var container = encoder.singleValueContainer()
+            try container.encode(XianxiaISO8601.string(from: date))
+        }
+        encoder.outputFormatting = [.sortedKeys]
+        return encoder
+    }()
+
+    static let decoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let string = try container.decode(String.self)
+            if let date = XianxiaISO8601.date(from: string) {
+                return date
+            }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid ISO8601 date: \(string)")
+        }
+        return decoder
+    }()
+}
+
+private enum XianxiaISO8601 {
+    static func date(from rawValue: String) -> Date? {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractional.date(from: rawValue) {
+            return date
+        }
+
+        let standard = ISO8601DateFormatter()
+        standard.formatOptions = [.withInternetDateTime]
+        return standard.date(from: rawValue)
+    }
+
+    static func string(from date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.string(from: date)
+    }
+}
+
+private enum StableCacheDigest {
+    static func hex(_ value: String) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+}
+
+private extension String {
+    var nonEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

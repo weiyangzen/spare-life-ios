@@ -5,6 +5,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Chat Thread Store
 
@@ -136,7 +139,7 @@ struct ChatThreadView: View {
             }
         }
         .navigationTitle(thread.contactName)
-        .navigationBarTitleDisplayMode(.inline)
+        .spareNavigationBarTitleDisplayMode(.inline)
         .toolbar { toolbarContent }
         .task { store.load() }
         .sheet(isPresented: $store.showContactMask) {

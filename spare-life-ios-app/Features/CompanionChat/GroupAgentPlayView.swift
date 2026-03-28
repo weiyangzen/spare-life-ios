@@ -4,6 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Group Agent Play Models
 
@@ -387,7 +390,7 @@ struct GroupAgentPlayView: View {
                 }
             }
             .navigationTitle("群聊玩法")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
@@ -799,7 +802,7 @@ struct GroupAgentPlayView: View {
                 }
             }
             .navigationTitle("发起投票")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { store.showLaunchVoteSheet = false }

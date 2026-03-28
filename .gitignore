@@ -1,2 +1,4 @@
 # Keep product documentation versioned in this repository.
 .build/
+/assets/
+.DS_Store

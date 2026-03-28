@@ -5,6 +5,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Models
 
@@ -96,7 +99,7 @@ struct MyProfileView: View {
                 Color(.systemGroupedBackground).ignoresSafeArea()
                 contentBody
             }
-            .navigationBarHidden(true)
+            .spareNavigationBarHidden(true)
         }
         .task { store.load() }
     }
@@ -759,7 +762,7 @@ private struct EditProfileSheet: View {
                 }
             }
             .navigationTitle("编辑资料")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -814,7 +817,7 @@ private struct EditAvatarVisibilitySheet: View {
                 }
             }
             .navigationTitle("分身可见性")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }

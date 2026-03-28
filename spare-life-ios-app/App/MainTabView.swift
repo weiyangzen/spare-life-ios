@@ -4,7 +4,6 @@
 // Design: yellow (#FFCF12) + white, light mode only
 
 import SwiftUI
-import UIKit
 
 // MARK: - Tab Identity
 
@@ -19,8 +18,8 @@ enum MainTab: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .xianxia:    return "咸虾"
-        case .master:     return "大师"
+        case .xianxia:    return "闲虾"
+        case .master:     return "闲聊"
         case .earnSocial: return "赚闲能"
         case .messages:   return "消息"
         case .myProfile:  return "我的"
@@ -92,9 +91,7 @@ struct MainTabView: View {
     }
 
     private var bottomSafeArea: CGFloat {
-        let scenes = UIApplication.shared.connectedScenes
-        let windowScene = scenes.first as? UIWindowScene
-        return windowScene?.windows.first?.safeAreaInsets.bottom ?? 0
+        spareBottomSafeAreaInset()
     }
 }
 
@@ -131,7 +128,7 @@ private struct SpareTabBar: View {
 
         return Button {
             guard selectedTab != tab else { return }
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            spareImpactFeedback(.light)
             withAnimation(.spareSpring) {
                 selectedTab = tab
             }

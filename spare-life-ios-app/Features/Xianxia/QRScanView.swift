@@ -5,6 +5,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 import AVFoundation
 
 // MARK: - QRScanView
@@ -61,9 +64,9 @@ struct QRScanView: View {
                     .allowsHitTesting(false)
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .spareNavigationLeading) {
                     Button("取消") { dismiss() }
                         .foregroundColor(.white)
                 }
@@ -73,7 +76,7 @@ struct QRScanView: View {
                         .foregroundColor(.white)
                 }
             }
-            .toolbarBackground(.clear, for: .navigationBar)
+            .spareNavigationBarClearBackground()
         }
         .onAppear { vm.requestPermission() }
         .onChange(of: vm.scannedCode) { code in
@@ -327,8 +330,9 @@ private struct InvalidQRToast: View {
     }
 }
 
-// MARK: - Camera Preview (UIViewRepresentable)
+// MARK: - Camera Preview
 
+#if canImport(UIKit)
 struct CameraPreviewRepresentable: UIViewRepresentable {
     nonisolated(unsafe) let session: AVCaptureSession
 
@@ -341,11 +345,30 @@ struct CameraPreviewRepresentable: UIViewRepresentable {
 
     func updateUIView(_ uiView: PreviewView, context: Context) {}
 
-    class PreviewView: UIView {
+    final class PreviewView: UIView {
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
         var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
     }
 }
+#else
+struct CameraPreviewRepresentable: View {
+    nonisolated(unsafe) let session: AVCaptureSession
+
+    var body: some View {
+        ZStack {
+            Color.black
+            VStack(spacing: Spacing.sm) {
+                Image(systemName: "camera.slash")
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundColor(.white.opacity(0.8))
+                Text("相机预览仅在 iOS 上可用")
+                    .font(.spareCaption)
+                    .foregroundColor(.white.opacity(0.75))
+            }
+        }
+    }
+}
+#endif
 
 // MARK: - QRScanViewModel
 

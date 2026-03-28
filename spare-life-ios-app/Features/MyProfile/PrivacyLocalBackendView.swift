@@ -4,6 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Models
 
@@ -145,7 +148,7 @@ struct PrivacyLocalBackendView: View {
                 contentBody
             }
             .navigationTitle("隐私与本地控制")
-            .navigationBarTitleDisplayMode(.large)
+            .spareNavigationBarTitleDisplayMode(.large)
         }
         .task { store.load() }
         .toast(item: $store.lastActionResult)

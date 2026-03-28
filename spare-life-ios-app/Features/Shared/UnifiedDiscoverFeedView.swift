@@ -9,6 +9,9 @@
 // cards from all four domains (咸虾, 大师, 赚闲能, 我的) in a single waterfall feed.
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Discover Feed Store
 
@@ -214,7 +217,7 @@ struct UnifiedDiscoverFeedView: View {
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("发现")
-            .navigationBarTitleDisplayMode(.large)
+            .spareNavigationBarTitleDisplayMode(.large)
             .task { store.load() }
         }
     }

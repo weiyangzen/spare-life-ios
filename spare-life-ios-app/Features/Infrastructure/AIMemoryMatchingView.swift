@@ -4,6 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Models
 
@@ -178,7 +181,7 @@ struct AIMemoryMatchingView: View {
                 }
             }
             .navigationTitle("AI 记忆与匹配")
-            .navigationBarTitleDisplayMode(.large)
+            .spareNavigationBarTitleDisplayMode(.large)
             .task { store.load() }
         }
     }

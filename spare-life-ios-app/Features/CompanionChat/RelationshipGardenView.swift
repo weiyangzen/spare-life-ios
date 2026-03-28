@@ -4,6 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Relationship Garden Store
 
@@ -147,7 +150,7 @@ struct RelationshipGardenView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("与 \(store.profile.contactName) 的关系")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
@@ -526,7 +529,7 @@ struct RelationshipGardenView: View {
                 }
             }
             .navigationTitle("添加纪念卡")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { store.showAddAnniversary = false }

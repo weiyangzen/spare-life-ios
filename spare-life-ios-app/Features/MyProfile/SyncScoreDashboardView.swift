@@ -4,6 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Models
 
@@ -114,7 +117,7 @@ struct SyncScoreDashboardView: View {
                 contentBody
             }
             .navigationTitle("同步度仪表盘")
-            .navigationBarTitleDisplayMode(.large)
+            .spareNavigationBarTitleDisplayMode(.large)
         }
         .task { store.load() }
     }

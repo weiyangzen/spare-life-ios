@@ -4,6 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Quad Role Chat Store
 
@@ -106,7 +109,7 @@ struct QuadRoleChatView: View {
                 }
             }
             .navigationTitle("四人场")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
@@ -371,7 +374,7 @@ struct QuadRoleChatView: View {
                 .padding(Spacing.lg)
             }
             .navigationTitle("四人场说明")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
         }
     }
 

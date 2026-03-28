@@ -4,7 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 struct EarnSocialHomeView: View {
     @StateObject private var store = EarnSocialExperienceStore()
@@ -77,7 +79,7 @@ struct EarnSocialHomeView: View {
                     }
                 }
             }
-            .navigationBarHidden(true)
+            .spareNavigationBarHidden(true)
             .task {
                 store.loadIfNeeded()
             }
@@ -1367,7 +1369,7 @@ private struct EarnIntentMarketView: View {
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("陌生社交意图市场")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: Spacing.sm) {
                     HStack {
@@ -1668,7 +1670,7 @@ private struct EarnPersonaDeckView: View {
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("发现别人的分身")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
         }
     }
 
@@ -1812,7 +1814,7 @@ private struct EarnIcebreakView: View {
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("双 Agent 破冰")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
         }
     }
 
@@ -2014,7 +2016,7 @@ private struct EarnTrendExplorerView: View {
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("六赛道趋势与热点")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
         }
     }
 
@@ -2119,7 +2121,7 @@ private struct EarnArenaExperienceView: View {
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("A2A 竞技场")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
         }
     }
 
@@ -2285,7 +2287,7 @@ private struct EarnBondJourneyView: View {
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("关系升温与羁绊任务")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
         }
     }
 
@@ -2422,7 +2424,7 @@ private struct EarnWalletLedgerView: View {
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("闲能经济系统")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
         }
     }
 

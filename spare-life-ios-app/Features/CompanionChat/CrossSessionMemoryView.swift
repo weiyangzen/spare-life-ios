@@ -4,6 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Models
 
@@ -295,7 +298,7 @@ struct CrossSessionMemoryView: View {
                 }
             }
             .navigationTitle("跨会话记忆")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
@@ -478,8 +481,8 @@ struct CrossSessionMemoryView: View {
                 .foregroundColor(.secondary)
 
             TextField("搜索记忆关键词", text: $store.searchQuery)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
+                .spareTextInputAutocapitalizationNever()
+                .spareDisableAutocorrection(true)
                 .font(.spareCaption)
                 .padding(.horizontal, Spacing.md)
                 .padding(.vertical, Spacing.sm)
@@ -618,7 +621,7 @@ struct CrossSessionMemoryView: View {
                 }
             }
             .navigationTitle("纠正记忆")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") {

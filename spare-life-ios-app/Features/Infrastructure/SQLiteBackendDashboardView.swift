@@ -4,6 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Models
 
@@ -146,7 +149,7 @@ struct SQLiteBackendDashboardView: View {
                 }
             }
             .navigationTitle("SQLite 后端")
-            .navigationBarTitleDisplayMode(.large)
+            .spareNavigationBarTitleDisplayMode(.large)
             .task { store.load() }
         }
     }
@@ -459,7 +462,7 @@ private struct RepoDetailSheet: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("仓库详情")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }

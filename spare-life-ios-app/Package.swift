@@ -44,8 +44,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SpareLifeCoreTests",
-            dependencies: ["SpareLifeCore"],
-            path: "Tests"
+            dependencies: ["SpareLifeCore"]
         )
     ]
 )

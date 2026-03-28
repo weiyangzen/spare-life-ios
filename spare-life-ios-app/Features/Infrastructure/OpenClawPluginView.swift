@@ -4,6 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Models
 
@@ -307,7 +310,7 @@ struct OpenClawPluginView: View {
                 }
             }
             .navigationTitle("OpenClaw 插件")
-            .navigationBarTitleDisplayMode(.large)
+            .spareNavigationBarTitleDisplayMode(.large)
             .task { store.load() }
             .sheet(isPresented: $store.showAdapterDetail) {
                 if let adapter = store.selectedAdapter {
@@ -768,7 +771,7 @@ struct AdapterDetailSheet: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle(adapter.name)
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
@@ -894,4 +897,3 @@ struct AdapterDetailSheet: View {
         .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: CornerRadius.sm))
     }
 }
-

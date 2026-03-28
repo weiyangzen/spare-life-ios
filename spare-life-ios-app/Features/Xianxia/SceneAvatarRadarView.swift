@@ -5,6 +5,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - SceneAvatarRadarView
 // Full-screen sheet presenting all active avatars in the scene,
@@ -54,12 +57,12 @@ struct SceneAvatarRadarView: View {
                 }
             }
             .navigationTitle("活跃分身 · \(scene.name)")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .spareNavigationLeading) {
                     Button("关闭") { dismiss() }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .spareNavigationTrailing) {
                     Text("\(avatars.count) 人在场")
                         .font(.spareCaptionSB)
                         .foregroundColor(.secondary)

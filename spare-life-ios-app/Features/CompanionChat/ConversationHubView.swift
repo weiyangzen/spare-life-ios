@@ -5,6 +5,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct ConversationHubView: View {
     @StateObject private var store = ConversationHubStore()
@@ -31,9 +34,8 @@ struct ConversationHubView: View {
                 }
             }
             .navigationTitle(navTitle)
-            .navigationBarTitleDisplayMode(.large)
-            .searchable(text: $store.searchQuery, placement: .navigationBarDrawer(displayMode: .always),
-                        prompt: "搜索联系人或消息")
+            .spareNavigationBarTitleDisplayMode(.large)
+            .spareNavigationSearchable(text: $store.searchQuery, prompt: "搜索联系人或消息")
             .toolbar { toolbarContent }
             .task { store.load() }
         }

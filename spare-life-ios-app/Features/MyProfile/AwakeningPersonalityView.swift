@@ -4,6 +4,9 @@
 // UIUX lane – slot 2
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Models
 
@@ -110,7 +113,7 @@ struct AwakeningPersonalityView: View {
                 contentBody
             }
             .navigationTitle("觉醒度与人格")
-            .navigationBarTitleDisplayMode(.large)
+            .spareNavigationBarTitleDisplayMode(.large)
         }
         .task { store.load() }
     }
@@ -523,7 +526,7 @@ private struct MaskEditSheet: View {
                 }
             }
             .navigationTitle("编辑面具")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } } }
         }
     }
@@ -549,7 +552,7 @@ private struct MaskCreateSheet: View {
                 }
             }
             .navigationTitle("新建面具")
-            .navigationBarTitleDisplayMode(.inline)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } } }
         }
     }

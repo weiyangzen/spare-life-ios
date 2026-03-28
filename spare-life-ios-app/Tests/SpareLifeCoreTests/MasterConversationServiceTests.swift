@@ -3,7 +3,7 @@ import XCTest
 
 final class MasterConversationServiceTests: XCTestCase {
     func testMasterChatLiveSmokeDerivesModelCatalogURLFromChatCompletionsURL() {
-        let url = Self.modelCatalogURL(
+        let url = MasterChatLiveProbe.modelCatalogURL(
             for: URL(string: "https://chat.example.com/gateway/v1/chat/completions")!
         )
 
@@ -140,12 +140,13 @@ final class MasterConversationServiceTests: XCTestCase {
             defaults.removePersistentDomain(forName: suiteName)
         }
 
-        let resolved = try Self.liveSmokeConfiguration(
+        let resolved = try MasterChatLiveProbe.resolveCandidate(
             environment: [
                 "ANTHROPIC_BASE_URL": "http://24.199.97.185:8080",
                 "ANTHROPIC_AUTH_TOKEN": "legacy-token"
             ],
-            userDefaults: defaults
+            userDefaults: defaults,
+            keychainAPIKey: { nil }
         )
 
         XCTAssertEqual(
@@ -169,7 +170,7 @@ final class MasterConversationServiceTests: XCTestCase {
             defaults.removePersistentDomain(forName: suiteName)
         }
 
-        let resolved = try Self.liveSmokeConfiguration(
+        let resolved = try MasterChatLiveProbe.resolveCandidate(
             environment: [
                 "MASTER_CHAT_BASE_URL": "https://chat.example.com/gateway",
                 "MASTER_CHAT_API_KEY": "stage2-secret",
@@ -177,7 +178,8 @@ final class MasterConversationServiceTests: XCTestCase {
                 "ANTHROPIC_BASE_URL": "http://24.199.97.185:8080",
                 "ANTHROPIC_AUTH_TOKEN": "legacy-token"
             ],
-            userDefaults: defaults
+            userDefaults: defaults,
+            keychainAPIKey: { nil }
         )
 
         XCTAssertEqual(
@@ -191,6 +193,80 @@ final class MasterConversationServiceTests: XCTestCase {
         XCTAssertTrue(resolved.sourceSummary.contains("model=env(MASTER_CHAT_MODEL)"))
         XCTAssertFalse(resolved.sourceSummary.contains("legacy env(ANTHROPIC_BASE_URL)"))
         XCTAssertFalse(resolved.sourceSummary.contains("legacy env(ANTHROPIC_AUTH_TOKEN)"))
+    }
+
+    func testMasterChatLiveProbeUsesDefaultsAndKeychainBeforeLegacyFallbacks() throws {
+        let suiteName = "master-chat-live-probe-defaults-keychain-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated user defaults suite")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        defaults.set("https://chat.example.com/defaults-gateway", forKey: "masters.chat.baseURL")
+        defaults.set("defaults-k2p5", forKey: "masters.chat.model")
+
+        let resolved = try MasterChatLiveProbe.resolveCandidate(
+            environment: [
+                "ANTHROPIC_BASE_URL": "http://24.199.97.185:8080",
+                "ANTHROPIC_AUTH_TOKEN": "legacy-token"
+            ],
+            userDefaults: defaults,
+            keychainAPIKey: { "keychain-secret" }
+        )
+
+        XCTAssertEqual(
+            resolved.configuration.chatCompletionsURL.absoluteString,
+            "https://chat.example.com/defaults-gateway/v1/chat/completions"
+        )
+        XCTAssertEqual(resolved.configuration.apiKey, "keychain-secret")
+        XCTAssertEqual(resolved.configuration.credentialSource, .keychain)
+        XCTAssertEqual(resolved.configuration.model, "defaults-k2p5")
+        XCTAssertTrue(resolved.sourceSummary.contains("baseURL=defaults(masters.chat.baseURL)"))
+        XCTAssertTrue(resolved.sourceSummary.contains("apiKey=keychain(\(K2P5MasterConversationService.keychainService)/\(K2P5MasterConversationService.keychainAccount))"))
+        XCTAssertTrue(resolved.sourceSummary.contains("model=defaults(masters.chat.model)"))
+        XCTAssertFalse(resolved.sourceSummary.contains("legacy env(ANTHROPIC_BASE_URL)"))
+        XCTAssertFalse(resolved.sourceSummary.contains("legacy env(ANTHROPIC_AUTH_TOKEN)"))
+    }
+
+    func testMasterChatLiveProbePreflightRejectsMissingExpectedModel() async throws {
+        let candidate = MasterChatLiveProbeCandidate(
+            configuration: MasterChatConfiguration(
+                apiKey: "secret-token",
+                credentialSource: .environmentFallback,
+                chatCompletionsURL: URL(string: "https://chat.example.com/v1/chat/completions")!,
+                model: "k2p5"
+            ),
+            sourceSummary: "baseURL=env(MASTER_CHAT_BASE_URL)；apiKey=env(MASTER_CHAT_API_KEY)；model=fallback(k2p5)"
+        )
+
+        do {
+            _ = try await MasterChatLiveProbe.ensureExpectedModelAdvertised(candidate: candidate) { request in
+                let response = HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]
+                )!
+                let payload = #"""
+                {"data":[{"id":"claude-sonnet-4-6"},{"id":"claude-haiku-4-5-20251001"}],"object":"list"}
+                """#
+                return (payload.data(using: .utf8)!, response)
+            }
+            XCTFail("Expected missing k2p5 to be rejected")
+        } catch let error as MasterChatLiveProbeError {
+            XCTAssertEqual(
+                error,
+                .modelNotAdvertised(
+                    url: "https://chat.example.com/v1/models",
+                    sourceSummary: "baseURL=env(MASTER_CHAT_BASE_URL)；apiKey=env(MASTER_CHAT_API_KEY)；model=fallback(k2p5)",
+                    expectedModel: "k2p5",
+                    availableModels: ["claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
+                )
+            )
+        }
     }
 
     @MainActor
@@ -455,20 +531,21 @@ final class MasterConversationServiceTests: XCTestCase {
             defaults.removePersistentDomain(forName: suiteName)
         }
 
-        let liveSmoke = try Self.liveSmokeConfiguration(
-            environment: environment,
-            userDefaults: defaults
-        )
-        let configuration = liveSmoke.configuration
-        let availableModels = try await Self.preflightAvailableModels(
-            configuration: configuration,
-            sourceSummary: liveSmoke.sourceSummary
-        )
-        guard availableModels.contains(configuration.model) else {
-            throw XCTSkip(
-                "Live k2p5 smoke blocked before send: \(Self.modelCatalogURL(for: configuration.chatCompletionsURL).absoluteString) [\(liveSmoke.sourceSummary)] does not advertise '\(configuration.model)'; available=\(availableModels.joined(separator: ", "))"
+        let liveSmoke: MasterChatLiveProbeCandidate
+        do {
+            liveSmoke = try MasterChatLiveProbe.resolveCandidate(
+                environment: environment,
+                userDefaults: defaults
             )
+        } catch {
+            throw XCTSkip(error.localizedDescription)
         }
+        do {
+            _ = try await MasterChatLiveProbe.ensureExpectedModelAdvertised(candidate: liveSmoke)
+        } catch {
+            throw XCTSkip(error.localizedDescription)
+        }
+        let configuration = liveSmoke.configuration
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("master-live-chat-tests-\(UUID().uuidString)", isDirectory: true)
         let archiveURL = tempDirectory.appendingPathComponent("master-conversations.json", isDirectory: false)
@@ -776,122 +853,6 @@ final class MasterConversationServiceTests: XCTestCase {
         return Data()
     }
 
-    private static func preflightAvailableModels(
-        configuration: MasterChatConfiguration,
-        sourceSummary: String
-    ) async throws -> [String] {
-        var request = URLRequest(url: modelCatalogURL(for: configuration.chatCompletionsURL))
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "content-type")
-        request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw XCTSkip(
-                    "Live k2p5 smoke blocked before send: /v1/models [\(sourceSummary)] returned a non-HTTP response."
-                )
-            }
-            guard (200..<300).contains(httpResponse.statusCode) else {
-                let detail = String(data: data, encoding: .utf8)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                throw XCTSkip(
-                    "Live k2p5 smoke blocked before send: \(request.url?.absoluteString ?? "/v1/models") [\(sourceSummary)] returned \(httpResponse.statusCode). \(detail)"
-                )
-            }
-            let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-            let models = (payload["data"] as? [[String: Any]])?
-                .compactMap { entry in
-                    (entry["id"] as? String)?
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-                .filter { !$0.isEmpty } ?? []
-            return models
-        } catch let error as XCTSkip {
-            throw error
-        } catch {
-            throw XCTSkip(
-                "Live k2p5 smoke blocked before send: failed to probe /v1/models [\(sourceSummary)]. \(error.localizedDescription)"
-            )
-        }
-    }
-
-    private static func liveSmokeConfiguration(
-        environment: [String: String],
-        userDefaults: UserDefaults
-    ) throws -> LiveSmokeConfiguration {
-        var resolvedEnvironment = environment
-
-        let baseURLSource: String
-        if trimmedEnvironmentValue("MASTER_CHAT_BASE_URL", in: resolvedEnvironment) != nil {
-            baseURLSource = "env(MASTER_CHAT_BASE_URL)"
-        } else if let legacyBaseURL = trimmedEnvironmentValue("ANTHROPIC_BASE_URL", in: environment) {
-            resolvedEnvironment["MASTER_CHAT_BASE_URL"] = legacyBaseURL
-            baseURLSource = "legacy env(ANTHROPIC_BASE_URL)"
-        } else if let legacyHost = trimmedEnvironmentValue("ANTHROPIC_HOST", in: environment) {
-            resolvedEnvironment["MASTER_CHAT_BASE_URL"] = legacyHost
-            baseURLSource = "legacy env(ANTHROPIC_HOST)"
-        } else {
-            throw XCTSkip(
-                "Live k2p5 smoke blocked before send: missing MASTER_CHAT_BASE_URL and no legacy ANTHROPIC_BASE_URL / ANTHROPIC_HOST is available."
-            )
-        }
-
-        let apiKeySource: String
-        if trimmedEnvironmentValue("MASTER_CHAT_API_KEY", in: resolvedEnvironment) != nil {
-            apiKeySource = "env(MASTER_CHAT_API_KEY)"
-        } else if let legacyAuthToken = trimmedEnvironmentValue("ANTHROPIC_AUTH_TOKEN", in: environment) {
-            resolvedEnvironment["MASTER_CHAT_API_KEY"] = legacyAuthToken
-            apiKeySource = "legacy env(ANTHROPIC_AUTH_TOKEN)"
-        } else if let legacyAPIKey = trimmedEnvironmentValue("ANTHROPIC_API_KEY", in: environment) {
-            resolvedEnvironment["MASTER_CHAT_API_KEY"] = legacyAPIKey
-            apiKeySource = "legacy env(ANTHROPIC_API_KEY)"
-        } else {
-            throw XCTSkip(
-                "Live k2p5 smoke blocked before send: missing MASTER_CHAT_API_KEY and no legacy ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY is available."
-            )
-        }
-
-        let modelSource: String
-        if let model = trimmedEnvironmentValue("MASTER_CHAT_MODEL", in: resolvedEnvironment) {
-            resolvedEnvironment["MASTER_CHAT_MODEL"] = model
-            modelSource = "env(MASTER_CHAT_MODEL)"
-        } else {
-            resolvedEnvironment["MASTER_CHAT_MODEL"] = K2P5MasterConversationService.modelFallback
-            modelSource = "fallback(\(K2P5MasterConversationService.modelFallback))"
-        }
-
-        let configuration = try MasterChatConfiguration.current(
-            environment: resolvedEnvironment,
-            userDefaults: userDefaults,
-            keychainAPIKey: { nil },
-            persistAPIKey: { _ in false }
-        )
-        return LiveSmokeConfiguration(
-            configuration: configuration,
-            sourceSummary: "baseURL=\(baseURLSource)；apiKey=\(apiKeySource)；model=\(modelSource)"
-        )
-    }
-
-    private static func trimmedEnvironmentValue(_ key: String, in environment: [String: String]) -> String? {
-        guard let value = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !value.isEmpty else {
-            return nil
-        }
-        return value
-    }
-
-    private static func modelCatalogURL(for chatCompletionsURL: URL) -> URL {
-        chatCompletionsURL
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("models")
-    }
-}
-
-private struct LiveSmokeConfiguration {
-    let configuration: MasterChatConfiguration
-    let sourceSummary: String
 }
 
 private actor ConversationRequestCapture {

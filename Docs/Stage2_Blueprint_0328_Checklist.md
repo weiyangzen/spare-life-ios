@@ -67,6 +67,7 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [x] 拆分：`MASTER_CHAT_LIVE_SMOKE=1` 的一对一聊天 smoke 现已在发起首轮消息前预检候选端点 `/v1/models`；若未枚举到 `k2p5` 会直接回报精确阻塞并跳过，不再等聊天请求 `404` 后才暴露问题。本地单测与当前 shell 映射实测已覆盖。
 - [x] 拆分：2026-03-28 已把 `MASTER_CHAT_LIVE_SMOKE=1` 的一对一聊天 smoke 补到可在缺少 `MASTER_CHAT_*` 时自动借用当前 shell 的 legacy `ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY` 做只读预检；本机实测 `http://24.199.97.185:8080/v1/models` 仍只枚举 Claude 系列，未广告 `k2p5`，因此基于 live `k2p5` 端点的一对一聊天自动化验证仍未完成，主项暂不勾。
 - [x] 拆分：2026-03-28 将当前 shell 的 legacy 鉴权临时映射到 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY` 重跑 `MASTER_CHAT_LIVE_SMOKE=1` 后，`GET http://24.199.97.185:8080/v1/models` 仍未广告 `k2p5`，实际仅返回 `claude-opus-4-5-20251101 / claude-opus-4-6 / claude-sonnet-4-6 / claude-sonnet-4-5-20250929 / claude-haiku-4-5-20251001`；因此 `k2p5` 主项继续保持未勾。
+- [x] 拆分：已抽出 `MasterChatLiveProbe`，统一处理 `MASTER_CHAT_*`、`defaults(masters.chat.baseURL / masters.chat.model)`、本机钥匙串与 legacy `ANTHROPIC_*` 的 live 候选解析及 `/v1/models` 预检；若候选端点未广告 `k2p5`，会直接回报 exact blocker，本地单测已覆盖。
 - [x] 拆分：若 live 端点回包中的 `model` 未继续指向 `k2p5` 系列，聊天服务会拒绝把该轮误标为“实时对话已接通”，并回退到本地故事引擎；本地单测已覆盖。
 - [x] 大师回复必须符合上下文和角色设定，像“小说场景中的角色台词”，而不是通用助手口吻。
 - [x] 拆分：`/v1/chat/completions` 的 system prompt 现已明确要求把回复写成“小说场景里的角色台词”，并禁止输出“作为 AI / 模型 / 助手”“建议如下”“1. 2. 3.” 等通用助手口吻；本地单测已覆盖。
@@ -76,6 +77,7 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [ ] 闲聊页面完成当前 8 位大师卡片与至少 1 条真实对话链路的本机验证。
 - [x] 拆分：`MasterStage1Automation` 已重新接到当前 `MasterExperienceStore` 初始化路径；注入 `SPARE_MASTERS_AUTOMATION_COMMAND` 后，会沿用同一 `MasterConversationLocalStateStore` 目录写出 `masters-preview-validation.json`，本地单测已覆盖。
 - [x] 拆分：2026-03-28 已用上述自动化 bootstrap 在本机复跑 `directory_snapshot`，结果 `success=true`、`visibleMasterCount=8`、`matchedCoverageCount=8`、`hasExactStage1Coverage=true`。
+- [x] 拆分：2026-03-28 已用 `MasterChatLiveProbe` 复跑本机真实对话链路预检；本地 `MasterExperienceStore` 集成测试仍覆盖 8 卡装载、进入一对一、持久化恢复与完整 context 发送，但当前 shell 借用 legacy `ANTHROPIC_*` 访问 `http://24.199.97.185:8080/v1/models` 仍只返回 Claude 系列、未广告 `k2p5`，因此“至少 1 条真实对话链路”主项继续保持未勾。
 
 ### 4.4 赚闲能
 

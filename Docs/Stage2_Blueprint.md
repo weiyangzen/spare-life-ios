@@ -163,6 +163,7 @@ Stage 2 默认围绕 5 个底部导航页面展开：
 - [x] 拆分：已复核 `Docs/Stage2_Blueprint*`、`MasterASRService.swift`、`MasterASRServiceTests.swift` 与当前执行环境，仍未发现可直接用于 live 联调的 `MASTER_ASR_AUTH_HEADER / MASTER_ASR_AUTH_SCHEME / MASTER_ASR_API_KEY / MASTER_ASR_AUTH_TOKEN` 实值或来源说明。
 - [x] 拆分：已补充 `MASTER_ASR_LIVE_SMOKE=1` + `MASTER_ASR_SMOKE_AUDIO_FILE` 驱动的 ASR live smoke test；拿到真实端点与鉴权后，可直接对候选配置发起一次真实转写验证，默认无配置时会跳过。
 - [x] 拆分：2026-03-28 当前执行环境直连 `100.82.60.69:17880` 时，`GET /health` 已恢复并返回 `clawdb-topics-gateway`，但 `POST /v1/audio/transcriptions` 仍稳定返回 `{"ok":false,"error":"method_not_allowed"}`；因此仍无法把 ClawDB ASR live 写入口诚实勾选为已接通。
+- [x] 拆分：2026-03-28 已再次直连 `http://100.82.60.69:17880/v1/audio/transcriptions`；空 JSON `POST` 与 `OPTIONS` 都返回 `{"ok":false,"error":"method_not_allowed"}` + `HTTP 405`，默认 `clawdb-topics-gateway` 路由仍不是可用 ASR 写入口。
 - [x] 拆分：已复核 `spare-life-ios-preview-host` 与相关工程配置，当前预览宿主仍缺少 `NSMicrophoneUsageDescription`；端到端录音联调暂不能诚实勾选，且宿主 plist 不在本 lane 内。
 - [x] 大师闲聊请求携带全量 context，而不是只带最后一轮浅上下文。
 - [ ] 大师闲聊推理路径切到提供的 `k2p5` 模型与对应后端请求逻辑。
@@ -178,6 +179,7 @@ Stage 2 默认围绕 5 个底部导航页面展开：
 - [x] 拆分：已补充 `MASTER_CHAT_LIVE_SMOKE=1` 驱动的 `MasterExperienceStore` 一对一聊天 smoke test，直接覆盖 `openConversation -> sendMessage -> k2p5` 实际发送链路；拿到 live `MASTER_CHAT_*` 配置后可直接复跑。
 - [x] 拆分：2026-03-28 以当前 shell 的 `ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN` 临时映射到 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY` 执行上述 smoke 时，首轮即返回 `503 No available accounts: no available accounts`；因此基于 live `k2p5` 端点的一对一聊天自动化验证主项仍不能诚实勾选。
 - [x] 拆分：2026-03-28 再次以当前 shell 的 `ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN` 临时映射到 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY` 执行上述 smoke 时，首轮改为返回 `404`，并在错误详情里回显 `model: k2p5`；因此基于 live `k2p5` 端点的一对一聊天自动化验证仍未完成。
+- [x] 拆分：2026-03-28 已直接用当前 shell 的 legacy `ANTHROPIC_AUTH_TOKEN` 对 `http://24.199.97.185:8080/v1/chat/completions` 发送 `model=k2p5` 的最小请求，服务返回 `{"error":{"message":"model: k2p5","type":"server_error"}}` + `HTTP 404`；因此提供的后端当前仍未实际接住 `k2p5` 对话请求。
 - [x] 拆分：`MASTER_CHAT_LIVE_SMOKE=1` 的一对一聊天 smoke 现已在发起首轮消息前预检候选端点 `/v1/models`；若未枚举到 `k2p5` 会直接回报精确阻塞并跳过，不再等聊天请求 `404` 后才暴露问题。本地单测与当前 shell 映射实测已覆盖。
 - [x] 拆分：2026-03-28 已把 `MASTER_CHAT_LIVE_SMOKE=1` 的一对一聊天 smoke 补到可在缺少 `MASTER_CHAT_*` 时自动借用当前 shell 的 legacy `ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY` 做只读预检；本机实测 `http://24.199.97.185:8080/v1/models` 仍只枚举 Claude 系列，未广告 `k2p5`，因此基于 live `k2p5` 端点的一对一聊天自动化验证仍未完成，主项暂不勾。
 - [x] 拆分：2026-03-28 将当前 shell 的 legacy 鉴权临时映射到 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY` 重跑 `MASTER_CHAT_LIVE_SMOKE=1` 后，`GET http://24.199.97.185:8080/v1/models` 仍未广告 `k2p5`，实际仅返回 `claude-opus-4-5-20251101 / claude-opus-4-6 / claude-sonnet-4-6 / claude-sonnet-4-5-20250929 / claude-haiku-4-5-20251001`；因此 `k2p5` 主项继续保持未勾。
@@ -192,6 +194,7 @@ Stage 2 默认围绕 5 个底部导航页面展开：
 - [ ] 闲聊页面完成当前 8 位大师卡片与至少 1 条真实对话链路的本机验证。
 - [x] 拆分：`MasterStage1Automation` 已重新接到当前 `MasterExperienceStore` 初始化路径；注入 `SPARE_MASTERS_AUTOMATION_COMMAND` 后，会沿用同一 `MasterConversationLocalStateStore` 目录写出 `masters-preview-validation.json`，本地单测已覆盖。
 - [x] 拆分：`MasterStage1Automation` 已新增 `stage2_smoke` 命令，会在同一次自动化里先断言当前 8 位大师目录覆盖无缺口，再进入一对一并要求两轮 `liveRemote` 对话成功后才写出 `masters-preview-validation.json`；本地单测已覆盖。
+- [x] 拆分：2026-03-28 已本机复跑 `MasterConversationServiceTests.testMasterStage1AutomationWritesStage2SmokeValidation`，确认 `stage2_smoke` 自动化仍覆盖 `8` 张大师卡、进入一对一与两轮 `liveRemote` 判定的回归链路；但这仍是受控测试，不等于已拿到真实 `k2p5` live 对话。
 - [x] 拆分：`MasterStage1Automation` 的 `resume_chat` 现已补上本地单测，要求复用同一 `MasterConversationLocalStateStore` 恢复至少 `5` 条 transcript 后，再追加一轮 `liveRemote` 一问一答并写回结果文件。
 - [x] 拆分：2026-03-28 已用上述自动化 bootstrap 在本机复跑 `directory_snapshot`，结果 `success=true`、`visibleMasterCount=8`、`matchedCoverageCount=8`、`hasExactStage1Coverage=true`。
 - [x] 拆分：2026-03-28 已用 `MasterChatLiveProbe` 复跑本机真实对话链路预检；本地 `MasterExperienceStore` 集成测试仍覆盖 8 卡装载、进入一对一、持久化恢复与完整 context 发送，但当前 shell 借用 legacy `ANTHROPIC_*` 访问 `http://24.199.97.185:8080/v1/models` 仍只返回 Claude 系列、未广告 `k2p5`，因此“至少 1 条真实对话链路”主项继续保持未勾。

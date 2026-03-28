@@ -110,7 +110,10 @@ struct MasterSpeechInputActions: View {
             do {
                 let transcript = try await store.transcribeAudio(at: fileURL)
                 await MainActor.run {
-                    draftText = mergeTranscript(transcript, into: draftText)
+                    draftText = MasterSpeechDraftComposer.mergedDraft(
+                        existingDraft: draftText,
+                        transcript: transcript
+                    )
                 }
             } catch {
                 await MainActor.run {
@@ -126,20 +129,6 @@ struct MasterSpeechInputActions: View {
                 isTranscribing = false
             }
         }
-    }
-
-    private func mergeTranscript(_ transcript: String, into existingDraft: String) -> String {
-        let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTranscript.isEmpty else {
-            return existingDraft
-        }
-
-        let trimmedDraft = existingDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedDraft.isEmpty else {
-            return trimmedTranscript
-        }
-
-        return "\(trimmedDraft)\n\(trimmedTranscript)"
     }
 
     private func makeWorkingCopy(from sourceURL: URL) throws -> URL {

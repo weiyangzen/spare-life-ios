@@ -2,6 +2,35 @@ import XCTest
 @testable import SpareLifeCore
 
 final class MasterASRServiceTests: XCTestCase {
+    func testMasterASRConfigurationReadsCustomMethodAndTokenAliasFromEnvironment() throws {
+        let suiteName = "master-asr-env-config-tests-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated user defaults suite")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let configuration = try MasterASRConfiguration.current(
+            environment: [
+                "MASTER_ASR_BASE_URL": "https://asr.example.com/live",
+                "MASTER_ASR_PATH": "speech/transcribe",
+                "MASTER_ASR_METHOD": "put",
+                "MASTER_ASR_AUTH_HEADER": "X-ClawDB-Token",
+                "MASTER_ASR_AUTH_SCHEME": "Token",
+                "MASTER_ASR_AUTH_TOKEN": "env-secret"
+            ],
+            userDefaults: defaults
+        )
+
+        XCTAssertEqual(configuration.url.absoluteString, "https://asr.example.com/live/speech/transcribe")
+        XCTAssertEqual(configuration.method, "PUT")
+        XCTAssertEqual(configuration.authHeaderName, "X-ClawDB-Token")
+        XCTAssertEqual(configuration.authScheme, "Token")
+        XCTAssertEqual(configuration.apiKey, "env-secret")
+    }
+
     func testMasterASRConfigurationBuildsURLAndAuthFromUserDefaults() throws {
         let suiteName = "master-asr-config-tests-\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {
@@ -75,6 +104,40 @@ final class MasterASRServiceTests: XCTestCase {
         XCTAssertTrue(bodyText.contains("whisper-1"))
         XCTAssertTrue(bodyText.contains("name=\"language\""))
         XCTAssertTrue(bodyText.contains("zh"))
+    }
+
+    func testClawDBMasterASRServiceUsesConfiguredCustomAuthHeader() async throws {
+        let fileURL = try makeAudioFixture(named: "custom-auth-header", contents: "test-audio")
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let capture = RequestCapture()
+        let configuration = MasterASRConfiguration(
+            url: URL(string: "https://example.com/v1/audio/transcriptions")!,
+            method: "POST",
+            authHeaderName: "X-ClawDB-Token",
+            authScheme: nil,
+            apiKey: "raw-secret",
+            model: "whisper-1",
+            language: nil,
+            responseFormat: nil
+        )
+
+        let service = ClawDBMasterASRService(configuration: configuration) { request in
+            await capture.store(request)
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            return (#"{"transcript":"自定义鉴权通过"}"#.data(using: .utf8)!, response)
+        }
+
+        let transcript = try await service.transcribeAudio(at: fileURL)
+        let request = await capture.request
+
+        XCTAssertEqual(transcript, "自定义鉴权通过")
+        XCTAssertEqual(request?.value(forHTTPHeaderField: "X-ClawDB-Token"), "raw-secret")
     }
 
     func testClawDBMasterASRServiceSurfacesMethodNotAllowedProbe() async throws {

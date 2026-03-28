@@ -145,7 +145,9 @@ Stage 2 默认围绕 5 个底部导航页面展开：
 - [ ] 闲聊聊天框接入 ClawDB 服务器的 ASR 接口，支持语音识别输入并正确回填到对话发送链路。
 - [x] 拆分：聊天框已增加音频文件导入与 ASR 转写回填，识别文本会回填到同一发送草稿链路。
 - [x] 拆分：聊天框已支持本地录音入口，结束录音后会把生成音频送入同一 ASR 转写回填草稿链路。
+- [x] 拆分：ASR 转写文本回填后会与手写草稿合并，并沿用同一 `sendMessage` 发送链路；本地单测已覆盖。
 - [x] 拆分：聊天输入区已落地可配置 ASR 客户端，支持 `MASTER_ASR_URL / MASTER_ASR_BASE_URL / MASTER_ASR_PATH / MASTER_ASR_METHOD` 与 multipart 音频上传；当服务返回 `text / transcript / data.text` 时会直接回填到同一发送草稿。
+- [x] 拆分：ASR 客户端已支持 `MASTER_ASR_AUTH_HEADER / MASTER_ASR_AUTH_SCHEME / MASTER_ASR_API_KEY / MASTER_ASR_AUTH_TOKEN` 鉴权覆盖，并通过本地单测验证请求头拼装。
 - [x] 拆分：默认 `100.82.60.69:17880` 健康检查已确认是 `clawdb-topics-gateway`，`POST /v1/audio/transcriptions` 当前稳定返回 `405 method_not_allowed`，可排除这条默认路由不是现成可用 ASR 写入口。
 - [ ] 拆分：ClawDB ASR 的真实写入 host / path / method 仍未提供，当前还不能把 live 端点写死进客户端。
 - [x] 拆分：当前执行环境确认未注入任何 `MASTER_ASR_*` 环境变量。

@@ -243,12 +243,64 @@ final class MasterASRServiceTests: XCTestCase {
         }
     }
 
+    func testClawDBMasterASRServiceLiveSmokeRunsWhenExplicitlyEnabled() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["MASTER_ASR_LIVE_SMOKE"] == "1" else {
+            throw XCTSkip("Set MASTER_ASR_LIVE_SMOKE=1 to run the live ASR smoke test.")
+        }
+
+        let status = MasterASRConfiguration.currentStatus(environment: environment, userDefaults: .standard)
+        guard status.tone == .ready else {
+            throw XCTSkip("Live ASR smoke blocked: \(status.title) - \(status.detail)")
+        }
+
+        let audioPath = try requiredLiveSmokeValue(
+            for: "MASTER_ASR_SMOKE_AUDIO_FILE",
+            environment: environment,
+            guidance: "Point it to a readable local audio file with real speech."
+        )
+        let audioURL = URL(fileURLWithPath: audioPath)
+        guard FileManager.default.isReadableFile(atPath: audioURL.path) else {
+            XCTFail("Smoke audio file is not readable: \(audioPath)")
+            return
+        }
+
+        let transcript = try await ClawDBMasterASRService(
+            processInfo: .processInfo,
+            userDefaults: .standard
+        ).transcribeAudio(at: audioURL)
+        let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertFalse(trimmedTranscript.isEmpty)
+
+        if let expectedSubstring = environment["MASTER_ASR_SMOKE_EXPECT_SUBSTRING"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !expectedSubstring.isEmpty {
+            XCTAssertTrue(
+                trimmedTranscript.localizedCaseInsensitiveContains(expectedSubstring),
+                "Expected transcript to contain '\(expectedSubstring)', got '\(trimmedTranscript)'"
+            )
+        }
+    }
+
     private func makeAudioFixture(named name: String, contents: String) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent(name)
             .appendingPathExtension("m4a")
         try Data(contents.utf8).write(to: url)
         return url
+    }
+
+    private func requiredLiveSmokeValue(
+        for key: String,
+        environment: [String: String],
+        guidance: String
+    ) throws -> String {
+        guard let value = environment[key]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !value.isEmpty else {
+            throw XCTSkip("Set \(key) before running the live ASR smoke test. \(guidance)")
+        }
+        return value
     }
 }
 

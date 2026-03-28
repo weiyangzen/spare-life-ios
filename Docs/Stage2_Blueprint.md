@@ -155,6 +155,7 @@ Stage 2 默认围绕 5 个底部导航页面展开：
 - [ ] 拆分：ClawDB ASR 的真实写入 host / path / method 仍未提供，当前还不能把 live 端点写死进客户端。
 - [x] 拆分：当前执行环境确认未注入任何 `MASTER_ASR_*` 环境变量。
 - [ ] 拆分：ClawDB ASR 鉴权 header 名、scheme 与密钥来源仍未提供，live 联调前不能诚实勾选主项。
+- [x] 拆分：已补充 `MASTER_ASR_LIVE_SMOKE=1` + `MASTER_ASR_SMOKE_AUDIO_FILE` 驱动的 ASR live smoke test；拿到真实端点与鉴权后，可直接对候选配置发起一次真实转写验证，默认无配置时会跳过。
 - [ ] 拆分：当前预览宿主缺少 `NSMicrophoneUsageDescription`，端到端录音联调暂不能诚实勾选。
 - [x] 大师闲聊请求携带全量 context，而不是只带最后一轮浅上下文。
 - [ ] 大师闲聊推理路径切到提供的 `k2p5` 模型与对应后端请求逻辑。

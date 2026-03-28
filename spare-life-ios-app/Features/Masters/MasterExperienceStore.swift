@@ -402,6 +402,7 @@ final class MasterExperienceStore: ObservableObject {
     private let catalogLoader: () throws -> MasterCatalogSnapshot
     private let conversationService: MasterConversationReplying
     private let asrService: MasterAudioTranscribing
+    let asrConnectionStatus: MasterASRConnectionStatus
     private let localStateStore: MasterConversationLocalStateStore
     let catalogAccessPolicy: MasterCatalogAccessPolicy = .browseAndChatOnly
     private var sessionTranscripts: [String: [MasterMessage]] = [:]
@@ -410,13 +411,16 @@ final class MasterExperienceStore: ObservableObject {
         catalogLoader: @escaping () throws -> MasterCatalogSnapshot = { try MasterCatalogLoader.load() },
         conversationService: MasterConversationReplying? = nil,
         asrService: MasterAudioTranscribing? = nil,
+        asrConnectionStatus: MasterASRConnectionStatus? = nil,
         localStateStore: MasterConversationLocalStateStore = MasterConversationLocalStateStore()
     ) {
         self.catalogLoader = catalogLoader
         let resolvedConversationService = conversationService ?? AnthropicMasterConversationService()
         let resolvedASRService = asrService ?? ClawDBMasterASRService()
+        let resolvedASRConnectionStatus = asrConnectionStatus ?? MasterASRConfiguration.currentStatus()
         self.conversationService = resolvedConversationService
         self.asrService = resolvedASRService
+        self.asrConnectionStatus = resolvedASRConnectionStatus
         self.localStateStore = localStateStore
         self.conversationServiceStatus = resolvedConversationService.status
     }

@@ -46,6 +46,8 @@ struct MasterSpeechInputActions: View {
                         .foregroundColor(.secondary)
                 }
             }
+
+            MasterSpeechStatusBanner(status: store.asrConnectionStatus)
         }
         .fileImporter(
             isPresented: $showingAudioImporter,
@@ -157,6 +159,45 @@ private struct MasterSpeechErrorBanner: View {
         .overlay(
             RoundedRectangle(cornerRadius: CornerRadius.lg)
                 .stroke(Color.emotionNegative.opacity(0.2), lineWidth: 1)
+        )
+    }
+}
+
+private struct MasterSpeechStatusBanner: View {
+    let status: MasterASRConnectionStatus
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Spacing.sm) {
+            Image(systemName: status.tone == .ready ? "checkmark.shield.fill" : "lock.trianglebadge.exclamationmark")
+                .foregroundColor(status.tone == .ready ? .emotionPositive : .orange)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(status.title)
+                    .font(.spareCaptionSB)
+                    .foregroundColor(.primary)
+                Text(status.detail)
+                    .font(.spareMicro)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Spacing.sm)
+        .padding(.vertical, Spacing.xs)
+        .background(
+            status.tone == .ready
+                ? Color.emotionPositive.opacity(0.08)
+                : Color.orange.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: CornerRadius.md)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: CornerRadius.md)
+                .stroke(
+                    status.tone == .ready
+                        ? Color.emotionPositive.opacity(0.18)
+                        : Color.orange.opacity(0.2),
+                    lineWidth: 1
+                )
         )
     }
 }

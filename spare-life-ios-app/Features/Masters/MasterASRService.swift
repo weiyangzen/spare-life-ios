@@ -49,39 +49,100 @@ struct MasterASRConfiguration: Equatable, Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         userDefaults: UserDefaults = .standard
     ) throws -> MasterASRConfiguration {
-        let rawURL =
-            value(
-                environment: environment,
-                userDefaults: userDefaults,
-                environmentKeys: ["MASTER_ASR_URL"],
-                defaultsKeys: ["masters.asr.url"]
-            )
-        let baseURL =
-            value(
-                environment: environment,
-                userDefaults: userDefaults,
-                environmentKeys: ["MASTER_ASR_BASE_URL"],
-                defaultsKeys: ["masters.asr.baseURL"]
-            ) ?? "http://100.82.60.69:17880"
-        let path =
-            value(
-                environment: environment,
-                userDefaults: userDefaults,
-                environmentKeys: ["MASTER_ASR_PATH"],
-                defaultsKeys: ["masters.asr.path"]
-            ) ?? "/v1/audio/transcriptions"
+        try resolved(environment: environment, userDefaults: userDefaults).configuration
+    }
 
-        guard let url = normalizedURL(rawURL: rawURL, baseURL: baseURL, path: path) else {
-            throw MasterASRServiceError.invalidBaseURL
+    static func currentStatus(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        userDefaults: UserDefaults = .standard
+    ) -> MasterASRConnectionStatus {
+        do {
+            return try resolved(environment: environment, userDefaults: userDefaults).status
+        } catch {
+            return MasterASRConnectionStatus(
+                tone: .warning,
+                title: "ASR 地址无效",
+                detail: error.localizedDescription
+            )
+        }
+    }
+
+    private static func value(
+        environment: [String: String],
+        userDefaults: UserDefaults,
+        environmentKeys: [String],
+        defaultsKeys: [String]
+    ) -> String? {
+        for key in environmentKeys {
+            if let value = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+                return value
+            }
+        }
+        for key in defaultsKeys {
+            if let value = userDefaults.string(forKey: key)?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+                return value
+            }
+        }
+        return nil
+    }
+
+    fileprivate static func normalizedURL(rawURL: String?, baseURL: String, path: String) -> URL? {
+        if let rawURL = rawURL?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+            return URL(string: rawURL)
         }
 
-        let method =
-            value(
-                environment: environment,
-                userDefaults: userDefaults,
-                environmentKeys: ["MASTER_ASR_METHOD"],
-                defaultsKeys: ["masters.asr.method"]
-            ) ?? "POST"
+        guard var url = URL(string: baseURL.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return nil
+        }
+
+        let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else {
+            return url
+        }
+
+        if let directURL = URL(string: trimmedPath), directURL.scheme != nil {
+            return directURL
+        }
+
+        let normalizedPath = trimmedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !normalizedPath.isEmpty else {
+            return url
+        }
+
+        for component in normalizedPath.split(separator: "/") {
+            url.appendPathComponent(String(component), isDirectory: false)
+        }
+        return url
+    }
+
+    private static func resolved(
+        environment: [String: String],
+        userDefaults: UserDefaults
+    ) throws -> MasterASRConfigurationResolution {
+        let rawURL = value(
+            environment: environment,
+            userDefaults: userDefaults,
+            environmentKeys: ["MASTER_ASR_URL"],
+            defaultsKeys: ["masters.asr.url"]
+        )
+        let configuredBaseURL = value(
+            environment: environment,
+            userDefaults: userDefaults,
+            environmentKeys: ["MASTER_ASR_BASE_URL"],
+            defaultsKeys: ["masters.asr.baseURL"]
+        )
+        let configuredPath = value(
+            environment: environment,
+            userDefaults: userDefaults,
+            environmentKeys: ["MASTER_ASR_PATH"],
+            defaultsKeys: ["masters.asr.path"]
+        )
+        let configuredMethod = value(
+            environment: environment,
+            userDefaults: userDefaults,
+            environmentKeys: ["MASTER_ASR_METHOD"],
+            defaultsKeys: ["masters.asr.method"]
+        )
         let authHeaderName = value(
             environment: environment,
             userDefaults: userDefaults,
@@ -119,9 +180,17 @@ struct MasterASRConfiguration: Equatable, Sendable {
             defaultsKeys: ["masters.asr.responseFormat"]
         )
 
-        return MasterASRConfiguration(
+        let baseURL = configuredBaseURL ?? MasterASRConfigurationResolution.defaultBaseURL
+        let path = configuredPath ?? MasterASRConfigurationResolution.defaultPath
+        guard let url = normalizedURL(rawURL: rawURL, baseURL: baseURL, path: path) else {
+            throw MasterASRServiceError.invalidBaseURL
+        }
+
+        let configuration = MasterASRConfiguration(
             url: url,
-            method: method.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+            method: (configuredMethod ?? MasterASRConfigurationResolution.defaultMethod)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased(),
             authHeaderName: authHeaderName,
             authScheme: authScheme,
             apiKey: apiKey,
@@ -129,54 +198,91 @@ struct MasterASRConfiguration: Equatable, Sendable {
             language: language?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty,
             responseFormat: responseFormat?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
         )
+
+        return MasterASRConfigurationResolution(
+            configuration: configuration,
+            hasExplicitEndpointOverride: rawURL != nil || configuredBaseURL != nil || configuredPath != nil || configuredMethod != nil,
+            hasAuthHeader: authHeaderName?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil,
+            hasAPIKey: apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil
+        )
+    }
+}
+
+enum MasterASRConnectionTone: Equatable, Sendable {
+    case ready
+    case warning
+}
+
+struct MasterASRConnectionStatus: Equatable, Sendable {
+    let tone: MasterASRConnectionTone
+    let title: String
+    let detail: String
+}
+
+private struct MasterASRConfigurationResolution: Equatable, Sendable {
+    static let defaultBaseURL = "http://100.82.60.69:17880"
+    static let defaultPath = "/v1/audio/transcriptions"
+    static let defaultMethod = "POST"
+
+    let configuration: MasterASRConfiguration
+    let hasExplicitEndpointOverride: Bool
+    let hasAuthHeader: Bool
+    let hasAPIKey: Bool
+
+    var status: MasterASRConnectionStatus {
+        if usesDefaultProbeRoute {
+            return MasterASRConnectionStatus(
+                tone: .warning,
+                title: "ASR 仍在探测路由",
+                detail: "当前仍会请求 \(endpointSummary)。仓内还没有 ClawDB live 的 host / path / method，语音输入暂时只能继续验证探测入口。"
+            )
+        }
+
+        if !hasExplicitEndpointOverride {
+            return MasterASRConnectionStatus(
+                tone: .warning,
+                title: "ASR live 端点未注入",
+                detail: "当前没有拿到 `MASTER_ASR_URL / MASTER_ASR_BASE_URL / MASTER_ASR_PATH / MASTER_ASR_METHOD` 的覆盖配置，不能把客户端当成已接通 ClawDB live ASR。"
+            )
+        }
+
+        if !hasAuthHeader || !hasAPIKey {
+            return MasterASRConnectionStatus(
+                tone: .warning,
+                title: "ASR 鉴权尚未补齐",
+                detail: "当前会请求 \(endpointSummary)，但还缺少可发送的鉴权头或密钥。ClawDB live 联调前不能诚实勾选 ASR 主项。"
+            )
+        }
+
+        return MasterASRConnectionStatus(
+            tone: .ready,
+            title: "ASR live 候选配置已注入",
+            detail: "当前会请求 \(endpointSummary)，并携带 \(authHeaderSummary)。客户端已具备 live 联调接缝，但端点是否可用仍需真实服务验证。"
+        )
     }
 
-    private static func value(
-        environment: [String: String],
-        userDefaults: UserDefaults,
-        environmentKeys: [String],
-        defaultsKeys: [String]
-    ) -> String? {
-        for key in environmentKeys {
-            if let value = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
-                return value
-            }
-        }
-        for key in defaultsKeys {
-            if let value = userDefaults.string(forKey: key)?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
-                return value
-            }
-        }
-        return nil
+    private var usesDefaultProbeRoute: Bool {
+        configuration.method == Self.defaultMethod && configuration.url.absoluteString == defaultProbeURL.absoluteString
     }
 
-    private static func normalizedURL(rawURL: String?, baseURL: String, path: String) -> URL? {
-        if let rawURL = rawURL?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
-            return URL(string: rawURL)
-        }
+    private var defaultProbeURL: URL {
+        MasterASRConfiguration.normalizedURL(
+            rawURL: nil,
+            baseURL: Self.defaultBaseURL,
+            path: Self.defaultPath
+        ) ?? URL(string: "\(Self.defaultBaseURL)\(Self.defaultPath)")!
+    }
 
-        guard var url = URL(string: baseURL.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            return nil
-        }
+    private var endpointSummary: String {
+        "\(configuration.method) \(configuration.url.absoluteString)"
+    }
 
-        let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPath.isEmpty else {
-            return url
+    private var authHeaderSummary: String {
+        let headerName = configuration.authHeaderName?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "鉴权头"
+        guard let scheme = configuration.authScheme?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty else {
+            return "\(headerName) 头"
         }
-
-        if let directURL = URL(string: trimmedPath), directURL.scheme != nil {
-            return directURL
-        }
-
-        let normalizedPath = trimmedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        guard !normalizedPath.isEmpty else {
-            return url
-        }
-
-        for component in normalizedPath.split(separator: "/") {
-            url.appendPathComponent(String(component), isDirectory: false)
-        }
-        return url
+        return "\(headerName) 头（scheme: \(scheme)）"
     }
 }
 

@@ -2,6 +2,72 @@ import XCTest
 @testable import SpareLifeCore
 
 final class MasterASRServiceTests: XCTestCase {
+    func testMasterASRConfigurationStatusWarnsWhenStillUsingDefaultProbeRoute() {
+        let suiteName = "master-asr-status-default-route-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated user defaults suite")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let status = MasterASRConfiguration.currentStatus(environment: [:], userDefaults: defaults)
+
+        XCTAssertEqual(status.tone, .warning)
+        XCTAssertEqual(status.title, "ASR 仍在探测路由")
+        XCTAssertTrue(status.detail.contains("POST http://100.82.60.69:17880/v1/audio/transcriptions"))
+    }
+
+    func testMasterASRConfigurationStatusWarnsWhenEndpointExistsButAuthIsMissing() {
+        let suiteName = "master-asr-status-missing-auth-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated user defaults suite")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        defaults.set("https://asr.example.com/live", forKey: "masters.asr.baseURL")
+        defaults.set("/speech/transcribe", forKey: "masters.asr.path")
+        defaults.set("put", forKey: "masters.asr.method")
+
+        let status = MasterASRConfiguration.currentStatus(environment: [:], userDefaults: defaults)
+
+        XCTAssertEqual(status.tone, .warning)
+        XCTAssertEqual(status.title, "ASR 鉴权尚未补齐")
+        XCTAssertTrue(status.detail.contains("PUT https://asr.example.com/live/speech/transcribe"))
+    }
+
+    func testMasterASRConfigurationStatusReportsInjectedLiveCandidateConfiguration() {
+        let suiteName = "master-asr-status-live-candidate-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated user defaults suite")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let status = MasterASRConfiguration.currentStatus(
+            environment: [
+                "MASTER_ASR_URL": "https://asr.example.com/live/speech/transcribe",
+                "MASTER_ASR_METHOD": "post",
+                "MASTER_ASR_AUTH_HEADER": "X-ClawDB-Token",
+                "MASTER_ASR_AUTH_SCHEME": "Token",
+                "MASTER_ASR_API_KEY": "env-secret"
+            ],
+            userDefaults: defaults
+        )
+
+        XCTAssertEqual(status.tone, .ready)
+        XCTAssertEqual(status.title, "ASR live 候选配置已注入")
+        XCTAssertTrue(status.detail.contains("POST https://asr.example.com/live/speech/transcribe"))
+        XCTAssertTrue(status.detail.contains("X-ClawDB-Token"))
+        XCTAssertTrue(status.detail.contains("Token"))
+    }
+
     func testMasterASRConfigurationReadsCustomMethodAndTokenAliasFromEnvironment() throws {
         let suiteName = "master-asr-env-config-tests-\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {

@@ -6,6 +6,8 @@ import UIKit
 import AppKit
 #endif
 
+private let masterStage1CardAspectRatio: CGFloat = 5.0 / 8.0
+
 struct MasterChatHomeView: View {
     @StateObject private var store: MasterExperienceStore
 
@@ -273,18 +275,18 @@ private struct MasterStage1Card: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: Spacing.md) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
                 ZStack(alignment: .bottomLeading) {
                     MasterStage1ImageView(path: profile.imageSet.backgroundPath)
-                        .frame(height: 152)
-                        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.xl))
+                        .frame(height: 136)
+                        .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
                         .overlay(
                             LinearGradient(
                                 colors: [Color.black.opacity(0.03), Color.black.opacity(0.58)],
                                 startPoint: .top,
                                 endPoint: .bottom
                             )
-                            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.xl))
+                            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
                         )
 
                     HStack(alignment: .bottom, spacing: Spacing.sm) {
@@ -310,7 +312,7 @@ private struct MasterStage1Card: View {
                     .padding(Spacing.md)
                 }
 
-                VStack(alignment: .leading, spacing: Spacing.sm) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
                     HStack(spacing: Spacing.xs) {
                         PillTag(label: profile.domainTitle, color: .spareYellow, filled: true)
                         Spacer()
@@ -326,20 +328,27 @@ private struct MasterStage1Card: View {
                     Text(profile.promptPreview)
                         .font(.spareCaption)
                         .foregroundColor(.secondary)
-                        .lineLimit(3)
+                        .lineLimit(2)
 
                     FlowLayoutRow(tags: Array(profile.expertiseTags.prefix(3)))
+
+                    Label("进入一对一闲聊", systemImage: "bubble.left.and.bubble.right.fill")
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
                 }
             }
             .padding(Spacing.md)
-            .background(Color.white.opacity(0.94), in: RoundedRectangle(cornerRadius: CornerRadius.xl))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(Color.cardBackground, in: RoundedRectangle(cornerRadius: CornerRadius.md))
             .overlay(
-                RoundedRectangle(cornerRadius: CornerRadius.xl)
+                RoundedRectangle(cornerRadius: CornerRadius.md)
                     .stroke(Color.cardStroke, lineWidth: 1)
             )
-            .cardShadow(prominent: true)
+            .aspectRatio(masterStage1CardAspectRatio, contentMode: .fit)
+            .contentShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+            .cardShadow()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CardPressStyle())
         .accessibilityIdentifier("master-stage1-card-\(profile.id)")
     }
 }

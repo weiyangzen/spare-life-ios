@@ -401,6 +401,7 @@ final class MasterExperienceStore: ObservableObject {
     private var hasLoaded = false
     private let catalogLoader: () throws -> MasterCatalogSnapshot
     private let conversationService: MasterConversationReplying
+    private let asrService: MasterAudioTranscribing
     private let localStateStore: MasterConversationLocalStateStore
     let catalogAccessPolicy: MasterCatalogAccessPolicy = .browseAndChatOnly
     private var sessionTranscripts: [String: [MasterMessage]] = [:]
@@ -408,11 +409,14 @@ final class MasterExperienceStore: ObservableObject {
     init(
         catalogLoader: @escaping () throws -> MasterCatalogSnapshot = { try MasterCatalogLoader.load() },
         conversationService: MasterConversationReplying? = nil,
+        asrService: MasterAudioTranscribing? = nil,
         localStateStore: MasterConversationLocalStateStore = MasterConversationLocalStateStore()
     ) {
         self.catalogLoader = catalogLoader
         let resolvedConversationService = conversationService ?? AnthropicMasterConversationService()
+        let resolvedASRService = asrService ?? ClawDBMasterASRService()
         self.conversationService = resolvedConversationService
+        self.asrService = resolvedASRService
         self.localStateStore = localStateStore
         self.conversationServiceStatus = resolvedConversationService.status
     }
@@ -835,6 +839,14 @@ final class MasterExperienceStore: ObservableObject {
 
     func markActionAdopted(_ actionID: String) {
         adoptedActionIDs.insert(actionID)
+    }
+
+    func transcribeAudio(at fileURL: URL) async throws -> String {
+        try await asrService.transcribeAudio(at: fileURL)
+    }
+
+    func setConversationInlineError(_ message: String?) {
+        conversation?.inlineError = message
     }
 
     private var adoptedActionIDs: Set<String> = []

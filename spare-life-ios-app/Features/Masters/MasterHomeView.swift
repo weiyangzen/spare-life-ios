@@ -26,44 +26,7 @@ struct MasterHomeView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.98, green: 0.96, blue: 0.91),
-                        Color(.systemGroupedBackground)
-                    ],
-                    startPoint: .top,
-                    endPoint: .center
-                )
-                .ignoresSafeArea()
-
-                VStack(spacing: 0) {
-                    directoryHeader
-
-                    filterPanel
-                        .padding(.horizontal, Spacing.lg)
-                        .padding(.bottom, Spacing.sm)
-
-                    Divider()
-
-                    feedBody
-                }
-            }
-            .spareNavigationBarHidden(true)
-            .navigationDestination(isPresented: conversationDestinationBinding) {
-                MasterConversationView(store: store)
-            }
-            .task {
-                store.loadIfNeeded()
-            }
-            .onChange(of: store.query) { _ in
-                store.resetDirectoryPagination()
-            }
-            .onChange(of: store.selectedDomainID) { _ in
-                store.resetDirectoryPagination()
-            }
-        }
+        MasterChatHomeView(store: store)
     }
 
     private var conversationDestinationBinding: Binding<Bool> {
@@ -1505,6 +1468,12 @@ struct MasterConversationView: View {
                         .font(.spareMicro)
                         .foregroundColor(.secondary)
                 }
+
+                MasterSpeechInputActions(
+                    store: store,
+                    draftText: $draftText,
+                    disabled: conversation.isReplying
+                )
             }
             .padding(Spacing.md)
             .background(Color.white.opacity(0.94), in: RoundedRectangle(cornerRadius: CornerRadius.xl))

@@ -183,6 +183,9 @@ final class MasterCatalogLoaderTests: XCTestCase {
 
         await store.refreshCatalog()
 
+        XCTAssertEqual(store.visibleDirectoryMasters.count, 8)
+        XCTAssertEqual(store.visibleDirectoryMasters.map(\.id), store.masters.map(\.id))
+
         for master in store.visibleDirectoryMasters {
             store.openConversation(for: master)
 
@@ -191,6 +194,9 @@ final class MasterCatalogLoaderTests: XCTestCase {
             XCTAssertEqual(conversation.session.masterID, master.id)
             XCTAssertEqual(conversation.session.displayName, master.displayName)
             XCTAssertEqual(conversation.messages.first?.role, .assistant)
+
+            store.conversation = nil
+            XCTAssertNil(store.conversation)
         }
     }
 }

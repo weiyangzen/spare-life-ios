@@ -38,10 +38,10 @@ enum GroupAgentRole: String, CaseIterable, Identifiable {
 
     var tint: Color {
         switch self {
-        case .host: return .blue
-        case .scribe: return .indigo
+        case .host: return .spareYellowInk
+        case .scribe: return .spareYellowInk
         case .vibe: return .emotionPositive
-        case .proposer: return .orange
+        case .proposer: return .spareYellowInk
         }
     }
 
@@ -667,7 +667,7 @@ struct GroupAgentPlayView: View {
                                 Capsule()
                                     .fill(Color.secondary.opacity(0.14))
                                 Capsule()
-                                    .fill(choice.selectedByMe ? Color.spareYellow : Color.blue.opacity(0.45))
+                                    .fill(choice.selectedByMe ? Color.spareYellow : Color.spareYellowInk.opacity(0.45))
                                     .frame(width: geo.size.width * CGFloat(choice.count) / CGFloat(total))
                             }
                         }

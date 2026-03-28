@@ -38,10 +38,10 @@ struct AIMemoryEntry: Identifiable {
 
         var color: Color {
             switch self {
-            case .conversation: return .blue
-            case .action:       return .orange
-            case .emotion:      return .pink
-            case .preference:   return .purple
+            case .conversation: return .spareYellowInk
+            case .action:       return .spareYellowInk
+            case .emotion:      return .spareYellowInk
+            case .preference:   return .spareYellowInk
             }
         }
     }
@@ -62,8 +62,8 @@ struct IntentMatch: Identifiable {
 
         var color: Color {
             switch self {
-            case .active:   return .green
-            case .resolved: return .blue
+            case .active:   return .spareYellowInk
+            case .resolved: return .spareYellowInk
             case .expired:  return .secondary
             }
         }
@@ -210,10 +210,10 @@ private struct AIMemoryContent: View {
 
     private var recallStatsRow: some View {
         HStack(spacing: Spacing.sm) {
-            RecallStatCard(label: "召回请求", value: "\(store.totalRecallRequests)", icon: "magnifyingglass", color: .blue)
-            RecallStatCard(label: "命中率", value: String(format: "%.0f%%", store.recallHitRate * 100), icon: "target", color: .green)
-            RecallStatCard(label: "延迟", value: String(format: "%.1fms", store.avgRecallLatencyMs), icon: "timer", color: .orange)
-            RecallStatCard(label: "摘要", value: "\(store.summaryCount)", icon: "doc.text.fill", color: .purple)
+            RecallStatCard(label: "召回请求", value: "\(store.totalRecallRequests)", icon: "magnifyingglass", color: .spareYellowInk)
+            RecallStatCard(label: "命中率", value: String(format: "%.0f%%", store.recallHitRate * 100), icon: "target", color: .spareYellowInk)
+            RecallStatCard(label: "延迟", value: String(format: "%.1fms", store.avgRecallLatencyMs), icon: "timer", color: .spareYellowInk)
+            RecallStatCard(label: "摘要", value: "\(store.summaryCount)", icon: "doc.text.fill", color: .spareYellowInk)
         }
     }
 
@@ -377,7 +377,7 @@ private struct AIMemoryEntryRow: View {
                     Label(String(format: "%.0f%%", memory.relevanceScore * 100), systemImage: "scope")
                     if memory.hasEmbedding {
                         Image(systemName: "cube.fill")
-                            .foregroundColor(.purple)
+                            .foregroundColor(.spareYellowInk)
                     }
                     Spacer()
                     Text(memory.createdAt, style: .relative)
@@ -452,7 +452,7 @@ private struct IntentMatchRow: View {
                     Text("关联记忆").font(.spareMicro).foregroundColor(.secondary)
                     Text("\(match.matchedMemoryCount)")
                         .font(.spareBodySB)
-                        .foregroundColor(.purple)
+                        .foregroundColor(.spareYellowInk)
                 }
                 .frame(width: 60)
             }
@@ -466,9 +466,9 @@ private struct IntentMatchRow: View {
     }
 
     private var confidenceColor: Color {
-        if match.confidence >= 0.85 { return .green }
-        if match.confidence >= 0.6  { return .orange }
-        return .red
+        if match.confidence >= 0.85 { return .spareYellowInk }
+        if match.confidence >= 0.6  { return .spareYellowInk }
+        return .spareOrange
     }
 }
 
@@ -508,7 +508,7 @@ private struct PromptTemplateRow: View {
                 HStack {
                     Text(template.name).font(.spareCaption)
                     Spacer()
-                    PillTag(label: template.category, color: .blue, filled: false)
+                    PillTag(label: template.category, color: .spareYellowInk, filled: false)
                 }
                 HStack(spacing: Spacing.lg) {
                     Label("~\(template.tokenEstimate) tokens", systemImage: "number.square")

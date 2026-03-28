@@ -94,7 +94,7 @@ target.build_configurations.each do |config|
   config.build_settings['INFOPLIST_FILE'] = INFO_PLIST.relative_path_from(PROJECT_PATH.parent).to_s
   config.build_settings['ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME'] = 'AccentColor'
   config.build_settings['CODE_SIGN_STYLE'] = 'Automatic'
-  config.build_settings['DEVELOPMENT_TEAM'] = ''
+  config.build_settings['DEVELOPMENT_TEAM'] = '9THU22U3T4'
   config.build_settings['PRODUCT_NAME'] = DISPLAY_NAME
   config.build_settings['SDKROOT'] = 'iphoneos'
 end

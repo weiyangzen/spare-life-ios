@@ -6,19 +6,25 @@ import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #endif
+#if canImport(AppKit) && !canImport(UIKit)
+import AppKit
+#endif
 
 // MARK: - Color Palette
 
 extension Color {
     // Brand
     static let spareYellow      = Color(red: 1.00, green: 0.82, blue: 0.07)   // primary CTA / tab highlight
-    static let spareYellowLight = Color(red: 1.00, green: 0.94, blue: 0.60)
+    static let spareYellowLight = Color(red: 1.00, green: 0.90, blue: 0.34)
+    static let spareOrange      = Color(red: 1.00, green: 0.64, blue: 0.00)
+    static let spareYellowInk   = Color(red: 1.00, green: 0.55, blue: 0.00)
+    static let spareYellowWash  = Color(red: 1.00, green: 0.96, blue: 0.78)
     static let spareDark        = Color(red: 0.08, green: 0.08, blue: 0.10)   // near-black surface
 
     // Emotion tags
-    static let emotionPositive  = Color(red: 0.20, green: 0.78, blue: 0.49)
-    static let emotionNegative  = Color(red: 0.94, green: 0.32, blue: 0.32)
-    static let emotionSplit     = Color(red: 0.97, green: 0.62, blue: 0.22)
+    static let emotionPositive  = Color.spareYellow
+    static let emotionNegative  = Color.spareYellowInk
+    static let emotionSplit     = Color.spareOrange
     static let emotionNeutral   = Color(red: 0.60, green: 0.60, blue: 0.65)
 
     // Scene category chips
@@ -32,11 +38,9 @@ extension Color {
     // Avatar gradient pair (for placeholder avatars)
     static func avatarGradient(seed: Int) -> LinearGradient {
         let pairs: [(Color, Color)] = [
-            (.purple, .pink),
-            (.blue, .cyan),
-            (.green, .teal),
-            (.orange, .yellow),
-            (.indigo, .blue),
+            (.spareYellowLight, .spareYellow),
+            (.spareYellowWash, .spareOrange),
+            (.spareYellow, .spareYellowInk),
         ]
         let pair = pairs[abs(seed) % pairs.count]
         return LinearGradient(colors: [pair.0, pair.1], startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -221,13 +225,49 @@ struct AvatarView: View {
 
     var body: some View {
         ZStack {
+            if let avatarURL, avatarURL.isFileURL, let image = AvatarImageLoader.image(at: avatarURL) {
+                image
+                    .resizable()
+                    .scaledToFill()
+            } else if let avatarURL {
+                AsyncImage(url: avatarURL) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        placeholder
+                    }
+                }
+            } else {
+                placeholder
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+    }
+
+    private var placeholder: some View {
+        ZStack {
             Color.avatarGradient(seed: seed)
             Text(String(name.prefix(1)))
                 .font(.system(size: size * 0.42, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
         }
-        .frame(width: size, height: size)
-        .clipShape(Circle())
+    }
+}
+
+private enum AvatarImageLoader {
+    static func image(at url: URL) -> Image? {
+        #if canImport(UIKit)
+        guard let image = UIImage(contentsOfFile: url.path) else { return nil }
+        return Image(uiImage: image)
+        #elseif canImport(AppKit) && !canImport(UIKit)
+        guard let image = NSImage(contentsOf: url) else { return nil }
+        return Image(nsImage: image)
+        #else
+        return nil
+        #endif
     }
 }
 

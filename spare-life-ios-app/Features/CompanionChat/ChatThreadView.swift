@@ -9,6 +9,36 @@ import SwiftUI
 import UIKit
 #endif
 
+enum ChatSendMode: String, CaseIterable, Identifiable {
+    case human = "真人模式"
+    case aiAuto = "AI 全自动"
+
+    var id: String { rawValue }
+
+    var senderRole: ChatSenderRole {
+        switch self {
+        case .human: return .myHuman
+        case .aiAuto: return .myPersona
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .human: return "person.fill"
+        case .aiAuto: return "sparkles"
+        }
+    }
+
+    func placeholder(for contactName: String) -> String {
+        switch self {
+        case .human:
+            return "发消息给 \(contactName)…"
+        case .aiAuto:
+            return "让分身代你回复 \(contactName)…"
+        }
+    }
+}
+
 // MARK: - Chat Thread Store
 
 @MainActor
@@ -18,131 +48,227 @@ final class ChatThreadStore: ObservableObject {
     @Published private(set) var messages: [ChatMessage] = []
     @Published private(set) var agentMessages: [ChatMessage] = []  // Agent 辅助线程
     @Published private(set) var isLoading = true
-    @Published private(set) var counterpartMode: ConversationCounterpartMode
     @Published var showAgentPanel = false
     @Published var draftText: String = ""
+    @Published var sendMode: ChatSendMode = .human
     @Published var showContactMask = false
     @Published var showRelationship = false
     @Published var showQuadRole = false
     @Published var showGroupPlay = false
     @Published var showCrossSessionMemory = false
 
-    private var seededMessages: [ChatMessage] = []
-    private var localMessages: [ChatMessage] = []
-
     init(thread: ConversationThread) {
         self.thread = thread
-        self.counterpartMode = CompanionChatModeStore.load(
-            threadID: thread.id,
-            defaultMode: ConversationCounterpartMode.defaultMode(for: thread.kind)
-        )
     }
 
     func load() {
-        isLoading = true
-        reloadThread()
-        isLoading = false
-    }
-
-    func setCounterpartMode(_ mode: ConversationCounterpartMode) {
-        guard counterpartMode != mode else { return }
-        counterpartMode = mode
-        CompanionChatModeStore.save(mode, threadID: thread.id)
-        reloadThread()
+        Task {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            self.messages = Self.mockMessages(thread: thread)
+            self.agentMessages = Self.mockAgentMessages(thread: thread)
+            self.isLoading = false
+        }
     }
 
     func send() {
         guard !draftText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        let senderRole = sendMode.senderRole
         let msg = ChatMessage(
             id: UUID().uuidString,
-            senderRole: .myHuman,
-            senderName: "我",
+            senderRole: senderRole,
+            senderName: senderRole.displayName,
             content: draftText,
             timestamp: Date(),
             isAgentThread: false
         )
         withAnimation(.spareEase) {
-            localMessages.append(msg)
-            rebuildMessages()
+            messages.append(msg)
         }
         draftText = ""
     }
 
-    var inputPrompt: String {
-        "发消息给 \(counterpartMode.recipientName(contactName: thread.contactName))…"
-    }
-
-    private func reloadThread() {
-        seededMessages = Self.mockMessages(
-            contactName: thread.contactName,
-            counterpartMode: counterpartMode
-        )
-        agentMessages = Self.mockAgentMessages(
-            contactName: thread.contactName,
-            counterpartMode: counterpartMode
-        )
-        rebuildMessages()
-    }
-
-    private func rebuildMessages() {
-        messages = (seededMessages + localMessages)
-            .sorted { $0.timestamp < $1.timestamp }
-    }
-
     // MARK: Mock
 
-    private static func mockMessages(
-        contactName: String,
-        counterpartMode: ConversationCounterpartMode
-    ) -> [ChatMessage] {
+    private static func mockMessages(thread: ConversationThread) -> [ChatMessage] {
         let now = Date()
-        let counterpartRole: ChatSenderRole = counterpartMode == .human ? .theirHuman : .theirPersona
-        let counterpartName = counterpartMode.recipientName(contactName: contactName)
-        let rendezvousLine = counterpartMode == .human
-            ? "好啊，3 点见？"
-            : "行，我的分身先帮你把时间和地址记上，3 点咖啡馆见。"
 
-        return [
-            ChatMessage(id: "m1", senderRole: counterpartRole, senderName: counterpartName,
-                        content: "嗨！你昨天推荐的那本书真的很有意思", timestamp: now - 7200,
-                        isAgentThread: false),
-            ChatMessage(id: "m2", senderRole: .myHuman, senderName: "我",
-                        content: "哈哈是吧，我也觉得第三章写得特别好", timestamp: now - 7100,
-                        isAgentThread: false),
-            ChatMessage(id: "m3", senderRole: counterpartRole, senderName: counterpartName,
-                        content: "对！尤其是那段关于时间感知的论述", timestamp: now - 7050,
-                        isAgentThread: false),
-            ChatMessage(id: "m4", senderRole: .system, senderName: "系统",
-                        content: "当前会话已切到\(counterpartMode.label)模式", timestamp: now - 3600,
-                        isAgentThread: false),
-            ChatMessage(id: "m5", senderRole: .myHuman, senderName: "我",
-                        content: "下午去那个咖啡馆？", timestamp: now - 1800,
-                        isAgentThread: false),
-            ChatMessage(id: "m6", senderRole: counterpartRole, senderName: counterpartName,
-                        content: rendezvousLine, timestamp: now - 1700,
-                        isAgentThread: false),
-        ]
+        switch thread.id {
+        case "t1":
+            return [
+                ChatMessage(id: "m1", senderRole: .theirHuman, senderName: "Dubi",
+                            content: "我刚出门，十分钟内能到那家咖啡馆。", timestamp: now - 3600,
+                            isAgentThread: false),
+                ChatMessage(id: "m2", senderRole: .myHuman, senderName: "我",
+                            content: "好，我也在路上，今天还是坐窗边吧。", timestamp: now - 3300,
+                            isAgentThread: false),
+                ChatMessage(id: "m3", senderRole: .theirHuman, senderName: "Dubi",
+                            content: "可以，我记得你上次说下午那边的光线最好。", timestamp: now - 3000,
+                            isAgentThread: false),
+                ChatMessage(id: "m4", senderRole: .myHuman, senderName: "我",
+                            content: "对，顺便帮我点一杯热美式。", timestamp: now - 1200,
+                            isAgentThread: false),
+                ChatMessage(id: "m5", senderRole: .theirHuman, senderName: "Dubi",
+                            content: "没问题，我到了就先帮你点。", timestamp: now - 720,
+                            isAgentThread: false),
+                ChatMessage(id: "m6", senderRole: .theirHuman, senderName: "Dubi",
+                            content: "那我先去占窗边的位置。", timestamp: now - 300,
+                            isAgentThread: false),
+            ]
+
+        case "t2":
+            return [
+                ChatMessage(id: "m1", senderRole: .theirHuman, senderName: "Sophie",
+                            content: "今晚那个展我看了一下，7 点以后人会少一点。", timestamp: now - 5400,
+                            isAgentThread: false),
+                ChatMessage(id: "m2", senderRole: .myHuman, senderName: "我",
+                            content: "那正好，我 6 点半下班，过去差不多。", timestamp: now - 5000,
+                            isAgentThread: false),
+                ChatMessage(id: "m3", senderRole: .myPersona, senderName: "我的分身",
+                            content: "按照你们之前的偏好，先看摄影单元再看装置单元会更顺。", timestamp: now - 4600,
+                            isAgentThread: false),
+                ChatMessage(id: "m4", senderRole: .theirHuman, senderName: "Sophie",
+                            content: "好，那我就不自己乱绕了。", timestamp: now - 4300,
+                            isAgentThread: false),
+                ChatMessage(id: "m5", senderRole: .myHuman, senderName: "我",
+                            content: "我本来想自己做路线，你要是已经顺手了也行。", timestamp: now - 2200,
+                            isAgentThread: false),
+                ChatMessage(id: "m6", senderRole: .theirHuman, senderName: "Sophie",
+                            content: "我让分身先把今晚的路线发你。", timestamp: now - 1800,
+                            isAgentThread: false),
+            ]
+
+        case "t3":
+            return [
+                ChatMessage(id: "m1", senderRole: .theirHuman, senderName: "Omar",
+                            content: "周五那场桌游局还继续吗？我这边可以早点去。", timestamp: now - 7200,
+                            isAgentThread: false),
+                ChatMessage(id: "m2", senderRole: .myHuman, senderName: "我",
+                            content: "继续，我负责把清单再过一遍。", timestamp: now - 6800,
+                            isAgentThread: false),
+                ChatMessage(id: "m3", senderRole: .theirHuman, senderName: "Aris",
+                            content: "投影和音箱我都能带。", timestamp: now - 6300,
+                            isAgentThread: false),
+                ChatMessage(id: "m4", senderRole: .theirHuman, senderName: "Omar",
+                            content: "那我去问问老地方明晚还能不能留给我们。", timestamp: now - 4200,
+                            isAgentThread: false),
+                ChatMessage(id: "m5", senderRole: .myHuman, senderName: "我",
+                            content: "如果能留就还是老地方，省得大家重新找。", timestamp: now - 3900,
+                            isAgentThread: false),
+                ChatMessage(id: "m6", senderRole: .theirHuman, senderName: "Aris",
+                            content: "明晚先把场地定下来？", timestamp: now - 3600,
+                            isAgentThread: false),
+            ]
+
+        case "t4":
+            return [
+                ChatMessage(id: "m1", senderRole: .myHuman, senderName: "我",
+                            content: "昨晚提到的那几本书，你要不要我帮你整理成一个顺序？", timestamp: now - 9600,
+                            isAgentThread: false),
+                ChatMessage(id: "m2", senderRole: .theirHuman, senderName: "Mia",
+                            content: "要，我怕自己回头就记混了。", timestamp: now - 9300,
+                            isAgentThread: false),
+                ChatMessage(id: "m3", senderRole: .myHuman, senderName: "我",
+                            content: "我先列了三本最适合入门的，晚上发你。", timestamp: now - 9000,
+                            isAgentThread: false),
+                ChatMessage(id: "m4", senderRole: .theirHuman, senderName: "Mia",
+                            content: "好，我开个共享文档，你直接往里补。", timestamp: now - 8700,
+                            isAgentThread: false),
+                ChatMessage(id: "m5", senderRole: .myHuman, senderName: "我",
+                            content: "你补完告诉我，下周我们就按那个顺序聊。", timestamp: now - 7600,
+                            isAgentThread: false),
+                ChatMessage(id: "m6", senderRole: .theirHuman, senderName: "Mia",
+                            content: "我把那份书单补在共享文档里了。", timestamp: now - 7200,
+                            isAgentThread: false),
+            ]
+
+        case "t5":
+            return [
+                ChatMessage(id: "m1", senderRole: .myHuman, senderName: "我",
+                            content: "Hannah，我今天事情有点乱，帮我顺一下优先级。", timestamp: now - 87200,
+                            isAgentThread: false),
+                ChatMessage(id: "m2", senderRole: .theirPersona, senderName: "Hannah",
+                            content: "可以，你先告诉我哪些事今天必须完成。", timestamp: now - 87000,
+                            isAgentThread: false),
+                ChatMessage(id: "m3", senderRole: .myHuman, senderName: "我",
+                            content: "产品稿、给 Dubi 回消息、还有明早的周会准备。", timestamp: now - 86800,
+                            isAgentThread: false),
+                ChatMessage(id: "m4", senderRole: .theirPersona, senderName: "Hannah",
+                            content: "收到，我先按截止时间和切换成本帮你拆开。", timestamp: now - 86600,
+                            isAgentThread: false),
+                ChatMessage(id: "m5", senderRole: .myHuman, senderName: "我",
+                            content: "顺便帮我留一段晚上复盘时间。", timestamp: now - 86500,
+                            isAgentThread: false),
+                ChatMessage(id: "m6", senderRole: .theirPersona, senderName: "Hannah",
+                            content: "我已经把你的待办拆成 3 个优先级。", timestamp: now - 86400,
+                            isAgentThread: false),
+            ]
+
+        default:
+            return [
+                ChatMessage(id: "m1", senderRole: .theirHuman, senderName: thread.contactName,
+                            content: thread.lastMessage, timestamp: now - 300,
+                            isAgentThread: false)
+            ]
+        }
     }
 
-    private static func mockAgentMessages(
-        contactName: String,
-        counterpartMode: ConversationCounterpartMode
-    ) -> [ChatMessage] {
+    private static func mockAgentMessages(thread: ConversationThread) -> [ChatMessage] {
         let now = Date()
-        let modeSummary = counterpartMode == .human
-            ? "当前走真人直聊，建议减少模板感。"
-            : "当前走分身代聊，适合先确认时间和偏好。"
-        return [
-            ChatMessage(id: "a1", senderRole: .myPersona, senderName: "你的分身",
-                        content: "已为你整理今日与\(contactName)的约定：下午 3 点，咖啡馆。",
-                        timestamp: now - 1600, isAgentThread: true),
-            ChatMessage(id: "a2", senderRole: .agentHelper, senderName: "Agent 助手",
-                        content: "关系温度：亲近。\(modeSummary)",
-                        timestamp: now - 900, isAgentThread: true),
-            ChatMessage(id: "a3", senderRole: .agentHelper, senderName: "Agent 助手",
-                        content: "建议开场白：「你那本书读完了没？我刚看到一篇相关的论文」",
-                        timestamp: now - 300, isAgentThread: true),
-        ]
+
+        switch thread.id {
+        case "t1":
+            return [
+                ChatMessage(id: "a1", senderRole: .myPersona, senderName: "你的分身",
+                            content: "Dubi 已经先到店里，当前话题适合延续轻松见面节奏。",
+                            timestamp: now - 260, isAgentThread: true),
+                ChatMessage(id: "a2", senderRole: .agentHelper, senderName: "Agent 助手",
+                            content: "建议你到场后先接 Dubi 的“窗边位置”话题，再自然转去今天的安排。",
+                            timestamp: now - 220, isAgentThread: true),
+            ]
+
+        case "t2":
+            return [
+                ChatMessage(id: "a1", senderRole: .myPersona, senderName: "你的分身",
+                            content: "我已根据你和 Sophie 的路线偏好整理出一条 90 分钟观展顺序。",
+                            timestamp: now - 1200, isAgentThread: true),
+                ChatMessage(id: "a2", senderRole: .agentHelper, senderName: "Agent 助手",
+                            content: "当前更适合把路线作为附件发出，不必在主线程里解释太多细节。",
+                            timestamp: now - 900, isAgentThread: true),
+            ]
+
+        case "t3":
+            return [
+                ChatMessage(id: "a1", senderRole: .agentHelper, senderName: "Agent 助手",
+                            content: "群里当前共识是先定场地，再确认设备和到场时间。",
+                            timestamp: now - 3000, isAgentThread: true),
+                ChatMessage(id: "a2", senderRole: .agentHelper, senderName: "Agent 助手",
+                            content: "如果你要回，可以直接确认“老地方可行就锁定”。",
+                            timestamp: now - 2500, isAgentThread: true),
+            ]
+
+        case "t4":
+            return [
+                ChatMessage(id: "a1", senderRole: .myPersona, senderName: "你的分身",
+                            content: "Mia 刚补完书单，下一轮对话可以直接切到第一本书的讨论。",
+                            timestamp: now - 6800, isAgentThread: true),
+                ChatMessage(id: "a2", senderRole: .agentHelper, senderName: "Agent 助手",
+                            content: "建议开场问题：为什么她把第一本放在最前面。",
+                            timestamp: now - 6500, isAgentThread: true),
+            ]
+
+        case "t5":
+            return [
+                ChatMessage(id: "a1", senderRole: .theirPersona, senderName: "Hannah",
+                            content: "高优先级：产品稿；中优先级：周会准备；低优先级：整理回复消息。",
+                            timestamp: now - 5400, isAgentThread: true),
+                ChatMessage(id: "a2", senderRole: .agentHelper, senderName: "Agent 助手",
+                            content: "今晚 21:30 之后预留 20 分钟复盘，会比现在插入更稳。",
+                            timestamp: now - 5000, isAgentThread: true),
+            ]
+
+        default:
+            return []
+        }
     }
 }
 
@@ -151,7 +277,7 @@ final class ChatThreadStore: ObservableObject {
 struct ChatThreadView: View {
     let thread: ConversationThread
     @StateObject private var store: ChatThreadStore
-    @State private var contextCardsExpanded = true
+    @State private var contextCardsExpanded = false
 
     init(thread: ConversationThread) {
         self.thread = thread
@@ -160,7 +286,7 @@ struct ChatThreadView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Color(.systemGroupedBackground).ignoresSafeArea()
+            backgroundLayer
 
             VStack(spacing: 0) {
                 // Context cards section: relationship / mask / memory cards + timeline entry
@@ -219,6 +345,19 @@ struct ChatThreadView: View {
         }
     }
 
+    private var backgroundLayer: some View {
+        LinearGradient(
+            colors: [
+                Color.spareYellow.opacity(0.10),
+                Color.white,
+                Color.white
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
+    }
+
     // MARK: - Toolbar
 
     @ToolbarContentBuilder
@@ -256,15 +395,18 @@ struct ChatThreadView: View {
             // Compact header strip: temperature + mask + quick actions
             compactContextBar
 
-            modeSwitchBar
-
             // Expanded card deck (shown when contextCardsExpanded = true)
             if contextCardsExpanded {
                 contextCardDeck
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.white)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.spareYellow.opacity(0.14))
+                .frame(height: 1)
+        }
         .animation(.spareSpring, value: contextCardsExpanded)
     }
 
@@ -283,10 +425,10 @@ struct ChatThreadView: View {
             if let mask = thread.activeMaskName {
                 Label(mask, systemImage: "theatermasks.fill")
                     .font(.spareMicro)
-                    .foregroundColor(.blue)
+                    .foregroundColor(.spareYellowInk)
                     .padding(.horizontal, Spacing.sm)
                     .padding(.vertical, Spacing.xs)
-                    .background(Color.blue.opacity(0.10), in: Capsule())
+                    .background(Color.spareYellowInk.opacity(0.10), in: Capsule())
             }
 
             Spacer()
@@ -295,9 +437,15 @@ struct ChatThreadView: View {
             Button {
                 withAnimation(.spareSpring) { store.showAgentPanel.toggle() }
             } label: {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(store.showAgentPanel ? .spareYellow : .secondary)
+                Label("AI 助手", systemImage: "sparkles")
+                    .font(.spareMicro)
+                    .foregroundColor(store.showAgentPanel ? .spareDark : .secondary)
+                    .padding(.horizontal, Spacing.sm)
+                    .padding(.vertical, Spacing.xs)
+                    .background(
+                        Capsule()
+                            .fill(store.showAgentPanel ? Color.spareYellow.opacity(0.9) : Color(.secondarySystemGroupedBackground))
+                    )
             }
             .buttonStyle(.plain)
 
@@ -314,44 +462,6 @@ struct ChatThreadView: View {
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.vertical, Spacing.sm)
-    }
-
-    private var modeSwitchBar: some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
-            HStack(alignment: .center, spacing: Spacing.sm) {
-                Text("对方模式")
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
-
-                Spacer()
-
-                Label(store.counterpartMode.label, systemImage: store.counterpartMode.icon)
-                    .font(.spareMicro)
-                    .foregroundColor(store.counterpartMode.tint)
-                    .padding(.horizontal, Spacing.sm)
-                    .padding(.vertical, Spacing.xs)
-                    .background(store.counterpartMode.tint.opacity(0.12), in: Capsule())
-            }
-
-            Picker(
-                "对方模式",
-                selection: Binding(
-                    get: { store.counterpartMode },
-                    set: { store.setCounterpartMode($0) }
-                )
-            ) {
-                ForEach(ConversationCounterpartMode.allCases) { mode in
-                    Text(mode.label).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            Text(store.counterpartMode.helperText(contactName: thread.contactName))
-                .font(.spareMicro)
-                .foregroundColor(.secondary)
-        }
-        .padding(.horizontal, Spacing.lg)
-        .padding(.bottom, contextCardsExpanded ? Spacing.sm : Spacing.md)
     }
 
     /// Horizontal scrolling deck of relationship / mask / memory context cards.
@@ -387,7 +497,7 @@ struct ChatThreadView: View {
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 HStack(spacing: Spacing.xs) {
                     Image(systemName: "heart.circle.fill")
-                        .foregroundColor(.pink)
+                        .foregroundColor(.spareYellowInk)
                         .font(.system(size: 16))
                     Text("关系")
                         .font(.spareCaptionSB)
@@ -423,8 +533,12 @@ struct ChatThreadView: View {
             }
             .padding(Spacing.md)
             .frame(width: 150, alignment: .leading)
-            .background(Color.cardBackground)
+            .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+            .overlay(
+                RoundedRectangle(cornerRadius: CornerRadius.md)
+                    .stroke(Color.spareYellow.opacity(0.18), lineWidth: 1)
+            )
             .cardShadow()
         }
         .buttonStyle(.plain)
@@ -439,7 +553,7 @@ struct ChatThreadView: View {
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 HStack(spacing: Spacing.xs) {
                     Image(systemName: "theatermasks.fill")
-                        .foregroundColor(.blue)
+                        .foregroundColor(.spareYellowInk)
                         .font(.system(size: 16))
                     Text("面具")
                         .font(.spareCaptionSB)
@@ -452,7 +566,7 @@ struct ChatThreadView: View {
                             .foregroundColor(.primary)
                             .lineLimit(1)
 
-                        PillTag(label: "激活中", color: .blue, filled: true)
+                        PillTag(label: "激活中", color: .spareYellowInk, filled: true)
 
                         Text("此面具限制了部分个人信息可见度")
                             .font(.spareMicro)
@@ -476,8 +590,12 @@ struct ChatThreadView: View {
             }
             .padding(Spacing.md)
             .frame(width: 150, alignment: .leading)
-            .background(Color.cardBackground)
+            .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+            .overlay(
+                RoundedRectangle(cornerRadius: CornerRadius.md)
+                    .stroke(Color.spareYellow.opacity(0.18), lineWidth: 1)
+            )
             .cardShadow()
         }
         .buttonStyle(.plain)
@@ -492,7 +610,7 @@ struct ChatThreadView: View {
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 HStack(spacing: Spacing.xs) {
                     Image(systemName: "brain")
-                        .foregroundColor(.purple)
+                        .foregroundColor(.spareYellowInk)
                         .font(.system(size: 16))
                     Text("记忆")
                         .font(.spareCaptionSB)
@@ -511,7 +629,7 @@ struct ChatThreadView: View {
 
                     Text("建议话题：延续阅读讨论")
                         .font(.spareMicro)
-                        .foregroundColor(.purple)
+                        .foregroundColor(.spareYellowInk)
                         .lineLimit(2)
                 }
 
@@ -521,8 +639,12 @@ struct ChatThreadView: View {
             }
             .padding(Spacing.md)
             .frame(width: 150, alignment: .leading)
-            .background(Color.cardBackground)
+            .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+            .overlay(
+                RoundedRectangle(cornerRadius: CornerRadius.md)
+                    .stroke(Color.spareYellow.opacity(0.18), lineWidth: 1)
+            )
             .cardShadow()
         }
         .buttonStyle(.plain)
@@ -537,7 +659,7 @@ struct ChatThreadView: View {
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 HStack(spacing: Spacing.xs) {
                     Image(systemName: "person.3.fill")
-                        .foregroundColor(.indigo)
+                        .foregroundColor(.spareYellowInk)
                         .font(.system(size: 16))
                     Text("群聊")
                         .font(.spareCaptionSB)
@@ -550,7 +672,7 @@ struct ChatThreadView: View {
                     Text("2 位 Agent 在线")
                         .font(.spareMicro)
                         .foregroundColor(.secondary)
-                    PillTag(label: "群聊玩法可用", color: .indigo)
+                    PillTag(label: "群聊玩法可用", color: .spareYellowInk)
                 }
 
                 Text("查看群玩法 →")
@@ -559,8 +681,12 @@ struct ChatThreadView: View {
             }
             .padding(Spacing.md)
             .frame(width: 150, alignment: .leading)
-            .background(Color.cardBackground)
+            .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+            .overlay(
+                RoundedRectangle(cornerRadius: CornerRadius.md)
+                    .stroke(Color.spareYellow.opacity(0.18), lineWidth: 1)
+            )
             .cardShadow()
         }
         .buttonStyle(.plain)
@@ -628,33 +754,81 @@ struct ChatThreadView: View {
         return HStack(alignment: .bottom, spacing: Spacing.sm) {
             if isLocal { Spacer(minLength: 60) }
             if !isLocal {
-                AvatarView(name: msg.senderName, size: 32)
+                participantAvatar(name: msg.senderName, role: msg.senderRole, size: 32)
             }
             VStack(alignment: isLocal ? .trailing : .leading, spacing: Spacing.xxs) {
-                if !isLocal {
-                    Text(msg.senderName)
-                        .font(.spareMicro)
-                        .foregroundColor(.secondary)
+                if !isLocal || msg.senderRole.isAgent {
+                    HStack(spacing: 4) {
+                        if msg.senderRole.isAgent {
+                            Image(systemName: "sparkles")
+                                .font(.spareMicro)
+                                .foregroundColor(.spareYellow)
+                        }
+                        Text(msg.senderName)
+                            .font(.spareMicro)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 Text(msg.content)
                     .font(.spareBody)
-                    .foregroundColor(isLocal ? .spareDark : .primary)
+                    .foregroundColor(.primary)
                     .padding(.horizontal, Spacing.md)
                     .padding(.vertical, Spacing.sm)
                     .background(
-                        msg.senderRole.bubbleColor,
+                        bubbleFill(for: msg.senderRole),
                         in: RoundedRectangle(cornerRadius: CornerRadius.lg)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: CornerRadius.lg)
+                            .stroke(
+                                msg.senderRole.isLocal
+                                    ? Color.clear
+                                    : Color.spareYellow.opacity(0.16),
+                                lineWidth: 1
+                            )
                     )
                 Text(msg.timestamp, style: .time)
                     .font(.spareMicro)
                     .foregroundColor(.secondary)
             }
             if isLocal {
-                AvatarView(name: "我", size: 32)
+                participantAvatar(name: msg.senderName, role: msg.senderRole, size: 32)
             }
             if !isLocal { Spacer(minLength: 60) }
         }
         .padding(.vertical, Spacing.xs)
+    }
+
+    private func participantAvatar(name: String, role: ChatSenderRole, size: CGFloat) -> some View {
+        AvatarView(name: name, size: size)
+            .overlay(alignment: .bottomTrailing) {
+                if role.isAgent {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.spareDark)
+                        .padding(4)
+                        .background(Color.spareYellow, in: Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white, lineWidth: 1)
+                        )
+                }
+            }
+    }
+
+    private func bubbleFill(for role: ChatSenderRole) -> Color {
+        switch role {
+        case .myHuman:
+            return .spareYellow
+        case .myPersona:
+            return .spareYellowLight
+        case .theirHuman:
+            return .white
+        case .theirPersona, .agentHelper:
+            return Color(red: 1.0, green: 0.98, blue: 0.88)
+        case .system:
+            return Color.secondary.opacity(0.15)
+        }
     }
 
     private func systemBubble(_ msg: ChatMessage) -> some View {
@@ -664,41 +838,85 @@ struct ChatThreadView: View {
             .multilineTextAlignment(.center)
             .padding(.horizontal, Spacing.xl)
             .padding(.vertical, Spacing.sm)
+            .background(Color.white.opacity(0.88), in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.spareYellow.opacity(0.18), lineWidth: 1)
+            )
             .frame(maxWidth: .infinity)
+            .padding(.vertical, Spacing.xs)
     }
 
     // MARK: - Input Bar
 
     private var inputBar: some View {
-        HStack(alignment: .bottom, spacing: Spacing.sm) {
-            // Voice / camera menu
-            Button { } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 26))
-                    .foregroundColor(.secondary)
-            }
+        VStack(spacing: Spacing.sm) {
+            sendModeSwitcher
 
-            // Text field
-            HStack(alignment: .bottom) {
-                TextField(store.inputPrompt, text: $store.draftText, axis: .vertical)
-                    .font(.spareBody)
-                    .lineLimit(1...5)
-                    .padding(.horizontal, Spacing.md)
-                    .padding(.vertical, Spacing.sm)
-            }
-            .background(Color(.secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+            HStack(alignment: .bottom, spacing: Spacing.sm) {
+                Button { } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(.secondary)
+                }
 
-            // Send
-            Button { store.send() } label: {
-                Image(systemName: store.draftText.isEmpty ? "mic.fill" : "arrow.up.circle.fill")
-                    .font(.system(size: 26))
-                    .foregroundColor(store.draftText.isEmpty ? .secondary : .spareYellow)
+                HStack(alignment: .bottom) {
+                    TextField(store.sendMode.placeholder(for: thread.contactName), text: $store.draftText, axis: .vertical)
+                        .font(.spareBody)
+                        .lineLimit(1...5)
+                        .padding(.horizontal, Spacing.md)
+                        .padding(.vertical, Spacing.sm)
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: CornerRadius.lg)
+                        .fill(Color(.secondarySystemGroupedBackground))
+                )
+
+                Button { store.send() } label: {
+                    Image(systemName: store.draftText.isEmpty ? store.sendMode.icon : "arrow.up.circle.fill")
+                        .font(.system(size: 25))
+                        .foregroundColor(store.draftText.isEmpty ? .secondary : .spareYellow)
+                }
             }
         }
         .padding(.horizontal, Spacing.md)
-        .padding(.vertical, Spacing.sm)
-        .background(Color(.secondarySystemGroupedBackground))
+        .padding(.top, Spacing.sm)
+        .padding(.bottom, Spacing.sm)
+        .background(Color.white)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.spareYellow.opacity(0.14))
+                .frame(height: 1)
+        }
+    }
+
+    private var sendModeSwitcher: some View {
+        HStack(spacing: Spacing.sm) {
+            ForEach(ChatSendMode.allCases) { mode in
+                let isSelected = store.sendMode == mode
+
+                Button {
+                    withAnimation(.spareEase) { store.sendMode = mode }
+                } label: {
+                    Label(mode.rawValue, systemImage: mode.icon)
+                        .font(.spareMicro)
+                        .foregroundColor(isSelected ? .spareDark : .secondary)
+                        .padding(.horizontal, Spacing.md)
+                        .padding(.vertical, Spacing.sm)
+                        .background(
+                            Capsule()
+                                .fill(isSelected ? Color.spareYellow : Color(.secondarySystemGroupedBackground))
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer()
+
+            Text(store.sendMode == .human ? "当前由你发送" : "当前由分身代发")
+                .font(.spareMicro)
+                .foregroundColor(.secondary)
+        }
     }
 
     // MARK: - Agent Panel Overlay
@@ -727,11 +945,10 @@ struct ChatThreadView: View {
                 .padding(.horizontal, Spacing.lg)
                 .padding(.vertical, Spacing.md)
             }
-            .background(Color(.secondarySystemGroupedBackground))
+            .background(Color.white)
 
             Divider()
 
-            // Agent messages scroll
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: Spacing.sm) {
                     if store.agentMessages.isEmpty {
@@ -748,20 +965,23 @@ struct ChatThreadView: View {
                 }
                 .padding(Spacing.md)
             }
+            .background(Color.white)
         }
         .frame(maxWidth: .infinity)
         .frame(height: 260)
-        .background(
-            Color(.systemGroupedBackground)
-                .shadow(color: .black.opacity(0.12), radius: 16, x: 0, y: -4)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: CornerRadius.xl, style: .continuous)
+                .stroke(Color.spareYellow.opacity(0.18), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: CornerRadius.xl, style: .continuous))
+        .shadow(color: .black.opacity(0.10), radius: 16, y: -4)
     }
 
     private func agentMessageRow(_ msg: ChatMessage) -> some View {
         HStack(alignment: .top, spacing: Spacing.sm) {
             Image(systemName: msg.senderRole == .myPersona ? "person.crop.circle.fill.badge.checkmark" : "sparkles")
-                .foregroundColor(msg.senderRole == .myPersona ? .spareYellow : .blue)
+                .foregroundColor(msg.senderRole == .myPersona ? .spareYellow : .spareYellowInk)
                 .font(.system(size: 18))
 
             VStack(alignment: .leading, spacing: Spacing.xxs) {
@@ -775,6 +995,6 @@ struct ChatThreadView: View {
             Spacer()
         }
         .padding(Spacing.md)
-        .background(msg.senderRole.bubbleColor, in: RoundedRectangle(cornerRadius: CornerRadius.md))
+        .background(Color(red: 1.0, green: 0.98, blue: 0.88), in: RoundedRectangle(cornerRadius: CornerRadius.md))
     }
 }

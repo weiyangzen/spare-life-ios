@@ -33,8 +33,8 @@ struct MigrationRecord: Identifiable {
 
         var color: Color {
             switch self {
-            case .applied: return .green
-            case .pending: return .orange
+            case .applied: return .spareYellowInk
+            case .pending: return .spareYellowInk
             case .failed:  return .red
             }
         }
@@ -104,17 +104,17 @@ final class SQLiteBackendDashboardStore: ObservableObject {
 
             repositories = [
                 .init(id: "r1", name: "会话消息",   icon: "bubble.left.and.bubble.right.fill", tableName: "messages",
-                      rowCount: 3412, lastWrite: date(-0.02), readCount: 18_940, writeCount: 3_412, isHealthy: true, accentColor: .blue),
+                      rowCount: 3412, lastWrite: date(-0.02), readCount: 18_940, writeCount: 3_412, isHealthy: true, accentColor: .spareYellowInk),
                 .init(id: "r2", name: "记忆存储",   icon: "brain.fill",           tableName: "memories",
-                      rowCount: 128,  lastWrite: date(-0.1),  readCount: 4_560,  writeCount: 128,   isHealthy: true, accentColor: .purple),
+                      rowCount: 128,  lastWrite: date(-0.1),  readCount: 4_560,  writeCount: 128,   isHealthy: true, accentColor: .spareYellowInk),
                 .init(id: "r3", name: "人格分身",   icon: "sparkles",             tableName: "personas",
-                      rowCount: 3,    lastWrite: date(-2),    readCount: 890,    writeCount: 3,     isHealthy: true, accentColor: .pink),
+                      rowCount: 3,    lastWrite: date(-2),    readCount: 890,    writeCount: 3,     isHealthy: true, accentColor: .spareYellowInk),
                 .init(id: "r4", name: "同步任务",   icon: "arrow.triangle.2.circlepath", tableName: "sync_tasks",
-                      rowCount: 47,   lastWrite: date(-0.5),  readCount: 1_240,  writeCount: 47,    isHealthy: true, accentColor: .orange),
+                      rowCount: 47,   lastWrite: date(-0.5),  readCount: 1_240,  writeCount: 47,    isHealthy: true, accentColor: .spareYellowInk),
                 .init(id: "r5", name: "Feed 事件", icon: "rectangle.stack.fill", tableName: "feed_events",
                       rowCount: 892,  lastWrite: date(-0.01), readCount: 6_780,  writeCount: 892,   isHealthy: true, accentColor: .spareYellow),
                 .init(id: "r6", name: "成长统计",   icon: "chart.line.uptrend.xyaxis", tableName: "growth_stats",
-                      rowCount: 26,   lastWrite: date(-1),    readCount: 340,    writeCount: 26,    isHealthy: true, accentColor: .teal),
+                      rowCount: 26,   lastWrite: date(-1),    readCount: 340,    writeCount: 26,    isHealthy: true, accentColor: .spareYellowInk),
             ]
             loadState = .loaded
         }
@@ -186,12 +186,12 @@ private struct SQLiteDashboardContent: View {
         HStack(spacing: Spacing.md) {
             Image(systemName: store.integrityOK ? "cylinder.fill" : "exclamationmark.triangle.fill")
                 .font(.system(size: 32))
-                .foregroundColor(store.integrityOK ? .teal : .red)
+                .foregroundColor(store.integrityOK ? .spareYellowInk : .red)
 
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text(store.integrityOK ? "PRAGMA integrity_check: OK" : "完整性校验异常")
                     .font(.spareCaptionSB)
-                    .foregroundColor(store.integrityOK ? .teal : .red)
+                    .foregroundColor(store.integrityOK ? .spareYellowInk : .red)
                 HStack(spacing: Spacing.md) {
                     Label("v\(store.dbVersion)", systemImage: "tag")
                     Label(ByteCountFormatter.string(fromByteCount: store.totalSizeBytes, countStyle: .file), systemImage: "internaldrive")
@@ -204,12 +204,12 @@ private struct SQLiteDashboardContent: View {
         }
         .padding(Spacing.lg)
         .background(
-            (store.integrityOK ? Color.teal : Color.red).opacity(0.08),
+            (store.integrityOK ? Color.spareYellowInk : Color.red).opacity(0.08),
             in: RoundedRectangle(cornerRadius: CornerRadius.lg)
         )
         .overlay(
             RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke((store.integrityOK ? Color.teal : Color.red).opacity(0.25), lineWidth: 1)
+                .stroke((store.integrityOK ? Color.spareYellowInk : Color.red).opacity(0.25), lineWidth: 1)
         )
     }
 
@@ -217,9 +217,9 @@ private struct SQLiteDashboardContent: View {
 
     private var dbStatsRow: some View {
         HStack(spacing: Spacing.sm) {
-            StatMiniCard(label: "表",   value: "\(store.repositories.count)", icon: "tablecells", color: .blue)
-            StatMiniCard(label: "总行数", value: "\(store.repositories.map(\.rowCount).reduce(0, +))", icon: "number", color: .purple)
-            StatMiniCard(label: "迁移",  value: "v\(store.dbVersion)", icon: "arrow.triangle.merge", color: .orange)
+            StatMiniCard(label: "表",   value: "\(store.repositories.count)", icon: "tablecells", color: .spareYellowInk)
+            StatMiniCard(label: "总行数", value: "\(store.repositories.map(\.rowCount).reduce(0, +))", icon: "number", color: .spareYellowInk)
+            StatMiniCard(label: "迁移",  value: "v\(store.dbVersion)", icon: "arrow.triangle.merge", color: .spareYellowInk)
         }
     }
 
@@ -301,7 +301,7 @@ private struct RepoCard: View {
                         .font(.system(size: 20))
                     Spacer()
                     Circle()
-                        .fill(repo.isHealthy ? Color.green : Color.red)
+                        .fill(repo.isHealthy ? Color.spareYellowInk : Color.red)
                         .frame(width: 8, height: 8)
                 }
 
@@ -332,7 +332,7 @@ private struct RepoCard: View {
                     let readFrac = CGFloat(repo.readCount) / CGFloat(total)
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.orange.opacity(0.4))
+                            .fill(Color.spareYellowInk.opacity(0.4))
                             .frame(height: 4)
                         RoundedRectangle(cornerRadius: 2)
                             .fill(repo.accentColor)
@@ -346,7 +346,7 @@ private struct RepoCard: View {
                         .foregroundColor(repo.accentColor)
                     Spacer()
                     Text("W:\(formatCount(repo.writeCount))")
-                        .foregroundColor(.orange)
+                        .foregroundColor(.spareYellowInk)
                 }
                 .font(.spareMicro)
             }
@@ -435,15 +435,15 @@ private struct RepoDetailSheet: View {
                         }
                         Spacer()
                         PillTag(label: repo.isHealthy ? "正常" : "异常",
-                                color: repo.isHealthy ? .green : .red, filled: true)
+                                color: repo.isHealthy ? .spareYellowInk : .red, filled: true)
                     }
 
                     // Stats grid
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: Spacing.md) {
-                        DetailStatCard(title: "总行数",   value: "\(repo.rowCount)",   icon: "number",           color: .blue)
+                        DetailStatCard(title: "总行数",   value: "\(repo.rowCount)",   icon: "number",           color: .spareYellowInk)
                         DetailStatCard(title: "读取次数", value: "\(repo.readCount)",  icon: "eye",              color: repo.accentColor)
-                        DetailStatCard(title: "写入次数", value: "\(repo.writeCount)", icon: "pencil.line",      color: .orange)
-                        DetailStatCard(title: "最后写入", value: relativeDate,         icon: "clock.arrow.circlepath", color: .teal)
+                        DetailStatCard(title: "写入次数", value: "\(repo.writeCount)", icon: "pencil.line",      color: .spareYellowInk)
+                        DetailStatCard(title: "最后写入", value: relativeDate,         icon: "clock.arrow.circlepath", color: .spareYellowInk)
                     }
 
                     // Schema hint

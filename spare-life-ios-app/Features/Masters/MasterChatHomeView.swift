@@ -26,8 +26,8 @@ struct MasterChatHomeView: View {
             ZStack {
                 LinearGradient(
                     colors: [
-                        Color(red: 0.99, green: 0.97, blue: 0.92),
-                        Color(red: 0.95, green: 0.96, blue: 0.99),
+                        Color.spareYellowWash,
+                        Color.white,
                         Color(.systemGroupedBackground)
                     ],
                     startPoint: .topLeading,

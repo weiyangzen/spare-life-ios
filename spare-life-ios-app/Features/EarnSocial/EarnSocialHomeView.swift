@@ -15,68 +15,50 @@ struct EarnSocialHomeView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.98, green: 0.95, blue: 0.90),
-                        Color(red: 0.97, green: 0.98, blue: 1.00),
-                        Color(.systemGroupedBackground)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                pageBackground
 
-                VStack(spacing: 0) {
-                    topBar
-
-                    ScrollViewReader { proxy in
-                        ZStack(alignment: .bottomTrailing) {
-                            ScrollView(.vertical, showsIndicators: false) {
-                                VStack(alignment: .leading, spacing: Spacing.lg) {
-                                    // Scroll offset tracker + anchor
-                                    GeometryReader { geo in
-                                        Color.clear.preference(
-                                            key: EarnSocialScrollOffsetKey.self,
-                                            value: geo.frame(in: .named("earnFeedScroll")).minY
-                                        )
-                                    }
-                                    .frame(height: 0)
-                                    .id("earn_feed_top")
-
-                                    heroCard
-
-                                    laneChipStrip
-
-                                    quickFilterStrip
-
-                                    feedBody
+                ScrollViewReader { proxy in
+                    ZStack(alignment: .bottomTrailing) {
+                        ScrollView(.vertical, showsIndicators: false) {
+                            VStack(alignment: .leading, spacing: Spacing.lg) {
+                                // Scroll offset tracker + anchor
+                                GeometryReader { geo in
+                                    Color.clear.preference(
+                                        key: EarnSocialScrollOffsetKey.self,
+                                        value: geo.frame(in: .named("earnFeedScroll")).minY
+                                    )
                                 }
-                                .padding(.horizontal, Spacing.lg)
-                                .padding(.bottom, Spacing.xxxl)
-                            }
-                            .coordinateSpace(name: "earnFeedScroll")
-                            .onPreferenceChange(EarnSocialScrollOffsetKey.self) { offset in
-                                scrollState.offsetY = offset
-                                scrollState.isAtTop = offset > -40
-                            }
-                            .refreshable {
-                                await store.refresh()
-                            }
+                                .frame(height: 0)
+                                .id("earn_feed_top")
 
-                            // Scroll-to-top FAB
-                            if !scrollState.isAtTop {
-                                ScrollToTopButton(isVisible: true) {
-                                    withAnimation(.spareSpring) {
-                                        proxy.scrollTo("earn_feed_top", anchor: .top)
-                                    }
-                                }
-                                .padding(.trailing, Spacing.lg)
-                                .padding(.bottom, Spacing.xl)
-                                .transition(.scale.combined(with: .opacity))
+                                homeHeader
+
+                                feedBody
                             }
+                            .padding(.horizontal, Spacing.lg)
+                            .padding(.bottom, Spacing.xxxl)
                         }
-                        .animation(.spareSpring, value: scrollState.isAtTop)
+                        .coordinateSpace(name: "earnFeedScroll")
+                        .onPreferenceChange(EarnSocialScrollOffsetKey.self) { offset in
+                            scrollState.offsetY = offset
+                            scrollState.isAtTop = offset > -40
+                        }
+                        .refreshable {
+                            await store.refresh()
+                        }
+
+                        if !scrollState.isAtTop {
+                            ScrollToTopButton(isVisible: true) {
+                                withAnimation(.spareSpring) {
+                                    proxy.scrollTo("earn_feed_top", anchor: .top)
+                                }
+                            }
+                            .padding(.trailing, Spacing.lg)
+                            .padding(.bottom, Spacing.xl)
+                            .transition(.scale.combined(with: .opacity))
+                        }
                     }
+                    .animation(.spareSpring, value: scrollState.isAtTop)
                 }
             }
             .spareNavigationBarHidden(true)
@@ -90,48 +72,111 @@ struct EarnSocialHomeView: View {
         }
     }
 
-    private var topBar: some View {
-        HStack(alignment: .top, spacing: Spacing.md) {
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text("赚闲能")
-                    .font(.spareTitle1)
+    private var pageBackground: some View {
+        LinearGradient(
+            colors: [
+                Color.spareYellowLight.opacity(0.52),
+                Color.white,
+                Color(.systemGroupedBackground)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
+    }
 
-                Text("六条 A2A 赛道混排成一条能逛、能赚、能破冰的陌生社交主战场。")
-                    .font(.spareCaption)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            Button {
-                store.openWallet()
-            } label: {
-                VStack(alignment: .trailing, spacing: 3) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "bolt.circle.fill")
-                            .foregroundColor(.spareYellow)
-                        Text("\(store.wallet.balance)")
-                            .font(.spareTitle3)
-                            .foregroundColor(.primary)
-                    }
-
-                    Text("看账本")
-                        .font(.spareMicro)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.sm)
-                .background(Color.white.opacity(0.84), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-                .overlay(
-                    RoundedRectangle(cornerRadius: CornerRadius.lg)
-                        .stroke(Color.cardStroke, lineWidth: 1)
-                )
-            }
-            .buttonStyle(.plain)
+    private var homeHeader: some View {
+        VStack(alignment: .leading, spacing: Spacing.lg) {
+            topBar
+            heroCard
+            dashboardControls
         }
-        .padding(.horizontal, Spacing.lg)
         .padding(.top, Spacing.lg)
-        .padding(.bottom, Spacing.sm)
+    }
+
+    private var topBar: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            HStack(alignment: .top, spacing: Spacing.md) {
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    Label("A2A 陌生社交主战场", systemImage: "bolt.horizontal.circle.fill")
+                        .font(.spareMicro)
+                        .foregroundColor(.spareDark)
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, 6)
+                        .background(Color.spareYellow, in: Capsule())
+
+                    Text("赚闲能")
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundColor(.spareDark)
+
+                    Text("六条 A2A 赛道混排成一条能逛、能赚、能破冰的陌生社交主战场。")
+                        .font(.spareCaption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: Spacing.sm)
+
+                Button {
+                    store.openWallet()
+                } label: {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("闲能余额")
+                            .font(.spareMicro)
+                            .foregroundColor(.secondary)
+
+                        HStack(spacing: 6) {
+                            Image(systemName: "bolt.circle.fill")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(.spareDark)
+                            Text("\(store.wallet.balance)")
+                                .font(.system(size: 26, weight: .bold, design: .rounded))
+                                .foregroundColor(.spareDark)
+                        }
+
+                        Text("看账本")
+                            .font(.spareMicro)
+                            .foregroundColor(.spareDark.opacity(0.62))
+                    }
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.vertical, Spacing.md)
+                    .background(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(Color.white)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(Color.spareYellow.opacity(0.32), lineWidth: 1)
+                    )
+                    .shadow(color: Color(red: 0.92, green: 0.76, blue: 0.12).opacity(0.18), radius: 12, y: 4)
+                }
+                .buttonStyle(.plain)
+            }
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Spacing.sm) {
+                    EarnHeaderBadge(symbol: store.selectedLane.symbol, label: store.selectedLane.title, tint: store.selectedLane.accentColor)
+                    EarnHeaderBadge(symbol: store.selectedFilter.symbol, label: store.selectedFilter.title, tint: store.selectedFilter.accentColor)
+                    EarnRefreshBadge(date: store.lastRefreshAt)
+                }
+
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    EarnHeaderBadge(symbol: store.selectedLane.symbol, label: store.selectedLane.title, tint: store.selectedLane.accentColor)
+                    EarnHeaderBadge(symbol: store.selectedFilter.symbol, label: store.selectedFilter.title, tint: store.selectedFilter.accentColor)
+                    EarnRefreshBadge(date: store.lastRefreshAt)
+                }
+            }
+        }
+        .padding(Spacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color.white.opacity(0.96))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(Color.spareYellow.opacity(0.22), lineWidth: 1)
+                )
+        )
+        .shadow(color: Color(red: 0.92, green: 0.76, blue: 0.12).opacity(0.16), radius: 16, y: 6)
     }
 
     private var heroCard: some View {
@@ -139,15 +184,18 @@ struct EarnSocialHomeView: View {
         let laneChip = store.selectedLaneChip
         let laneTrend = store.selectedLaneTrend
 
-        return VStack(alignment: .leading, spacing: Spacing.md) {
+        return VStack(alignment: .leading, spacing: Spacing.lg) {
             HStack(alignment: .top, spacing: Spacing.md) {
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    HStack(spacing: Spacing.xs) {
-                        Image(systemName: lane.symbol)
-                            .foregroundColor(lane.accentColor)
-                        Text(lane.title)
-                            .font(.spareTitle2)
+                VStack(alignment: .leading, spacing: Spacing.sm) {
+                    HStack(spacing: Spacing.sm) {
+                        EarnHeaderBadge(symbol: lane.symbol, label: lane.title, tint: lane.accentColor)
+                        EarnHeaderBadge(symbol: "bolt.fill", label: "今日可赚 +\(store.wallet.todayEarnable)", tint: .spareYellow)
                     }
+
+                    Text("在 \(lane.title) 里，先让分身替你把不值得投入的沟通筛掉。")
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .foregroundColor(.spareDark)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     Text(lane.summary)
                         .font(.spareBody)
@@ -155,37 +203,74 @@ struct EarnSocialHomeView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer()
+                Spacer(minLength: Spacing.sm)
 
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("今日可赚")
-                        .font(.spareMicro)
-                        .foregroundColor(.secondary)
-                    Text("+\(store.wallet.todayEarnable)")
-                        .font(.spareTitle3)
-                        .foregroundColor(lane.accentColor)
+                if let laneTrend {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("热点任务")
+                            .font(.spareMicro)
+                            .foregroundColor(.secondary)
+                        Text(laneTrend.eventTitle)
+                            .font(.spareCaptionSB)
+                            .foregroundColor(.spareDark)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text("+\(laneTrend.rewardAmount)")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundColor(lane.accentColor)
+                    }
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.md)
+                    .frame(maxWidth: 158, alignment: .leading)
+                    .background(Color.spareYellowLight.opacity(0.52), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: CornerRadius.lg)
+                            .stroke(Color.spareYellow.opacity(0.28), lineWidth: 1)
+                    )
                 }
             }
 
-            HStack(spacing: Spacing.sm) {
-                EarnMetricCapsule(
-                    title: "闲能余额",
-                    value: "\(store.wallet.balance)",
-                    footnote: "冻结 \(store.wallet.frozenBalance)",
-                    tint: .spareYellow
-                )
-                EarnMetricCapsule(
-                    title: "赛道热度",
-                    value: laneChip.map { String(format: "%.1f", $0.heatScore) } ?? "--",
-                    footnote: "\(laneChip?.openIntentCount ?? 0) 条机会",
-                    tint: lane.accentColor
-                )
-                EarnMetricCapsule(
-                    title: "奖励",
-                    value: "+\(laneChip?.rewardAmount ?? 0)",
-                    footnote: laneTrend?.eventTitle ?? "热点任务",
-                    tint: .emotionPositive
-                )
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Spacing.sm) {
+                    EarnHeroMetricTile(
+                        title: "闲能余额",
+                        value: "\(store.wallet.balance)",
+                        footnote: "冻结 \(store.wallet.frozenBalance)",
+                        tint: .spareYellow
+                    )
+                    EarnHeroMetricTile(
+                        title: "赛道热度",
+                        value: laneChip.map { String(format: "%.1f", $0.heatScore) } ?? "--",
+                        footnote: "\(laneChip?.openIntentCount ?? 0) 条机会",
+                        tint: lane.accentColor
+                    )
+                    EarnHeroMetricTile(
+                        title: "奖励",
+                        value: "+\(laneChip?.rewardAmount ?? 0)",
+                        footnote: laneTrend?.eventTitle ?? "热点任务",
+                        tint: .emotionPositive
+                    )
+                }
+
+                VStack(spacing: Spacing.sm) {
+                    EarnHeroMetricTile(
+                        title: "闲能余额",
+                        value: "\(store.wallet.balance)",
+                        footnote: "冻结 \(store.wallet.frozenBalance)",
+                        tint: .spareYellow
+                    )
+                    EarnHeroMetricTile(
+                        title: "赛道热度",
+                        value: laneChip.map { String(format: "%.1f", $0.heatScore) } ?? "--",
+                        footnote: "\(laneChip?.openIntentCount ?? 0) 条机会",
+                        tint: lane.accentColor
+                    )
+                    EarnHeroMetricTile(
+                        title: "奖励",
+                        value: "+\(laneChip?.rewardAmount ?? 0)",
+                        footnote: laneTrend?.eventTitle ?? "热点任务",
+                        tint: .emotionPositive
+                    )
+                }
             }
 
             VStack(alignment: .leading, spacing: Spacing.sm) {
@@ -198,47 +283,56 @@ struct EarnSocialHomeView: View {
                     .foregroundColor(.primary)
 
                 if let laneTrend {
-                    HStack(spacing: Spacing.xs) {
+                    HStack(alignment: .top, spacing: Spacing.sm) {
                         Image(systemName: "flame.fill")
-                            .foregroundColor(.orange)
-                        Text(laneTrend.eventTitle)
-                            .font(.spareCaptionSB)
-                        Text("· \(laneTrend.eventSummary)")
-                            .font(.spareCaption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.spareYellowInk)
+                            .padding(.top, 2)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(laneTrend.eventTitle)
+                                .font(.spareCaptionSB)
+                                .foregroundColor(.spareDark)
+                            Text(laneTrend.eventSummary)
+                                .font(.spareCaption)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
+                    .padding(Spacing.md)
+                    .background(Color.spareYellowLight.opacity(0.34), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
                 }
             }
 
-            VStack(spacing: Spacing.sm) {
-                Button {
-                    store.openMarket()
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("在 \(lane.title) 发一个意图")
-                                .font(.spareTitle3)
-                                .foregroundColor(.spareDark)
-                            Text("让分身先筛掉不值得真人投入的那部分沟通")
-                                .font(.spareCaptionSB)
-                                .foregroundColor(.spareDark.opacity(0.75))
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "arrow.up.right.circle.fill")
-                            .font(.system(size: 28, weight: .bold))
+            Button {
+                store.openMarket()
+            } label: {
+                HStack(spacing: Spacing.md) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("在 \(lane.title) 发一个意图")
+                            .font(.spareTitle3)
                             .foregroundColor(.spareDark)
+                        Text("让分身先筛掉不值得真人投入的那部分沟通")
+                            .font(.spareCaptionSB)
+                            .foregroundColor(.spareDark.opacity(0.76))
                     }
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.vertical, Spacing.lg)
-                    .background(
-                        RoundedRectangle(cornerRadius: CornerRadius.xl)
-                            .fill(Color.spareYellow)
-                    )
-                }
-                .buttonStyle(.plain)
 
+                    Spacer()
+
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.spareDark)
+                        .padding(12)
+                        .background(Color.white.opacity(0.78), in: Circle())
+                }
+                .padding(.horizontal, Spacing.lg)
+                .padding(.vertical, Spacing.lg)
+                .background(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color.spareYellow)
+                )
+            }
+            .buttonStyle(.plain)
+
+            ViewThatFits(in: .horizontal) {
                 HStack(spacing: Spacing.sm) {
                     SecondaryActionButton(
                         title: "看趋势热点",
@@ -258,25 +352,102 @@ struct EarnSocialHomeView: View {
                         store.openArena()
                     }
                 }
+
+                VStack(spacing: Spacing.sm) {
+                    SecondaryActionButton(
+                        title: "看趋势热点",
+                        subtitle: "探索奖励",
+                        symbol: "chart.bar.fill",
+                        tint: lane.accentColor
+                    ) {
+                        store.openTrends()
+                    }
+                    SecondaryActionButton(
+                        title: "围观竞技场",
+                        subtitle: "赢闲能",
+                        symbol: "figure.boxing",
+                        tint: .emotionSplit
+                    ) {
+                        store.openArena()
+                    }
+                }
             }
+        }
+        .padding(Spacing.xl)
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color.white.opacity(0.97))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(Color.spareYellow.opacity(0.24), lineWidth: 1)
+        )
+        .shadow(color: Color(red: 0.92, green: 0.76, blue: 0.12).opacity(0.16), radius: 16, y: 6)
+    }
+
+    private var dashboardControls: some View {
+        VStack(alignment: .leading, spacing: Spacing.lg) {
+            HStack(alignment: .top, spacing: Spacing.md) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("探索控制台")
+                        .font(.spareTitle3)
+                    Text("先选赛道，再切筛选，下面的混排 feed 会跟着当前上下文一起重排。")
+                        .font(.spareCaption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: Spacing.sm)
+
+                if let laneChip = store.selectedLaneChip {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("当前机会")
+                            .font(.spareMicro)
+                            .foregroundColor(.secondary)
+                        Text("\(laneChip.openIntentCount) 条")
+                            .font(.spareCaptionSB)
+                            .foregroundColor(store.selectedLane.accentColor)
+                    }
+                }
+            }
+
+            laneChipStrip
+
+            Rectangle()
+                .fill(Color.black.opacity(0.06))
+                .frame(height: 1)
+
+            quickFilterStrip
         }
         .padding(Spacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: CornerRadius.xl)
-                .fill(Color.white.opacity(0.92))
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color.white.opacity(0.97))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color.spareYellow.opacity(0.20), lineWidth: 1)
+                )
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.xl)
-                .stroke(lane.accentColor.opacity(0.18), lineWidth: 1)
-        )
-        .cardShadow(prominent: true)
+        .shadow(color: Color(red: 0.92, green: 0.76, blue: 0.12).opacity(0.14), radius: 12, y: 4)
     }
 
     private var laneChipStrip: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("六条赛道入口")
-                .font(.spareCaptionSB)
-                .foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            HStack {
+                Text("六条赛道")
+                    .font(.spareCaptionSB)
+                    .foregroundColor(.secondary)
+
+                Spacer()
+
+                if let laneChip = store.selectedLaneChip {
+                    EarnHeaderBadge(
+                        symbol: "gift.fill",
+                        label: "奖励 +\(laneChip.rewardAmount)",
+                        tint: .spareYellow
+                    )
+                }
+            }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Spacing.sm) {
@@ -297,7 +468,7 @@ struct EarnSocialHomeView: View {
     }
 
     private var quickFilterStrip: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
+        VStack(alignment: .leading, spacing: Spacing.md) {
             HStack {
                 Text("快捷筛选")
                     .font(.spareCaptionSB)
@@ -334,14 +505,26 @@ struct EarnSocialHomeView: View {
         switch store.homeState {
         case .idle, .loading:
             VStack(spacing: Spacing.md) {
-                FeedSectionHeader(title: "混排 feed")
+                EarnFeedDeckHeader(
+                    title: "混排 feed",
+                    subtitle: "按 \(store.selectedFilter.title) 查看 \(store.selectedLane.title) 的混排卡片。",
+                    countLabel: "加载中",
+                    refreshedAt: store.lastRefreshAt,
+                    tint: store.selectedLane.accentColor
+                )
                 WaterfallSkeleton(count: 8)
                     .frame(height: 860)
             }
 
         case .error(let message):
             VStack(spacing: Spacing.md) {
-                FeedSectionHeader(title: "混排 feed")
+                EarnFeedDeckHeader(
+                    title: "混排 feed",
+                    subtitle: "按 \(store.selectedFilter.title) 查看 \(store.selectedLane.title) 的混排卡片。",
+                    countLabel: "状态异常",
+                    refreshedAt: store.lastRefreshAt,
+                    tint: .emotionNegative
+                )
 
                 ErrorStateView(
                     message: message,
@@ -353,9 +536,12 @@ struct EarnSocialHomeView: View {
         case .loaded:
             let cards = store.visibleFeedCards
             VStack(alignment: .leading, spacing: Spacing.md) {
-                FeedSectionHeader(
+                EarnFeedDeckHeader(
                     title: "混排 feed",
-                    subtitle: "\(cards.count) 张卡"
+                    subtitle: "按 \(store.selectedFilter.title) 查看 \(store.selectedLane.title) 的混排卡片。",
+                    countLabel: "\(cards.count) 张卡",
+                    refreshedAt: store.lastRefreshAt,
+                    tint: store.selectedLane.accentColor
                 )
 
                 if let toastMessage = store.toastMessage {
@@ -486,6 +672,166 @@ private struct EarnSocialScrollOffsetKey: PreferenceKey {
     }
 }
 
+private struct EarnHeaderBadge: View {
+    let symbol: String
+    let label: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .semibold))
+            Text(label)
+                .lineLimit(1)
+        }
+        .font(.spareMicro)
+        .foregroundColor(tint)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, 8)
+        .background(
+            Capsule()
+                .fill(Color.white)
+        )
+        .overlay(
+            Capsule()
+                .stroke(Color.spareYellow.opacity(0.22), lineWidth: 1)
+        )
+    }
+}
+
+private struct EarnRefreshBadge: View {
+    let date: Date
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 11, weight: .semibold))
+            Text(date, style: .time)
+        }
+        .font(.spareMicro)
+        .foregroundColor(.secondary)
+        .padding(.horizontal, Spacing.md)
+        .padding(.vertical, 8)
+        .background(
+            Capsule()
+                .fill(Color.white)
+        )
+        .overlay(
+            Capsule()
+                .stroke(Color.spareYellow.opacity(0.22), lineWidth: 1)
+        )
+    }
+}
+
+private struct EarnHeroMetricTile: View {
+    let title: String
+    let value: String
+    let footnote: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(tint)
+                    .frame(width: 8, height: 8)
+                Text(title)
+                    .font(.spareMicro)
+                    .foregroundColor(.secondary)
+            }
+
+            Text(value)
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+                .foregroundColor(.spareDark)
+
+            Text(footnote)
+                .font(.spareMicro)
+                .foregroundColor(tint)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Spacing.md)
+        .background(Color.spareYellowLight.opacity(0.28), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: CornerRadius.lg)
+                .stroke(Color.spareYellow.opacity(0.24), lineWidth: 1)
+        )
+    }
+}
+
+private struct EarnFeedDeckHeader: View {
+    let title: String
+    let subtitle: String
+    let countLabel: String
+    let refreshedAt: Date
+    let tint: Color
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Spacing.md) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.spareTitle2)
+                Text(subtitle)
+                    .font(.spareCaption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: Spacing.sm)
+
+            VStack(alignment: .trailing, spacing: 8) {
+                Text(countLabel)
+                    .font(.spareCaptionSB)
+                    .foregroundColor(.spareDark)
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(Color.spareYellow)
+                    )
+
+                HStack(spacing: 6) {
+                    Image(systemName: "clock")
+                    Text(refreshedAt, style: .time)
+                }
+                .font(.spareMicro)
+                .foregroundColor(.secondary)
+            }
+        }
+        .padding(Spacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(Color.spareYellow.opacity(0.22), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct LaneChipStat: View {
+    let label: String
+    let value: String
+    let tint: Color
+    let background: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.spareMicro)
+                .foregroundColor(tint.opacity(0.88))
+            Text(value)
+                .font(.spareCaptionSB)
+                .foregroundColor(tint)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Spacing.sm)
+        .padding(.vertical, 8)
+        .background(background, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
 private struct EarnLaneChipButton: View {
     let chip: EarnSocialLaneChip
     let isSelected: Bool
@@ -493,38 +839,77 @@ private struct EarnLaneChipButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Image(systemName: chip.lane.symbol)
-                        .foregroundColor(isSelected ? .white : chip.lane.accentColor)
-                    Text(chip.lane.title)
-                        .font(.spareCaptionSB)
-                        .foregroundColor(isSelected ? .white : .primary)
-                }
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                HStack(alignment: .top, spacing: Spacing.sm) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(isSelected ? Color.white.opacity(0.72) : Color.spareYellowLight.opacity(0.34))
+                            .frame(width: 34, height: 34)
+                        Image(systemName: chip.lane.symbol)
+                            .foregroundColor(isSelected ? .spareDark : chip.lane.accentColor)
+                    }
 
-                Text(chip.lane.shortcut)
-                    .font(.spareMicro)
-                    .foregroundColor(isSelected ? .white.opacity(0.84) : .secondary)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(chip.lane.title)
+                            .font(.spareCaptionSB)
+                            .foregroundColor(isSelected ? .spareDark : .primary)
+                        Text(chip.lane.shortcut)
+                            .font(.spareMicro)
+                            .foregroundColor(isSelected ? .spareDark.opacity(0.68) : .secondary)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.spareDark)
+                    }
+                }
 
                 HStack(spacing: Spacing.sm) {
-                    Label("\(chip.openIntentCount)", systemImage: "sparkles")
-                        .font(.spareMicro)
-                    Label(String(format: "%.1f", chip.heatScore), systemImage: "flame.fill")
-                        .font(.spareMicro)
+                    LaneChipStat(
+                        label: "机会",
+                        value: "\(chip.openIntentCount)",
+                        tint: isSelected ? .spareDark : chip.lane.accentColor,
+                        background: isSelected ? Color.white.opacity(0.68) : Color.spareYellowLight.opacity(0.20)
+                    )
+                    LaneChipStat(
+                        label: "热度",
+                        value: String(format: "%.1f", chip.heatScore),
+                        tint: isSelected ? .spareDark : .spareYellowInk,
+                        background: isSelected ? Color.white.opacity(0.68) : Color.spareYellowLight.opacity(0.20)
+                    )
                 }
-                .foregroundColor(isSelected ? .white : .secondary)
+
+                HStack {
+                    Label("+\(chip.rewardAmount)", systemImage: "gift.fill")
+                        .font(.spareMicro)
+                        .foregroundColor(.spareDark)
+                        .padding(.horizontal, Spacing.sm)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(isSelected ? Color.white.opacity(0.84) : Color.spareYellowLight.opacity(0.65))
+                        )
+
+                    Spacer()
+
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(isSelected ? .spareDark.opacity(0.72) : .secondary)
+                }
             }
-            .frame(width: 156, alignment: .leading)
+            .frame(width: isSelected ? 194 : 176, alignment: .leading)
             .padding(Spacing.md)
             .background(
-                RoundedRectangle(cornerRadius: CornerRadius.lg)
-                    .fill(isSelected ? chip.lane.accentGradient : LinearGradient(colors: [Color.white.opacity(0.92), Color.white.opacity(0.82)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(isSelected ? Color.spareYellow : Color.white)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: CornerRadius.lg)
-                    .stroke(isSelected ? Color.clear : chip.lane.accentColor.opacity(0.18), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(isSelected ? Color.spareYellow.opacity(0.6) : Color.spareYellow.opacity(0.20), lineWidth: 1)
             )
-            .cardShadow()
+            .shadow(color: Color(red: 0.92, green: 0.76, blue: 0.12).opacity(isSelected ? 0.22 : 0.10), radius: isSelected ? 14 : 10, y: 5)
         }
         .buttonStyle(.plain)
     }
@@ -537,21 +922,32 @@ private struct FilterButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: Spacing.xs) {
-                Image(systemName: filter.symbol)
+            HStack(spacing: Spacing.sm) {
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? Color.white.opacity(0.62) : Color.spareYellowLight.opacity(0.32))
+                        .frame(width: 28, height: 28)
+                    Image(systemName: filter.symbol)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(isSelected ? .spareDark : .spareDark.opacity(0.72))
+                }
                 Text(filter.title)
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                }
             }
             .font(.spareCaptionSB)
             .foregroundColor(isSelected ? .spareDark : .primary)
             .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
+            .padding(.vertical, 10)
             .background(
-                Capsule()
-                    .fill(isSelected ? Color.spareYellow : Color.white.opacity(0.84))
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(isSelected ? Color.spareYellow : Color.white)
             )
             .overlay(
-                Capsule()
-                    .stroke(isSelected ? Color.clear : Color.cardStroke, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.spareYellow.opacity(isSelected ? 0.55 : 0.20), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -569,11 +965,11 @@ private struct SecondaryActionButton: View {
         Button(action: action) {
             HStack(alignment: .center, spacing: Spacing.sm) {
                 ZStack {
-                    Circle()
-                        .fill(tint.opacity(0.14))
-                        .frame(width: 36, height: 36)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.spareYellowLight.opacity(0.44))
+                        .frame(width: 42, height: 42)
                     Image(systemName: symbol)
-                        .foregroundColor(tint)
+                        .foregroundColor(.spareDark)
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -586,13 +982,17 @@ private struct SecondaryActionButton: View {
                 }
 
                 Spacer()
+
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.spareDark.opacity(0.72))
             }
             .padding(.horizontal, Spacing.md)
             .padding(.vertical, Spacing.md)
-            .background(Color.white.opacity(0.86), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+            .background(Color.white, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: CornerRadius.lg)
-                    .stroke(Color.cardStroke, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Color.spareYellow.opacity(0.20), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -754,7 +1154,7 @@ private struct PersonaDiscoveryCardView: View {
                             .font(.spareTitle3)
                         if isLiked {
                             Image(systemName: "heart.fill")
-                                .foregroundColor(.red)
+                                .foregroundColor(.spareOrange)
                         }
                     }
 
@@ -816,7 +1216,7 @@ private struct IcebreakPromptCardView: View {
             HStack(spacing: 8) {
                 StepGlyph(symbol: "person.fill", isActive: true, tint: .emotionPositive)
                 StepGlyph(symbol: "person.crop.circle.badge.questionmark", isActive: true, tint: .spareYellow)
-                StepGlyph(symbol: "person.crop.circle.badge.questionmark", isActive: true, tint: .orange)
+                StepGlyph(symbol: "person.crop.circle.badge.questionmark", isActive: true, tint: .spareYellowInk)
                 StepGlyph(symbol: "person.2.fill", isActive: false, tint: .emotionPositive)
             }
 
@@ -897,7 +1297,7 @@ private struct IcebreakProgressCardView: View {
                 ForEach(session.messages.prefix(2)) { message in
                     HStack(alignment: .top, spacing: 6) {
                         Circle()
-                            .fill(message.actor == .counterpartAgent ? Color.orange : Color.spareYellow)
+                            .fill(message.actor == .counterpartAgent ? Color.spareYellowInk : Color.spareYellow)
                             .frame(width: 7, height: 7)
                             .padding(.top, 6)
                         VStack(alignment: .leading, spacing: 2) {
@@ -1493,7 +1893,7 @@ private struct EarnIntentMarketView: View {
                             if field.isRequired {
                                 Text("*")
                                     .font(.spareCaptionSB)
-                                    .foregroundColor(.red)
+                                    .foregroundColor(.spareOrange)
                             }
                         }
                         TextField(field.placeholder, text: binding(for: field.id))
@@ -1714,7 +2114,7 @@ private struct PersonaDeckRow: View {
                             .font(.spareTitle3)
                         if isLiked {
                             Image(systemName: "heart.fill")
-                                .foregroundColor(.red)
+                                .foregroundColor(.spareOrange)
                         }
                     }
                     Text(persona.publicBio)
@@ -1826,7 +2226,7 @@ private struct EarnIcebreakView: View {
             HStack(spacing: Spacing.sm) {
                 StepGlyph(symbol: "person.fill", isActive: true, tint: .emotionPositive)
                 StepGlyph(symbol: "person.crop.circle.badge.questionmark", isActive: true, tint: .spareYellow)
-                StepGlyph(symbol: "person.crop.circle.badge.questionmark", isActive: true, tint: .orange)
+                StepGlyph(symbol: "person.crop.circle.badge.questionmark", isActive: true, tint: .spareYellowInk)
                 StepGlyph(symbol: "person.2.fill", isActive: store.activeIcebreak?.stage == .humanTakeover, tint: .emotionPositive)
             }
 
@@ -1872,7 +2272,7 @@ private struct EarnIcebreakView: View {
                 ForEach(session.messages) { message in
                     HStack(alignment: .top, spacing: Spacing.sm) {
                         Circle()
-                            .fill(message.actor == .counterpartAgent ? Color.orange : message.actor == .system ? Color.emotionNeutral : Color.spareYellow)
+                            .fill(message.actor == .counterpartAgent ? Color.spareYellowInk : message.actor == .system ? Color.emotionNeutral : Color.spareYellow)
                             .frame(width: 8, height: 8)
                             .padding(.top, 6)
                         VStack(alignment: .leading, spacing: 4) {
@@ -2528,29 +2928,29 @@ private struct EarnWalletLedgerView: View {
 private extension EarnSocialLaneID {
     var accentColor: Color {
         switch self {
-        case .idleGoods: return Color(red: 0.95, green: 0.55, blue: 0.20)
-        case .skillQA: return Color(red: 0.18, green: 0.47, blue: 0.88)
-        case .romance: return Color(red: 0.86, green: 0.32, blue: 0.48)
-        case .friendship: return Color(red: 0.24, green: 0.66, blue: 0.58)
-        case .jobHiring: return Color(red: 0.25, green: 0.34, blue: 0.66)
-        case .errandHelp: return Color(red: 0.68, green: 0.41, blue: 0.18)
+        case .idleGoods: return .spareYellow
+        case .skillQA: return .spareYellowInk
+        case .romance: return .spareYellow
+        case .friendship: return .spareYellowLight
+        case .jobHiring: return .spareYellowInk
+        case .errandHelp: return .spareYellow
         }
     }
 
     var accentGradient: LinearGradient {
         switch self {
         case .idleGoods:
-            return LinearGradient(colors: [Color(red: 0.97, green: 0.66, blue: 0.31), Color(red: 0.91, green: 0.42, blue: 0.16)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(colors: [.spareYellowLight, .spareYellow], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .skillQA:
-            return LinearGradient(colors: [Color(red: 0.36, green: 0.60, blue: 0.97), Color(red: 0.13, green: 0.39, blue: 0.83)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(colors: [.spareYellowWash, .spareYellowInk], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .romance:
-            return LinearGradient(colors: [Color(red: 0.96, green: 0.55, blue: 0.67), Color(red: 0.81, green: 0.23, blue: 0.43)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(colors: [.spareYellowLight, .spareYellowInk], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .friendship:
-            return LinearGradient(colors: [Color(red: 0.40, green: 0.76, blue: 0.64), Color(red: 0.18, green: 0.59, blue: 0.50)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(colors: [.spareYellowWash, .spareYellow], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .jobHiring:
-            return LinearGradient(colors: [Color(red: 0.42, green: 0.51, blue: 0.84), Color(red: 0.22, green: 0.28, blue: 0.63)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(colors: [.spareYellowLight, .spareYellowInk], startPoint: .topLeading, endPoint: .bottomTrailing)
         case .errandHelp:
-            return LinearGradient(colors: [Color(red: 0.84, green: 0.57, blue: 0.31), Color(red: 0.63, green: 0.35, blue: 0.14)], startPoint: .topLeading, endPoint: .bottomTrailing)
+            return LinearGradient(colors: [.spareYellow, .spareYellowInk], startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 }
@@ -2561,6 +2961,17 @@ private extension EarnIntentVisibilityMode {
         case .public: return .emotionPositive
         case .semiPublic: return .emotionSplit
         case .direct: return .emotionNegative
+        }
+    }
+}
+
+private extension EarnSocialQuickFilter {
+    var accentColor: Color {
+        switch self {
+        case .opportunities: return .spareYellow
+        case .bestMatch: return .emotionPositive
+        case .trends: return .spareYellowInk
+        case .arena: return .emotionSplit
         }
     }
 }

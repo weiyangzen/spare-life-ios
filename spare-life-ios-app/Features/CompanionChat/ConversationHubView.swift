@@ -16,7 +16,7 @@ struct ConversationHubView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(.systemGroupedBackground).ignoresSafeArea()
+                backgroundLayer
 
                 Group {
                     switch store.loadState {
@@ -41,8 +41,57 @@ struct ConversationHubView: View {
         }
     }
 
+    private var backgroundLayer: some View {
+        LinearGradient(
+            colors: [
+                Color.spareYellow.opacity(0.12),
+                Color.white,
+                Color.white
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .ignoresSafeArea()
+    }
+
     private var navTitle: String {
         store.totalUnread > 0 ? "消息（\(store.totalUnread)）" : "消息"
+    }
+
+    private var sortedThreads: [ConversationThread] {
+        switch sortMode {
+        case .byTime:
+            return store.filteredThreads.sorted { $0.lastTimestamp > $1.lastTimestamp }
+        case .byUnread:
+            return store.filteredThreads.sorted {
+                if $0.unreadCount == $1.unreadCount {
+                    return $0.lastTimestamp > $1.lastTimestamp
+                }
+                return $0.unreadCount > $1.unreadCount
+            }
+        }
+    }
+
+    private var pinnedThreads: [ConversationThread] {
+        guard store.searchQuery.isEmpty else { return [] }
+        return sortedThreads.filter(\.isPinned)
+    }
+
+    private var listThreads: [ConversationThread] {
+        if store.searchQuery.isEmpty {
+            return sortedThreads.filter { !$0.isPinned }
+        }
+        return sortedThreads
+    }
+
+    private var currentFilterLabel: String {
+        switch store.selectedKind {
+        case nil: return "全部会话"
+        case .human: return "熟人"
+        case .quadRole: return "四人场"
+        case .group: return "群聊"
+        case .agentDirect: return "分身"
+        }
     }
 
     // MARK: - Toolbar
@@ -53,18 +102,44 @@ struct ConversationHubView: View {
             Menu {
                 Button { } label: { Label("新建对话", systemImage: "square.and.pencil") }
                 Button { } label: { Label("新建群聊", systemImage: "person.3.fill") }
+
                 Divider()
+
                 ForEach(ConversationSortMode.allCases, id: \.self) { mode in
                     Button {
                         withAnimation(.spareSpring) { sortMode = mode }
                     } label: {
-                        Label(mode.label, systemImage: mode.icon)
+                        if sortMode == mode {
+                            Label(mode.label, systemImage: "checkmark")
+                        } else {
+                            Text(mode.label)
+                        }
                     }
                 }
+
+                Divider()
+
+                filterButton(nil, label: "全部会话")
+                filterButton(.human, label: "熟人")
+                filterButton(.quadRole, label: "四人场")
+                filterButton(.group, label: "群聊")
+                filterButton(.agentDirect, label: "分身")
             } label: {
-                Image(systemName: "square.and.pencil.circle.fill")
+                Image(systemName: "line.3.horizontal.decrease.circle.fill")
                     .font(.system(size: 22))
                     .foregroundColor(.spareYellow)
+            }
+        }
+    }
+
+    private func filterButton(_ kind: ConversationKind?, label: String) -> some View {
+        Button {
+            withAnimation(.spareSpring) { store.selectedKind = kind }
+        } label: {
+            if store.selectedKind == kind {
+                Label(label, systemImage: "checkmark")
+            } else {
+                Text(label)
             }
         }
     }
@@ -73,25 +148,30 @@ struct ConversationHubView: View {
 
     private var loadingBody: some View {
         List {
-            ForEach(0..<6, id: \.self) { _ in
+            ForEach(0..<7, id: \.self) { _ in
                 HStack(spacing: Spacing.md) {
                     Circle()
-                        .fill(Color.cardBackground)
+                        .fill(Color.white)
                         .frame(width: 52, height: 52)
                         .shimmer()
+
                     VStack(alignment: .leading, spacing: Spacing.sm) {
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.cardBackground)
-                            .frame(width: 120, height: 14)
+                            .fill(Color.white)
+                            .frame(width: 110, height: 14)
                             .shimmer()
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.cardBackground)
-                            .frame(width: 200, height: 12)
+                            .fill(Color.white)
+                            .frame(maxWidth: 220)
+                            .frame(height: 12)
                             .shimmer()
                     }
+
+                    Spacer()
                 }
                 .padding(.vertical, Spacing.xs)
-                .listRowBackground(Color(.secondarySystemGroupedBackground))
+                .listRowBackground(Color.white)
+                .listRowSeparatorTint(Color.spareYellow.opacity(0.14))
             }
         }
         .listStyle(.plain)
@@ -100,234 +180,137 @@ struct ConversationHubView: View {
     // MARK: - Empty
 
     private var emptyBody: some View {
-        EmptyStateView(
-            icon: "message.circle",
-            title: "还没有聊天",
-            message: "在赚闲能完成 A2A 破冰后，对话会出现在这里。",
-            actionLabel: "去认识新朋友",
-            action: {}
-        )
+        VStack(spacing: Spacing.lg) {
+            EmptyStateView(
+                icon: "message.circle",
+                title: "还没有聊天",
+                message: "在赚闲能完成 A2A 破冰后，对话会出现在这里。",
+                actionLabel: "去认识新朋友",
+                action: {}
+            )
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, Spacing.xl)
+            .padding(.vertical, Spacing.xxxl)
+            .background(
+                RoundedRectangle(cornerRadius: CornerRadius.xl, style: .continuous)
+                    .fill(Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: CornerRadius.xl, style: .continuous)
+                    .stroke(Color.spareYellow.opacity(0.18), lineWidth: 1)
+            )
+            .cardShadow()
+            .padding(.horizontal, Spacing.lg)
+        }
     }
 
     // MARK: - Loaded
 
-    private var sortedThreads: [ConversationThread] {
-        switch sortMode {
-        case .byTime:
-            return store.filteredThreads.sorted { $0.lastTimestamp > $1.lastTimestamp }
-        case .byUnread:
-            return store.filteredThreads.sorted { $0.unreadCount > $1.unreadCount }
-        }
-    }
-
     private var loadedBody: some View {
         List {
-            // Quick-access recent contacts strip (always shown when not searching)
-            if store.searchQuery.isEmpty && !store.filteredThreads.isEmpty {
-                recentContactsStrip
-            }
-
-            // Kind filter chips
-            kindFilterSection
-
-            // Pinned section
-            let pinned = sortedThreads.filter { $0.isPinned }
-            if !pinned.isEmpty && store.searchQuery.isEmpty {
+            if !pinnedThreads.isEmpty {
                 Section {
-                    ForEach(pinned) { thread in
+                    ForEach(pinnedThreads) { thread in
                         threadRow(thread)
                     }
                 } header: {
-                    HStack {
-                        Image(systemName: "pin.fill")
-                            .foregroundColor(.spareYellow)
-                            .font(.spareMicro)
-                        Text("置顶")
-                            .font(.spareCaptionSB)
-                            .foregroundColor(.secondary)
-                    }
+                    sectionHeader(title: "置顶", subtitle: "优先关注")
                 }
             }
 
-            // All / search results
-            let others = sortedThreads.filter { !$0.isPinned || !store.searchQuery.isEmpty }
-            let totalUnread = others.reduce(0) { $0 + $1.unreadCount }
             Section {
-                if others.isEmpty {
+                if listThreads.isEmpty {
                     noSearchResultRow
                 } else {
-                    ForEach(others) { thread in
+                    ForEach(listThreads) { thread in
                         threadRow(thread)
-                    }
-                    .onDelete { indexSet in
-                        _ = indexSet
                     }
                 }
             } header: {
-                if store.searchQuery.isEmpty {
-                    HStack(spacing: Spacing.xs) {
-                        Image(systemName: sortMode.icon)
-                            .foregroundColor(.secondary)
-                            .font(.spareMicro)
-                        Text("最近聊天")
-                            .font(.spareCaptionSB)
-                            .foregroundColor(.secondary)
-                        if totalUnread > 0 {
-                            Text("\(totalUnread) 条未读")
-                                .font(.spareMicro)
-                                .foregroundColor(.emotionNegative)
-                        }
-                        Spacer()
-                        Text(sortMode.label)
-                            .font(.spareMicro)
-                            .foregroundColor(.spareYellow)
-                    }
-                }
+                sectionHeader(
+                    title: store.searchQuery.isEmpty ? currentFilterLabel : "搜索结果",
+                    subtitle: store.searchQuery.isEmpty ? sortMode.label : "联系人与消息内容匹配"
+                )
             }
         }
         .listStyle(.plain)
         .refreshable { await store.refresh() }
         .animation(.spareEase, value: sortMode)
+        .animation(.spareEase, value: store.selectedKind)
+        .animation(.spareEase, value: store.searchQuery)
     }
 
-    // MARK: - Recent Contacts Quick-Access Strip
-
-    private var recentContactsStrip: some View {
-        Section {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.lg) {
-                    ForEach(store.filteredThreads.prefix(8)) { thread in
-                        NavigationLink {
-                            ChatThreadView(thread: thread)
-                        } label: {
-                            VStack(spacing: Spacing.xs) {
-                                ZStack(alignment: .topTrailing) {
-                                    AvatarView(name: thread.contactName, size: 50)
-                                    if thread.unreadCount > 0 {
-                                        Circle()
-                                            .fill(Color.emotionNegative)
-                                            .frame(width: 14, height: 14)
-                                            .overlay(
-                                                Text(thread.unreadCount > 9 ? "9+" : "\(thread.unreadCount)")
-                                                    .font(.system(size: 8, weight: .bold))
-                                                    .foregroundColor(.white)
-                                            )
-                                            .offset(x: 4, y: -4)
-                                    }
-                                }
-
-                                Text(String(thread.contactName.prefix(4)))
-                                    .font(.spareMicro)
-                                    .foregroundColor(.primary)
-                                    .lineLimit(1)
-                                    .frame(width: 50)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.vertical, Spacing.sm)
-                .padding(.horizontal, Spacing.lg)
+    private func sectionHeader(title: String, subtitle: String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.spareCaptionSB)
+                    .foregroundColor(.primary)
+                Text(subtitle)
+                    .font(.spareMicro)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            if title != "置顶" {
+                Text(store.totalUnread > 0 ? "\(store.totalUnread) 未读" : "全部已读")
+                    .font(.spareMicro)
+                    .foregroundColor(store.totalUnread > 0 ? .emotionNegative : .secondary)
             }
         }
-        .listRowBackground(Color(.secondarySystemGroupedBackground))
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets())
+        .textCase(nil)
     }
-
-    // MARK: - Kind Filter Chips
-
-    private var kindFilterSection: some View {
-        Section {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.sm) {
-                    kindChip(nil, label: "全部", icon: "bubble.left.and.bubble.right.fill")
-                    kindChip(.human, label: "熟人", icon: "person.fill")
-                    kindChip(.quadRole, label: "四人场", icon: "person.3.fill")
-                    kindChip(.group, label: "群聊", icon: "person.2.wave.2.fill")
-                    kindChip(.agentDirect, label: "分身", icon: "sparkles")
-                }
-                .padding(.vertical, Spacing.xs)
-            }
-        }
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
-        .listRowInsets(EdgeInsets(top: 0, leading: Spacing.lg, bottom: 0, trailing: Spacing.lg))
-    }
-
-    private func kindChip(_ kind: ConversationKind?, label: String, icon: String) -> some View {
-        let isSelected = store.selectedKind == kind
-        return Button {
-            withAnimation(.spareSpring) {
-                store.selectedKind = isSelected ? nil : kind
-            }
-        } label: {
-            Label(label, systemImage: icon)
-                .font(.spareCaptionSB)
-                .foregroundColor(isSelected ? .white : .primary)
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.sm)
-                .background(isSelected ? Color.spareYellow : Color.cardBackground,
-                            in: Capsule())
-                .cardShadow()
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Thread Row
 
     private func threadRow(_ thread: ConversationThread) -> some View {
         NavigationLink {
             ChatThreadView(thread: thread)
         } label: {
-            HStack(alignment: .center, spacing: Spacing.md) {
-                // Avatar + kind badge
+            HStack(spacing: Spacing.md) {
                 ZStack(alignment: .bottomTrailing) {
                     AvatarView(name: thread.contactName, size: 52)
-                    kindBadge(thread.kind)
+                    listKindBadge(thread.kind)
                 }
 
-                // Content
                 VStack(alignment: .leading, spacing: Spacing.xs) {
-                    HStack {
+                    HStack(spacing: Spacing.xs) {
                         Text(thread.contactName)
                             .font(thread.unreadCount > 0 ? .spareBodySB : .spareBody)
+                            .foregroundColor(.primary)
                             .lineLimit(1)
-                        Spacer()
-                        Text(thread.lastTimestamp, style: .relative)
-                            .font(.spareMicro)
-                            .foregroundColor(.secondary)
-                    }
 
-                    HStack(alignment: .center, spacing: Spacing.xs) {
-                        Text(thread.lastMessage)
-                            .font(.spareCaption)
-                            .foregroundColor(thread.unreadCount > 0 ? .primary : .secondary)
-                            .lineLimit(1)
-                        Spacer()
-                        if thread.unreadCount > 0 {
-                            unreadBadge(thread.unreadCount)
+                        if thread.isPinned {
+                            Text("置顶")
+                                .font(.spareMicro)
+                                .foregroundColor(.spareYellow)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.spareYellow.opacity(0.12), in: Capsule())
                         }
                     }
 
-                    // Temperature + mask tags
-                    HStack(spacing: Spacing.xs) {
-                        Label(thread.relationTemperature.label,
-                              systemImage: thread.relationTemperature.icon)
-                            .font(.spareMicro)
-                            .foregroundColor(thread.relationTemperature.color)
+                    Text(threadPreview(thread))
+                        .font(.spareCaption)
+                        .foregroundColor(thread.unreadCount > 0 ? .primary : .secondary)
+                        .lineLimit(1)
+                }
 
-                        if let mask = thread.activeMaskName {
-                            PillTag(label: mask, color: .blue)
-                        }
+                Spacer(minLength: Spacing.sm)
+
+                VStack(alignment: .trailing, spacing: Spacing.sm) {
+                    Text(thread.lastTimestamp, style: .relative)
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+
+                    if thread.unreadCount > 0 {
+                        unreadDot
                     }
                 }
             }
-            .padding(.vertical, Spacing.xs)
+            .padding(.vertical, Spacing.sm)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .listRowBackground(Color(.secondarySystemGroupedBackground))
+        .listRowBackground(Color.white)
+        .listRowSeparatorTint(Color.spareYellow.opacity(0.14))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button { store.pin(threadID: thread.id) } label: {
                 Label(thread.isPinned ? "取消置顶" : "置顶",
@@ -347,30 +330,31 @@ struct ConversationHubView: View {
         }
     }
 
-    private func kindBadge(_ kind: ConversationKind) -> some View {
-        Group {
-            switch kind {
-            case .human:       EmptyView()
-            case .quadRole:
-                Image(systemName: "person.3.fill")
-                    .badgeStyle(color: .blue)
-            case .group:
-                Image(systemName: "person.2.wave.2.fill")
-                    .badgeStyle(color: .indigo)
-            case .agentDirect:
-                Image(systemName: "sparkles")
-                    .badgeStyle(color: Color.spareYellow)
-            }
+    private func threadPreview(_ thread: ConversationThread) -> String {
+        return thread.lastMessage
+    }
+
+    @ViewBuilder
+    private func listKindBadge(_ kind: ConversationKind) -> some View {
+        switch kind {
+        case .human:
+            EmptyView()
+        case .quadRole:
+            Image(systemName: "person.3.fill")
+                .listBadgeStyle(color: .spareYellowInk)
+        case .group:
+            Image(systemName: "person.2.fill")
+                .listBadgeStyle(color: .spareYellowInk)
+        case .agentDirect:
+            Image(systemName: "sparkles")
+                .listBadgeStyle(color: .spareYellow)
         }
     }
 
-    private func unreadBadge(_ count: Int) -> some View {
-        Text(count > 99 ? "99+" : "\(count)")
-            .font(.spareMicro)
-            .foregroundColor(.white)
-            .padding(.horizontal, count > 9 ? 6 : 5)
-            .padding(.vertical, 2)
-            .background(Color.emotionNegative, in: Capsule())
+    private var unreadDot: some View {
+        Circle()
+            .fill(Color.emotionNegative)
+            .frame(width: 10, height: 10)
     }
 
     private var noSearchResultRow: some View {
@@ -379,20 +363,20 @@ struct ConversationHubView: View {
             title: "无匹配结果",
             message: "换个关键词试试？"
         )
-        .listRowBackground(Color.clear)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Spacing.xxxl)
+        .listRowBackground(Color.white)
         .listRowSeparator(.hidden)
     }
 }
 
-// MARK: - View Modifier Helper
-
 private extension Image {
-    func badgeStyle(color: Color) -> some View {
+    func listBadgeStyle(color: Color) -> some View {
         self
-            .font(.system(size: 9, weight: .bold))
+            .font(.system(size: 8, weight: .bold))
             .foregroundColor(.white)
             .padding(4)
             .background(color, in: Circle())
-            .offset(x: 6, y: 6)
+            .offset(x: 4, y: 4)
     }
 }

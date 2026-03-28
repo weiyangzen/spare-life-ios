@@ -46,6 +46,10 @@ final class MasterCatalogLoaderTests: XCTestCase {
             XCTAssertTrue(fileManager.fileExists(atPath: master.imageSet.avatarPath))
             XCTAssertTrue(fileManager.fileExists(atPath: master.imageSet.portraitPath))
             XCTAssertTrue(fileManager.fileExists(atPath: master.imageSet.backgroundPath))
+            XCTAssertEqual(master.avatarURL?.path, master.imageSet.avatarPath)
+            XCTAssertEqual(master.portraitURL?.path, master.imageSet.portraitPath)
+            XCTAssertEqual(master.avatarURL?.isFileURL, true)
+            XCTAssertEqual(master.portraitURL?.isFileURL, true)
 
             let actualImageFiles = Set<String>(
                 try fileManager.contentsOfDirectory(

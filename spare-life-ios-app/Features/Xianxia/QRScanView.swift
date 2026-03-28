@@ -46,7 +46,7 @@ struct QRScanView: View {
 
                 // Success flash
                 if vm.didScan {
-                    Color.green.opacity(0.25)
+                    Color.spareYellowInk.opacity(0.25)
                         .ignoresSafeArea()
                         .transition(.opacity)
                         .allowsHitTesting(false)

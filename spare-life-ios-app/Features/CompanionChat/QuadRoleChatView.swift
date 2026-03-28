@@ -158,6 +158,19 @@ struct QuadRoleChatView: View {
                 Circle()
                     .stroke(role.isLocal ? Color.spareYellow : Color.clear, lineWidth: 2)
             )
+            .overlay(alignment: .bottomTrailing) {
+                if role.isAgent {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.spareDark)
+                        .padding(4)
+                        .background(Color.spareYellow, in: Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white, lineWidth: 1)
+                        )
+                }
+            }
 
             Text(role.displayName)
                 .font(.spareMicro)

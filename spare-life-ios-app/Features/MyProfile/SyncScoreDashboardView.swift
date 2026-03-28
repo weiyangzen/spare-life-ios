@@ -81,11 +81,11 @@ final class SyncScoreStore: ObservableObject {
             syncScore = SyncScore(
                 overall: 73,
                 dimensions: [
-                    .init(name: "语言风格", score: 81, icon: "text.bubble.fill",     color: .blue),
-                    .init(name: "价值观",   score: 68, icon: "heart.circle.fill",     color: .pink),
-                    .init(name: "决策模式", score: 74, icon: "arrow.triangle.branch", color: .orange),
-                    .init(name: "情绪反应", score: 65, icon: "bolt.heart.fill",        color: .yellow),
-                    .init(name: "知识领域", score: 79, icon: "book.fill",              color: .green),
+                    .init(name: "语言风格", score: 81, icon: "text.bubble.fill",     color: .spareYellowInk),
+                    .init(name: "价值观",   score: 68, icon: "heart.circle.fill",     color: .spareYellowInk),
+                    .init(name: "决策模式", score: 74, icon: "arrow.triangle.branch", color: .spareYellowInk),
+                    .init(name: "情绪反应", score: 65, icon: "bolt.heart.fill",        color: .spareYellow),
+                    .init(name: "知识领域", score: 79, icon: "book.fill",              color: .spareYellowInk),
                 ]
             )
             trainingTasks = [
@@ -250,7 +250,7 @@ private struct SyncGaugeCard: View {
             Circle()
                 .trim(from: 0, to: animatedScore)
                 .stroke(
-                    score.overall >= 80 ? Color.green : score.overall >= 60 ? Color.spareYellow : Color.orange,
+                    score.overall >= 80 ? Color.spareYellowInk : score.overall >= 60 ? Color.spareYellow : Color.spareYellowInk,
                     style: StrokeStyle(lineWidth: 10, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
@@ -272,10 +272,10 @@ private struct ScoreInterpretationBanner: View {
 
     private var interpretation: (icon: String, label: String, color: Color) {
         switch score {
-        case 85...:   return ("star.fill",             "非常接近我本人",   .green)
-        case 70..<85: return ("checkmark.circle.fill", "大部分时间像我",   .blue)
-        case 55..<70: return ("exclamationmark.circle", "偶尔判断有偏差",  .orange)
-        default:      return ("xmark.circle",          "差异较大，需训练", .red)
+        case 85...:   return ("star.fill",             "非常接近我本人",   .spareYellowInk)
+        case 70..<85: return ("checkmark.circle.fill", "大部分时间像我",   .spareYellowInk)
+        case 55..<70: return ("exclamationmark.circle", "偶尔判断有偏差",  .spareYellowInk)
+        default:      return ("xmark.circle",          "差异较大，需训练", .spareOrange)
         }
     }
 
@@ -370,16 +370,16 @@ private struct TrainingTaskRow: View {
 
     var statusColor: Color {
         switch task.status {
-        case .pending:  return .orange
-        case .inReview: return .blue
-        case .done:     return .green
+        case .pending:  return .spareYellowInk
+        case .inReview: return .spareYellowInk
+        case .done:     return .spareYellowInk
         }
     }
 
     var priorityColor: Color {
         switch task.priority {
-        case .high:   return .red
-        case .medium: return .orange
+        case .high:   return .spareOrange
+        case .medium: return .spareYellowInk
         case .low:    return .secondary
         }
     }
@@ -487,7 +487,7 @@ private struct ErrorReplayRow: View {
 
             if expanded {
                 VStack(alignment: .leading, spacing: Spacing.sm) {
-                    ComparisonRow(label: "期望回应", text: replay.expectedResponse, color: .green)
+                    ComparisonRow(label: "期望回应", text: replay.expectedResponse, color: .spareYellowInk)
                     ComparisonRow(label: "实际回应", text: replay.actualResponse,   color: .emotionNegative)
                 }
                 .padding(Spacing.sm)

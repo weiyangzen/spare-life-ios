@@ -39,8 +39,8 @@ enum FeedCardKind: String, CaseIterable {
 
     var accentColor: Color {
         switch self {
-        case .summary: return .blue
-        case .person:  return .purple
+        case .summary: return .spareYellowInk
+        case .person:  return .spareYellowInk
         case .action:  return .spareYellow
         case .status:  return .emotionPositive
         }

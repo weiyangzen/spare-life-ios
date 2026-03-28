@@ -83,11 +83,11 @@ final class AwakeningPersonalityStore: ObservableObject {
                 unlockedFeatures: ["基础代理回复", "语言风格匹配", "简单情绪感知", "陌生社交破冰"]
             )
             dna = PersonalityDNA(traits: [
-                .init(id: "ei", name: "内外倾向", leftPole: "内向",   rightPole: "外向",   value:  0.3, color: .blue),
-                .init(id: "ns", name: "思维方式", leftPole: "感性",   rightPole: "理性",   value:  0.1, color: .purple),
-                .init(id: "tf", name: "判断倾向", leftPole: "情感优先", rightPole: "逻辑优先", value: -0.2, color: .orange),
-                .init(id: "jp", name: "行为风格", leftPole: "灵活",   rightPole: "计划",   value:  0.4, color: .teal),
-                .init(id: "op", name: "开放程度", leftPole: "保守",   rightPole: "开放",   value:  0.6, color: .green),
+                .init(id: "ei", name: "内外倾向", leftPole: "内向",   rightPole: "外向",   value:  0.3, color: .spareYellowInk),
+                .init(id: "ns", name: "思维方式", leftPole: "感性",   rightPole: "理性",   value:  0.1, color: .spareYellowInk),
+                .init(id: "tf", name: "判断倾向", leftPole: "情感优先", rightPole: "逻辑优先", value: -0.2, color: .spareYellowInk),
+                .init(id: "jp", name: "行为风格", leftPole: "灵活",   rightPole: "计划",   value:  0.4, color: .spareYellowInk),
+                .init(id: "op", name: "开放程度", leftPole: "保守",   rightPole: "开放",   value:  0.6, color: .spareYellowInk),
             ])
             masks = [
                 .init(id: "m1", name: "职场模式",   description: "对同事和职业联系人展示更正式、专注效率的一面。", isActive: true,  traits: ["专业", "简洁", "目标导向"], createdAt: Date().addingTimeInterval(-86400 * 10)),
@@ -216,7 +216,7 @@ private struct AwakeningLevelCard: View {
                 VStack(alignment: .leading, spacing: Spacing.xs) {
                     HStack(spacing: Spacing.xs) {
                         Image(systemName: "flame.fill")
-                            .foregroundColor(.orange)
+                            .foregroundColor(.spareYellowInk)
                         Text("Lv.\(awakening.level)  \(awakening.title)")
                             .font(.spareTitle3)
                     }
@@ -248,7 +248,7 @@ private struct AwakeningLevelCard: View {
                         RoundedRectangle(cornerRadius: 4)
                             .fill(
                                 LinearGradient(
-                                    colors: [.orange, .yellow],
+                                    colors: [.spareYellowInk, .spareYellow],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
@@ -277,10 +277,10 @@ private struct AwakeningOrb: View {
     private var orbColor: Color {
         switch level {
         case 1..<3:  return .gray
-        case 3..<5:  return .blue
-        case 5..<7:  return .purple
-        case 7..<9:  return .orange
-        default:     return .yellow
+        case 3..<5:  return .spareYellowInk
+        case 5..<7:  return .spareYellowInk
+        case 7..<9:  return .spareYellowInk
+        default:     return .spareYellow
         }
     }
 
@@ -323,14 +323,14 @@ private struct FeaturesUnlockedCard: View {
                 ForEach(features, id: \.self) { feature in
                     HStack(spacing: Spacing.xs) {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
+                            .foregroundColor(.spareYellowInk)
                             .font(.spareCaptionSB)
                         Text(feature)
                             .font(.spareCaption)
                         Spacer()
                     }
                     .padding(Spacing.sm)
-                    .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+                    .background(Color.spareYellowInk.opacity(0.08), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
                 }
             }
         }
@@ -349,7 +349,7 @@ private struct PersonalityDNACard: View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             HStack {
                 Image(systemName: "dna")
-                    .foregroundColor(.purple)
+                    .foregroundColor(.spareYellowInk)
                 Text("人格 DNA")
                     .font(.spareBodySB)
                 Spacer()
@@ -471,7 +471,7 @@ private struct MaskRow: View {
                         Text(mask.name)
                             .font(.spareBodySB)
                         if mask.isActive {
-                            PillTag(label: "使用中", color: .green, filled: true)
+                            PillTag(label: "使用中", color: .spareYellowInk, filled: true)
                         }
                     }
                     Text(mask.description)
@@ -585,7 +585,7 @@ private struct FlowTagsView: View {
             alignment: .leading, spacing: Spacing.sm
         ) {
             ForEach(tags, id: \.self) { tag in
-                PillTag(label: tag, color: .purple)
+                PillTag(label: tag, color: .spareYellowInk)
             }
         }
     }

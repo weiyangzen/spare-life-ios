@@ -18,7 +18,7 @@ enum MainTab: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .xianxia:    return "闲人"
+        case .xianxia:    return "闲虾"
         case .master:     return "闲聊"
         case .earnSocial: return "赚闲能"
         case .messages:   return "消息"
@@ -58,18 +58,23 @@ struct MainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            tabContent(for: .xianxia)
+            XianxiaHomeView()
                 .tag(MainTab.xianxia)
-            tabContent(for: .master)
+                .tabItem { Label("闲虾", systemImage: "rectangle.grid.1x2") }
+            MasterChatHomeView()
                 .tag(MainTab.master)
-            tabContent(for: .earnSocial)
+                .tabItem { Label("闲聊", systemImage: "graduationcap") }
+            EarnSocialHomeView()
                 .tag(MainTab.earnSocial)
-            tabContent(for: .messages)
+                .tabItem { Label("赚闲能", systemImage: "bolt.circle.fill") }
+            ConversationHubView()
                 .tag(MainTab.messages)
-            tabContent(for: .myProfile)
+                .tabItem { Label("消息", systemImage: "message") }
+            MyProfileView()
                 .tag(MainTab.myProfile)
+                .tabItem { Label("我的", systemImage: "person.crop.circle") }
         }
-        .applyHiddenSystemTabBar()
+        .spareHideSystemTabBar()
         .safeAreaInset(edge: .bottom) {
             Color.clear
                 .frame(height: tabBarReservedHeight)
@@ -95,21 +100,6 @@ struct MainTabView: View {
         82 + max(bottomSafeArea, 8)
     }
 
-    @ViewBuilder
-    private func tabContent(for tab: MainTab) -> some View {
-        switch tab {
-        case .xianxia:
-            XianxiaHomeView()
-        case .master:
-            MasterChatHomeView()
-        case .earnSocial:
-            EarnSocialHoldingView()
-        case .messages:
-            MessagesHoldingView()
-        case .myProfile:
-            MyProfileHoldingView()
-        }
-    }
 }
 
 // MARK: - Glass-Style Tab Bar
@@ -206,7 +196,7 @@ private struct SpareTabBar: View {
                 RoundedRectangle(cornerRadius: 15, style: .continuous)
                     .fill(
                         LinearGradient(
-                            colors: [Color.spareYellow, Color(red: 1.0, green: 0.72, blue: 0.0)],
+                            colors: [Color.spareYellow, Color.spareOrange],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -237,22 +227,19 @@ final class TabBadgeStore: ObservableObject {
     ]
 }
 
-private struct HiddenSystemTabBarModifier: ViewModifier {
-    func body(content: Content) -> some View {
-        #if os(iOS)
-        if #available(iOS 16.0, *) {
-            content.toolbar(.hidden, for: .tabBar)
-        } else {
-            content
-        }
-        #else
-        content
-        #endif
-    }
-}
+// MARK: - Hide System Tab Bar
 
 private extension View {
-    func applyHiddenSystemTabBar() -> some View {
-        modifier(HiddenSystemTabBarModifier())
+    @ViewBuilder
+    func spareHideSystemTabBar() -> some View {
+        #if os(iOS)
+        if #available(iOS 16.0, *) {
+            self.toolbar(.hidden, for: .tabBar)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
     }
 }

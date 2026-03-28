@@ -81,9 +81,9 @@ final class PrivacyLocalBackendStore: ObservableObject {
     }
 
     let cleanupOptions: [CleanupOption] = [
-        .init(id: "c1", label: "清理过期消息缓存", description: "删除 30 天前已读消息的本地副本，释放存储空间。", icon: "message.badge.circle", color: .blue),
-        .init(id: "c2", label: "压缩记忆向量索引", description: "重建向量索引以减小体积，不影响记忆内容。", icon: "cylinder.split.1x2", color: .purple),
-        .init(id: "c3", label: "清除调试日志", description: "删除所有本地调试和性能日志。", icon: "doc.text.badge.minus", color: .orange),
+        .init(id: "c1", label: "清理过期消息缓存", description: "删除 30 天前已读消息的本地副本，释放存储空间。", icon: "message.badge.circle", color: .spareYellowInk),
+        .init(id: "c2", label: "压缩记忆向量索引", description: "重建向量索引以减小体积，不影响记忆内容。", icon: "cylinder.split.1x2", color: .spareYellowInk),
+        .init(id: "c3", label: "清除调试日志", description: "删除所有本地调试和性能日志。", icon: "doc.text.badge.minus", color: .spareYellowInk),
         .init(id: "c4", label: "重置本地数据库", description: "删除全部本地数据，恢复到初始状态。此操作不可撤销。", icon: "trash.fill", color: .red, isDestructive: true),
     ]
 
@@ -244,12 +244,12 @@ private struct DBHealthBanner: View {
         HStack(spacing: Spacing.md) {
             Image(systemName: db.isHealthy ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
                 .font(.system(size: 28))
-                .foregroundColor(db.isHealthy ? .green : .red)
+                .foregroundColor(db.isHealthy ? .spareYellowInk : .red)
 
             VStack(alignment: .leading, spacing: Spacing.xs) {
                 Text(db.isHealthy ? "本地数据库正常" : "数据库异常")
                     .font(.spareBodySB)
-                    .foregroundColor(db.isHealthy ? .green : .red)
+                    .foregroundColor(db.isHealthy ? .spareYellowInk : .red)
                 HStack(spacing: Spacing.md) {
                     Label(db.sizeFormatted,          systemImage: "internaldrive")
                     Label("v\(db.migrationVersion)", systemImage: "tag")
@@ -261,12 +261,12 @@ private struct DBHealthBanner: View {
         }
         .padding(Spacing.lg)
         .background(
-            (db.isHealthy ? Color.green : Color.red).opacity(0.08),
+            (db.isHealthy ? Color.spareYellowInk : Color.red).opacity(0.08),
             in: RoundedRectangle(cornerRadius: CornerRadius.lg)
         )
         .overlay(
             RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke((db.isHealthy ? Color.green : Color.red).opacity(0.3), lineWidth: 1)
+                .stroke((db.isHealthy ? Color.spareYellowInk : Color.red).opacity(0.3), lineWidth: 1)
         )
     }
 }
@@ -295,10 +295,10 @@ private struct DBTabView: View {
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 HStack {
                     Image(systemName: "arrow.triangle.merge")
-                        .foregroundColor(.purple)
+                        .foregroundColor(.spareYellowInk)
                     Text("迁移状态").font(.spareBodySB)
                     Spacer()
-                    PillTag(label: "已同步", color: .green, filled: true)
+                    PillTag(label: "已同步", color: .spareYellowInk, filled: true)
                 }
                 Text("最后执行：\(db.lastMigration)")
                     .font(.spareCaption)
@@ -322,7 +322,7 @@ private struct TableRow: View {
     var body: some View {
         HStack(spacing: Spacing.md) {
             Image(systemName: "tablecells")
-                .foregroundColor(.teal)
+                .foregroundColor(.spareYellowInk)
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -340,7 +340,7 @@ private struct TableRow: View {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 2).fill(Color(.systemGray5)).frame(height: 4)
-                        RoundedRectangle(cornerRadius: 2).fill(Color.teal.opacity(0.7)).frame(width: fraction * geo.size.width, height: 4)
+                        RoundedRectangle(cornerRadius: 2).fill(Color.spareYellowInk.opacity(0.7)).frame(width: fraction * geo.size.width, height: 4)
                     }
                 }
                 .frame(height: 4)
@@ -362,13 +362,13 @@ private struct BackupTabView: View {
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 HStack {
                     Image(systemName: "externaldrive.fill.badge.checkmark")
-                        .foregroundColor(.blue)
+                        .foregroundColor(.spareYellowInk)
                     Text("本地备份").font(.spareBodySB)
                     Spacer()
                     if let date = store.dbStatus?.lastBackupDate {
                         Text(date, style: .relative).font(.spareMicro).foregroundColor(.secondary)
                     } else {
-                        Text("从未备份").font(.spareMicro).foregroundColor(.red)
+                        Text("从未备份").font(.spareMicro).foregroundColor(.spareOrange)
                     }
                 }
 
@@ -388,7 +388,7 @@ private struct BackupTabView: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, Spacing.md)
-                    .background(store.backupInProgress ? Color.secondary : Color.blue, in: RoundedRectangle(cornerRadius: CornerRadius.md))
+                    .background(store.backupInProgress ? Color.secondary : Color.spareYellowInk, in: RoundedRectangle(cornerRadius: CornerRadius.md))
                 }
                 .disabled(store.backupInProgress)
             }
@@ -467,7 +467,7 @@ private struct AuthTabView: View {
     var body: some View {
         VStack(spacing: Spacing.sm) {
             HStack {
-                Image(systemName: "checkmark.shield").foregroundColor(.green)
+                Image(systemName: "checkmark.shield").foregroundColor(.spareYellowInk)
                 Text("授权面板").font(.spareBodySB)
                 Spacer()
                 Text("\(store.authGrants.filter(\.isActive).count) 项活跃授权")
@@ -481,13 +481,13 @@ private struct AuthTabView: View {
 
             // Privacy notice
             HStack(alignment: .top, spacing: Spacing.sm) {
-                Image(systemName: "info.circle").foregroundColor(.blue).font(.spareCaptionSB)
+                Image(systemName: "info.circle").foregroundColor(.spareYellowInk).font(.spareCaptionSB)
                 Text("所有授权仅在本设备生效。关闭授权后，对应服务将无法访问相关本地数据，不影响历史数据。")
                     .font(.spareMicro)
                     .foregroundColor(.secondary)
             }
             .padding(Spacing.md)
-            .background(Color.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
+            .background(Color.spareYellowInk.opacity(0.06), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
         }
     }
 }
@@ -498,7 +498,7 @@ private struct AuthGrantRow: View {
     var body: some View {
         HStack(spacing: Spacing.md) {
             Image(systemName: grant.icon)
-                .foregroundColor(grant.isActive ? .blue : .secondary)
+                .foregroundColor(grant.isActive ? .spareYellowInk : .secondary)
                 .frame(width: 32)
 
             VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -509,7 +509,7 @@ private struct AuthGrantRow: View {
                     Spacer()
                     Toggle("", isOn: $grant.isActive)
                         .labelsHidden()
-                        .tint(.blue)
+                        .tint(.spareYellowInk)
                         .scaleEffect(0.85)
                 }
                 Text(grant.permissionLabel)
@@ -544,7 +544,7 @@ struct ToastModifier: ViewModifier {
             if let result = item {
                 HStack(spacing: Spacing.sm) {
                     Image(systemName: result.isSuccess ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundColor(result.isSuccess ? .green : .red)
+                        .foregroundColor(result.isSuccess ? .spareYellowInk : .red)
                     Text(result.message)
                         .font(.spareCaption)
                 }

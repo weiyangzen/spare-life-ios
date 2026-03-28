@@ -68,8 +68,8 @@ final class GrowthStatsStore: ObservableObject {
         var color: Color {
             switch self {
             case .energy: return .spareYellow
-            case .social: return .blue
-            case .sync:   return .green
+            case .social: return .spareYellowInk
+            case .sync:   return .spareYellowInk
             }
         }
 
@@ -214,9 +214,9 @@ private struct TotalsRow: View {
     var body: some View {
         HStack(spacing: Spacing.sm) {
             TotalTile(icon: "bolt.circle.fill",  color: .spareYellow, value: "\(totals.totalEnergy)",       label: "累计闲能")
-            TotalTile(icon: "person.2.fill",      color: .blue,        value: "\(totals.socialConnections)", label: "社交连接")
-            TotalTile(icon: "arrow.triangle.2.circlepath", color: .green, value: "\(totals.peakSyncScore)", label: "最高同步")
-            TotalTile(icon: "calendar.badge.checkmark", color: .purple, value: "\(totals.daysActive)",      label: "活跃天数")
+            TotalTile(icon: "person.2.fill",      color: .spareYellowInk,        value: "\(totals.socialConnections)", label: "社交连接")
+            TotalTile(icon: "arrow.triangle.2.circlepath", color: .spareYellowInk, value: "\(totals.peakSyncScore)", label: "最高同步")
+            TotalTile(icon: "calendar.badge.checkmark", color: .spareYellowInk, value: "\(totals.daysActive)",      label: "活跃天数")
         }
     }
 }
@@ -429,7 +429,7 @@ private struct DiarySection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
             HStack {
-                Image(systemName: "book.fill").foregroundColor(.purple)
+                Image(systemName: "book.fill").foregroundColor(.spareYellowInk)
                 Text("成长日记").font(.spareBodySB)
                 Spacer()
             }
@@ -461,7 +461,7 @@ private struct DiaryEntryCard: View {
                 Spacer()
                 HStack(spacing: Spacing.sm) {
                     DeltaBadge(icon: "bolt.fill", color: .spareYellow, delta: entry.energyDelta)
-                    DeltaBadge(icon: "arrow.triangle.2.circlepath", color: .green, delta: entry.syncDelta)
+                    DeltaBadge(icon: "arrow.triangle.2.circlepath", color: .spareYellowInk, delta: entry.syncDelta)
                 }
             }
 
@@ -477,7 +477,7 @@ private struct DiaryEntryCard: View {
                 ) {
                     ForEach(entry.highlights, id: \.self) { h in
                         HStack(spacing: 4) {
-                            Image(systemName: "checkmark.circle.fill").foregroundColor(.green).font(.spareMicro)
+                            Image(systemName: "checkmark.circle.fill").foregroundColor(.spareYellowInk).font(.spareMicro)
                             Text(h).font(.spareMicro)
                         }
                     }

@@ -41,12 +41,12 @@ struct AuditLogEntry: Identifiable {
 
         var color: Color {
             switch self {
-            case .access:  return .blue
-            case .modify:  return .orange
+            case .access:  return .spareYellowInk
+            case .modify:  return .spareYellowInk
             case .block:   return .red
-            case .report:  return .pink
-            case .grant:   return .green
-            case .revoke:  return .purple
+            case .report:  return .spareYellowInk
+            case .grant:   return .spareYellowInk
+            case .revoke:  return .spareYellowInk
             }
         }
     }
@@ -60,8 +60,8 @@ struct AuditLogEntry: Identifiable {
 
         var color: Color {
             switch self {
-            case .info:     return .blue
-            case .warning:  return .orange
+            case .info:     return .spareYellowInk
+            case .warning:  return .spareYellowInk
             case .critical: return .red
             }
         }
@@ -101,10 +101,10 @@ struct BlockRule: Identifiable {
 
         var color: Color {
             switch self {
-            case .keyword:   return .orange
+            case .keyword:   return .spareYellowInk
             case .user:      return .red
-            case .pattern:   return .purple
-            case .threshold: return .teal
+            case .pattern:   return .spareYellowInk
+            case .threshold: return .spareYellowInk
             }
         }
     }
@@ -139,9 +139,9 @@ struct ReportItem: Identifiable {
 
         var color: Color {
             switch self {
-            case .pending:  return .orange
-            case .reviewed: return .blue
-            case .resolved: return .green
+            case .pending:  return .spareYellowInk
+            case .reviewed: return .spareYellowInk
+            case .resolved: return .spareYellowInk
             }
         }
     }
@@ -307,11 +307,11 @@ private struct SecurityContent: View {
             )
             SecuritySummaryCard(
                 label: "待审举报", value: "\(store.reportsPending)",
-                icon: "flag.fill", color: .orange
+                icon: "flag.fill", color: .spareYellowInk
             )
             SecuritySummaryCard(
                 label: "隐私得分", value: "\(store.privacyScore)",
-                icon: "shield.checkered", color: .green
+                icon: "shield.checkered", color: .spareYellowInk
             )
         }
     }
@@ -566,7 +566,7 @@ private struct BlockRuleRow: View {
                     Spacer()
                     PillTag(
                         label: rule.isActive ? "启用" : "停用",
-                        color: rule.isActive ? .green : .secondary,
+                        color: rule.isActive ? .spareYellowInk : .secondary,
                         filled: rule.isActive
                     )
                 }
@@ -597,12 +597,12 @@ private struct ReportsTab: View {
     var body: some View {
         VStack(spacing: Spacing.md) {
             HStack {
-                Image(systemName: "flag.fill").foregroundColor(.pink)
+                Image(systemName: "flag.fill").foregroundColor(.spareYellowInk)
                 Text("我的举报").font(.spareBodySB)
                 Spacer()
                 Text("\(reports.filter { $0.status == .pending }.count) 待审核")
                     .font(.spareMicro)
-                    .foregroundColor(.orange)
+                    .foregroundColor(.spareYellowInk)
             }
 
             if reports.isEmpty {
@@ -627,7 +627,7 @@ private struct ReportRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: Spacing.md) {
             Image(systemName: report.type.icon)
-                .foregroundColor(.pink)
+                .foregroundColor(.spareYellowInk)
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: Spacing.xs) {
@@ -658,7 +658,7 @@ private struct PrivacyBoundaryTab: View {
     var body: some View {
         VStack(spacing: Spacing.md) {
             HStack {
-                Image(systemName: "lock.shield.fill").foregroundColor(.green)
+                Image(systemName: "lock.shield.fill").foregroundColor(.spareYellowInk)
                 Text("隐私边界").font(.spareBodySB)
                 Spacer()
                 Text("\(boundaries.filter(\.isEnabled).count) / \(boundaries.count) 已开启")
@@ -673,7 +673,7 @@ private struct PrivacyBoundaryTab: View {
                     .frame(width: 80, height: 80)
                 Circle()
                     .trim(from: 0, to: Double(boundaries.filter(\.isEnabled).count) / max(1, Double(boundaries.count)))
-                    .stroke(Color.green, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .stroke(Color.spareYellowInk, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                     .frame(width: 80, height: 80)
                     .rotationEffect(.degrees(-90))
                 VStack(spacing: 0) {
@@ -708,7 +708,7 @@ private struct PrivacyBoundaryRow: View {
     var body: some View {
         HStack(spacing: Spacing.md) {
             Image(systemName: boundary.icon)
-                .foregroundColor(boundary.isEnabled ? .green : .secondary)
+                .foregroundColor(boundary.isEnabled ? .spareYellowInk : .secondary)
                 .font(.system(size: 18))
                 .frame(width: 32)
 
@@ -719,7 +719,7 @@ private struct PrivacyBoundaryRow: View {
                         .foregroundColor(boundary.isEnabled ? .primary : .secondary)
                     Spacer()
                     Image(systemName: boundary.isEnabled ? "checkmark.circle.fill" : "circle")
-                        .foregroundColor(boundary.isEnabled ? .green : .secondary)
+                        .foregroundColor(boundary.isEnabled ? .spareYellowInk : .secondary)
                 }
                 Text(boundary.description)
                     .font(.spareMicro)

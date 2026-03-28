@@ -42,12 +42,12 @@ struct MemoryEntry: Identifiable {
 
         var color: Color {
             switch self {
-            case .preference:   return .pink
-            case .experience:   return .blue
-            case .belief:       return .purple
-            case .relationship: return .green
-            case .goal:         return .orange
-            case .knowledge:    return .teal
+            case .preference:   return .spareYellowInk
+            case .experience:   return .spareYellowInk
+            case .belief:       return .spareYellowInk
+            case .relationship: return .spareYellowInk
+            case .goal:         return .spareYellowInk
+            case .knowledge:    return .spareYellowInk
             }
         }
     }
@@ -59,8 +59,8 @@ struct MemoryEntry: Identifiable {
 
         var color: Color {
             switch self {
-            case .core:      return .red
-            case .important: return .orange
+            case .core:      return .spareOrange
+            case .important: return .spareYellowInk
             case .ordinary:  return .secondary
             }
         }
@@ -344,7 +344,7 @@ private struct MemoryEntryRow: View {
                     HStack(spacing: Spacing.md) {
                         Button("编辑") { onEdit() }
                             .font(.spareCaptionSB)
-                            .foregroundColor(.blue)
+                            .foregroundColor(.spareYellowInk)
                         Spacer()
                         Button(role: .destructive) { onDelete() } label: {
                             Label("删除", systemImage: "trash")

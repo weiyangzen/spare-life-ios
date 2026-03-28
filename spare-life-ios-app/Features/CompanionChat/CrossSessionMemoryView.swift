@@ -602,7 +602,7 @@ struct CrossSessionMemoryView: View {
                 } label: {
                     Label("纠正记忆", systemImage: "pencil.line")
                         .font(.spareMicro)
-                        .foregroundColor(.blue)
+                        .foregroundColor(.spareYellowInk)
                 }
                 .buttonStyle(.plain)
             }

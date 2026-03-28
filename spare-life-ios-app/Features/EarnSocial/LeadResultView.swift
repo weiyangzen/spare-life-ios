@@ -46,7 +46,7 @@ enum LeadOutcomeStatus: String, CaseIterable, Identifiable {
         switch self {
         case .pending:    return .emotionNeutral
         case .matched:    return .spareYellow
-        case .inProgress: return .blue
+        case .inProgress: return .spareYellowInk
         case .completed:  return .emotionPositive
         case .disputed:   return .emotionNegative
         case .cancelled:  return .secondary

@@ -48,8 +48,8 @@ enum MasterCatalogSourceMode: String, CaseIterable, Identifiable {
     var tint: Color {
         switch self {
         case .synced: return .emotionPositive
-        case .cached: return .blue
-        case .degraded: return .orange
+        case .cached: return .spareYellowInk
+        case .degraded: return .spareYellowInk
         case .unavailable: return .emotionNegative
         }
     }
@@ -249,6 +249,18 @@ struct MasterProfile: Identifiable {
     let palette: [Color]
     let promptPreview: String
     let imageSet: MasterImageSet
+
+    var avatarURL: URL? {
+        let path = imageSet.avatarPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path)
+    }
+
+    var portraitURL: URL? {
+        let path = imageSet.portraitPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path)
+    }
 }
 
 struct MasterRecentSession: Identifiable, Hashable {
@@ -2064,7 +2076,15 @@ private struct MasterServiceDirectoryDocument: Decodable {
             let red = Double((value >> 16) & 0xFF) / 255.0
             let green = Double((value >> 8) & 0xFF) / 255.0
             let blue = Double(value & 0xFF) / 255.0
-            return Color(red: red, green: green, blue: blue)
+            let brightness = (red * 0.30) + (green * 0.59) + (blue * 0.11)
+
+            if brightness > 0.72 {
+                return .spareYellowLight
+            }
+            if brightness > 0.45 {
+                return .spareYellow
+            }
+            return .spareYellowInk
         }
     }
 }

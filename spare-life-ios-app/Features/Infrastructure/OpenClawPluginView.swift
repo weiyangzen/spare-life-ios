@@ -26,8 +26,8 @@ enum ChannelDirection: String, CaseIterable, Identifiable {
 
     var color: Color {
         switch self {
-        case .inbound:  return .blue
-        case .outbound: return .purple
+        case .inbound:  return .spareYellowInk
+        case .outbound: return .spareYellowInk
         }
     }
 }
@@ -74,8 +74,8 @@ struct ChannelEvent: Identifiable {
 
         var color: Color {
             switch self {
-            case .success:  return .green
-            case .pending:  return .orange
+            case .success:  return .spareYellowInk
+            case .pending:  return .spareYellowInk
             case .failed:   return .red
             case .rejected: return .gray
             }
@@ -174,19 +174,19 @@ final class OpenClawPluginStore: ObservableObject {
             adapters = [
                 .init(id: "wechat", name: "微信", icon: "message.fill",
                       isEnabled: true, inboundCount: 342, outboundCount: 298,
-                      errorCount: 3, lastActiveAt: date(-0.01), accentColor: .green),
+                      errorCount: 3, lastActiveAt: date(-0.01), accentColor: .spareYellowInk),
                 .init(id: "line", name: "LINE", icon: "bubble.left.fill",
                       isEnabled: true, inboundCount: 156, outboundCount: 143,
-                      errorCount: 1, lastActiveAt: date(-0.05), accentColor: .green),
+                      errorCount: 1, lastActiveAt: date(-0.05), accentColor: .spareYellowInk),
                 .init(id: "sms", name: "SMS", icon: "phone.fill",
                       isEnabled: true, inboundCount: 28, outboundCount: 24,
-                      errorCount: 0, lastActiveAt: date(-0.5), accentColor: .blue),
+                      errorCount: 0, lastActiveAt: date(-0.5), accentColor: .spareYellowInk),
                 .init(id: "email", name: "Email", icon: "envelope.fill",
                       isEnabled: false, inboundCount: 0, outboundCount: 0,
                       errorCount: 0, lastActiveAt: date(-30), accentColor: .gray),
                 .init(id: "webhook", name: "Webhook", icon: "link",
                       isEnabled: true, inboundCount: 89, outboundCount: 76,
-                      errorCount: 2, lastActiveAt: date(-0.1), accentColor: .orange),
+                      errorCount: 2, lastActiveAt: date(-0.1), accentColor: .spareYellowInk),
             ]
 
             recentEvents = [
@@ -378,19 +378,19 @@ struct OpenClawPluginView: View {
                 icon: "arrow.down.circle.fill",
                 label: "传入",
                 value: "\(store.totalInbound)",
-                color: .blue
+                color: .spareYellowInk
             )
             summaryCard(
                 icon: "arrow.up.circle.fill",
                 label: "传出",
                 value: "\(store.totalOutbound)",
-                color: .purple
+                color: .spareYellowInk
             )
             summaryCard(
                 icon: "exclamationmark.triangle.fill",
                 label: "异常",
                 value: "\(store.totalErrors)",
-                color: store.totalErrors > 0 ? .red : .green
+                color: store.totalErrors > 0 ? .red : .spareYellowInk
             )
         }
         .padding(.horizontal, Spacing.lg)
@@ -495,7 +495,7 @@ struct OpenClawPluginView: View {
                             .font(.spareBodySB)
                             .foregroundColor(.primary)
                         Circle()
-                            .fill(adapter.isEnabled ? Color.green : Color.gray)
+                            .fill(adapter.isEnabled ? Color.spareYellowInk : Color.gray)
                             .frame(width: 6, height: 6)
                     }
                     Text("入 \(adapter.inboundCount) · 出 \(adapter.outboundCount)")
@@ -624,7 +624,7 @@ struct OpenClawPluginView: View {
                     .font(.spareBodySB)
                     .foregroundColor(.primary)
                 Spacer()
-                PillTag(label: "v\(schema.version)", color: .blue)
+                PillTag(label: "v\(schema.version)", color: .spareYellowInk)
             }
 
             HStack(spacing: Spacing.lg) {
@@ -633,7 +633,7 @@ struct OpenClawPluginView: View {
                     .foregroundColor(.secondary)
                 Label("\(schema.validationsPassed) 通过", systemImage: "checkmark")
                     .font(.spareCaption)
-                    .foregroundColor(.green)
+                    .foregroundColor(.spareYellowInk)
                 if schema.validationsFailed > 0 {
                     Label("\(schema.validationsFailed) 失败", systemImage: "xmark")
                         .font(.spareCaption)
@@ -651,7 +651,7 @@ struct OpenClawPluginView: View {
                             .fill(Color(.systemGray5))
                             .frame(height: 6)
                         Capsule()
-                            .fill(rate > 0.95 ? Color.green : (rate > 0.8 ? Color.orange : Color.red))
+                            .fill(rate > 0.95 ? Color.spareYellowInk : (rate > 0.8 ? Color.spareYellowInk : Color.red))
                             .frame(width: geo.size.width * rate, height: 6)
                     }
                 }
@@ -796,11 +796,11 @@ struct AdapterDetailSheet: View {
                     Text(adapter.name)
                         .font(.spareTitle2)
                     Circle()
-                        .fill(adapter.isEnabled ? Color.green : Color.gray)
+                        .fill(adapter.isEnabled ? Color.spareYellowInk : Color.gray)
                         .frame(width: 8, height: 8)
                     Text(adapter.isEnabled ? "运行中" : "已停用")
                         .font(.spareCaption)
-                        .foregroundColor(adapter.isEnabled ? .green : .gray)
+                        .foregroundColor(adapter.isEnabled ? .spareYellowInk : .gray)
                 }
                 Text("最近活跃: ")
                     .font(.spareCaption)
@@ -817,12 +817,12 @@ struct AdapterDetailSheet: View {
 
     private var statsGrid: some View {
         LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: Spacing.md) {
-            statCell(icon: "arrow.down.circle.fill", label: "传入", value: "\(adapter.inboundCount)", color: .blue)
-            statCell(icon: "arrow.up.circle.fill", label: "传出", value: "\(adapter.outboundCount)", color: .purple)
+            statCell(icon: "arrow.down.circle.fill", label: "传入", value: "\(adapter.inboundCount)", color: .spareYellowInk)
+            statCell(icon: "arrow.up.circle.fill", label: "传出", value: "\(adapter.outboundCount)", color: .spareYellowInk)
             statCell(icon: "exclamationmark.triangle.fill", label: "异常", value: "\(adapter.errorCount)",
-                     color: adapter.errorCount > 0 ? .red : .green)
+                     color: adapter.errorCount > 0 ? .red : .spareYellowInk)
             statCell(icon: "percent", label: "成功率",
-                     value: String(format: "%.1f%%", successRate * 100), color: .green)
+                     value: String(format: "%.1f%%", successRate * 100), color: .spareYellowInk)
         }
         .padding(.horizontal, Spacing.lg)
     }

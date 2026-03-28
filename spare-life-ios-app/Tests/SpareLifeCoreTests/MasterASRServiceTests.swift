@@ -17,6 +17,10 @@ final class MasterASRServiceTests: XCTestCase {
         XCTAssertEqual(status.tone, .warning)
         XCTAssertEqual(status.title, "ASR 仍在探测路由")
         XCTAssertTrue(status.detail.contains("POST http://100.82.60.69:17880/v1/audio/transcriptions"))
+        XCTAssertTrue(status.detail.contains("MASTER_ASR_URL / MASTER_ASR_BASE_URL / MASTER_ASR_PATH / MASTER_ASR_METHOD"))
+        XCTAssertTrue(status.detail.contains("masters.asr.url / masters.asr.baseURL / masters.asr.path / masters.asr.method"))
+        XCTAssertTrue(status.detail.contains("endpoint=内建 probe 默认值"))
+        XCTAssertTrue(status.detail.contains("auth=未注入"))
     }
 
     func testMasterASRConfigurationStatusWarnsWhenEndpointExistsButAuthIsMissing() {
@@ -38,6 +42,12 @@ final class MasterASRServiceTests: XCTestCase {
         XCTAssertEqual(status.tone, .warning)
         XCTAssertEqual(status.title, "ASR 鉴权尚未补齐")
         XCTAssertTrue(status.detail.contains("PUT https://asr.example.com/live/speech/transcribe"))
+        XCTAssertTrue(status.detail.contains("MASTER_ASR_AUTH_HEADER / MASTER_ASR_AUTH_SCHEME / MASTER_ASR_API_KEY / MASTER_ASR_AUTH_TOKEN"))
+        XCTAssertTrue(status.detail.contains("masters.asr.authHeader / masters.asr.authScheme / masters.asr.apiKey / masters.asr.authToken"))
+        XCTAssertTrue(status.detail.contains("baseURL=defaults(masters.asr.baseURL)"))
+        XCTAssertTrue(status.detail.contains("path=defaults(masters.asr.path)"))
+        XCTAssertTrue(status.detail.contains("method=defaults(masters.asr.method)"))
+        XCTAssertTrue(status.detail.contains("auth=未注入"))
     }
 
     func testMasterASRConfigurationStatusReportsInjectedLiveCandidateConfiguration() {
@@ -66,6 +76,11 @@ final class MasterASRServiceTests: XCTestCase {
         XCTAssertTrue(status.detail.contains("POST https://asr.example.com/live/speech/transcribe"))
         XCTAssertTrue(status.detail.contains("X-ClawDB-Token"))
         XCTAssertTrue(status.detail.contains("Token"))
+        XCTAssertTrue(status.detail.contains("endpoint=env(MASTER_ASR_URL)"))
+        XCTAssertTrue(status.detail.contains("authHeader=env(MASTER_ASR_AUTH_HEADER)"))
+        XCTAssertTrue(status.detail.contains("authScheme=env(MASTER_ASR_AUTH_SCHEME)"))
+        XCTAssertTrue(status.detail.contains("apiKey=env(MASTER_ASR_API_KEY)"))
+        XCTAssertFalse(status.detail.contains("env-secret"))
     }
 
     func testMasterASRConfigurationReadsCustomMethodAndTokenAliasFromEnvironment() throws {

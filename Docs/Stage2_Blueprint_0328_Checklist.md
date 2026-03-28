@@ -38,6 +38,9 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [x] 拆分：ASR 客户端已支持 `MASTER_ASR_AUTH_HEADER / MASTER_ASR_AUTH_SCHEME / MASTER_ASR_API_KEY / MASTER_ASR_AUTH_TOKEN` 鉴权覆盖，并通过本地单测验证请求头拼装。
 - [x] 拆分：默认 `100.82.60.69:17880` 健康检查已确认是 `clawdb-topics-gateway`，`POST /v1/audio/transcriptions` 当前稳定返回 `405 method_not_allowed`，可排除这条默认路由不是现成可用 ASR 写入口。
 - [x] 拆分：聊天输入区已展示当前 ASR 配置诊断，能明确区分默认 probe 路由、缺少鉴权与已注入 live 候选参数，避免把“可配置客户端”误判为“已接通 ClawDB live ASR”；本地单测已覆盖。
+- [x] 拆分：聊天输入区 ASR 诊断已明确列出 live endpoint 注入键位（`env` + `UserDefaults` 双通道），缺少 host / path / method 时能直接提示下一步该配哪里；本地单测已覆盖。
+- [x] 拆分：聊天输入区 ASR 诊断已明确列出鉴权注入键位（`env` + `UserDefaults` 双通道），缺少 header / scheme / token 时能直接提示下一步该配哪里；本地单测已覆盖。
+- [x] 拆分：ASR 诊断会回显当前配置来源通道（`env` / `defaults` / 内建 probe），且不会泄露明文密钥；本地单测已覆盖。
 - [ ] 拆分：ClawDB ASR 的真实写入 host / path / method 仍未提供，当前还不能把 live 端点写死进客户端。
 - [x] 拆分：当前执行环境确认未注入任何 `MASTER_ASR_*` 环境变量。
 - [ ] 拆分：ClawDB ASR 鉴权 header 名、scheme 与密钥来源仍未提供，live 联调前不能诚实勾选主项。

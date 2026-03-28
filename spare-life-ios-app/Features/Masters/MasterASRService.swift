@@ -67,20 +67,26 @@ struct MasterASRConfiguration: Equatable, Sendable {
         }
     }
 
-    private static func value(
+    private static func resolvedValue(
         environment: [String: String],
         userDefaults: UserDefaults,
         environmentKeys: [String],
         defaultsKeys: [String]
-    ) -> String? {
+    ) -> MasterASRResolvedValue? {
         for key in environmentKeys {
             if let value = environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
-                return value
+                return MasterASRResolvedValue(
+                    value: value,
+                    source: .environment(key)
+                )
             }
         }
         for key in defaultsKeys {
             if let value = userDefaults.string(forKey: key)?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
-                return value
+                return MasterASRResolvedValue(
+                    value: value,
+                    source: .userDefaults(key)
+                )
             }
         }
         return nil
@@ -119,81 +125,81 @@ struct MasterASRConfiguration: Equatable, Sendable {
         environment: [String: String],
         userDefaults: UserDefaults
     ) throws -> MasterASRConfigurationResolution {
-        let rawURL = value(
+        let rawURL = resolvedValue(
             environment: environment,
             userDefaults: userDefaults,
             environmentKeys: ["MASTER_ASR_URL"],
             defaultsKeys: ["masters.asr.url"]
         )
-        let configuredBaseURL = value(
+        let configuredBaseURL = resolvedValue(
             environment: environment,
             userDefaults: userDefaults,
             environmentKeys: ["MASTER_ASR_BASE_URL"],
             defaultsKeys: ["masters.asr.baseURL"]
         )
-        let configuredPath = value(
+        let configuredPath = resolvedValue(
             environment: environment,
             userDefaults: userDefaults,
             environmentKeys: ["MASTER_ASR_PATH"],
             defaultsKeys: ["masters.asr.path"]
         )
-        let configuredMethod = value(
+        let configuredMethod = resolvedValue(
             environment: environment,
             userDefaults: userDefaults,
             environmentKeys: ["MASTER_ASR_METHOD"],
             defaultsKeys: ["masters.asr.method"]
         )
-        let authHeaderName = value(
+        let authHeaderName = resolvedValue(
             environment: environment,
             userDefaults: userDefaults,
             environmentKeys: ["MASTER_ASR_AUTH_HEADER"],
             defaultsKeys: ["masters.asr.authHeader"]
         )
-        let authScheme = value(
+        let authScheme = resolvedValue(
             environment: environment,
             userDefaults: userDefaults,
             environmentKeys: ["MASTER_ASR_AUTH_SCHEME"],
             defaultsKeys: ["masters.asr.authScheme"]
         )
-        let apiKey = value(
+        let apiKey = resolvedValue(
             environment: environment,
             userDefaults: userDefaults,
             environmentKeys: ["MASTER_ASR_API_KEY", "MASTER_ASR_AUTH_TOKEN"],
             defaultsKeys: ["masters.asr.apiKey", "masters.asr.authToken"]
         )
-        let model = value(
+        let model = resolvedValue(
             environment: environment,
             userDefaults: userDefaults,
             environmentKeys: ["MASTER_ASR_MODEL"],
             defaultsKeys: ["masters.asr.model"]
-        ) ?? "whisper-1"
-        let language = value(
+        )?.value ?? "whisper-1"
+        let language = resolvedValue(
             environment: environment,
             userDefaults: userDefaults,
             environmentKeys: ["MASTER_ASR_LANGUAGE"],
             defaultsKeys: ["masters.asr.language"]
-        )
-        let responseFormat = value(
+        )?.value
+        let responseFormat = resolvedValue(
             environment: environment,
             userDefaults: userDefaults,
             environmentKeys: ["MASTER_ASR_RESPONSE_FORMAT"],
             defaultsKeys: ["masters.asr.responseFormat"]
-        )
+        )?.value
 
-        let baseURL = configuredBaseURL ?? MasterASRConfigurationResolution.defaultBaseURL
-        let path = configuredPath ?? MasterASRConfigurationResolution.defaultPath
-        guard let url = normalizedURL(rawURL: rawURL, baseURL: baseURL, path: path) else {
+        let baseURL = configuredBaseURL?.value ?? MasterASRConfigurationResolution.defaultBaseURL
+        let path = configuredPath?.value ?? MasterASRConfigurationResolution.defaultPath
+        guard let url = normalizedURL(rawURL: rawURL?.value, baseURL: baseURL, path: path) else {
             throw MasterASRServiceError.invalidBaseURL
         }
 
         let configuration = MasterASRConfiguration(
             url: url,
-            method: (configuredMethod ?? MasterASRConfigurationResolution.defaultMethod)
+            method: (configuredMethod?.value ?? MasterASRConfigurationResolution.defaultMethod)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .uppercased(),
-            authHeaderName: authHeaderName,
-            authScheme: authScheme,
-            apiKey: apiKey,
+            authHeaderName: authHeaderName?.value,
+            authScheme: authScheme?.value,
+            apiKey: apiKey?.value,
             model: model.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty,
             language: language?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty,
             responseFormat: responseFormat?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
@@ -202,8 +208,15 @@ struct MasterASRConfiguration: Equatable, Sendable {
         return MasterASRConfigurationResolution(
             configuration: configuration,
             hasExplicitEndpointOverride: rawURL != nil || configuredBaseURL != nil || configuredPath != nil || configuredMethod != nil,
-            hasAuthHeader: authHeaderName?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil,
-            hasAPIKey: apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil
+            hasAuthHeader: authHeaderName?.value.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil,
+            hasAPIKey: apiKey?.value.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil,
+            rawURLSource: rawURL?.source,
+            baseURLSource: configuredBaseURL?.source,
+            pathSource: configuredPath?.source,
+            methodSource: configuredMethod?.source,
+            authHeaderSource: authHeaderName?.source,
+            authSchemeSource: authScheme?.source,
+            apiKeySource: apiKey?.source
         )
     }
 }
@@ -223,18 +236,29 @@ private struct MasterASRConfigurationResolution: Equatable, Sendable {
     static let defaultBaseURL = "http://100.82.60.69:17880"
     static let defaultPath = "/v1/audio/transcriptions"
     static let defaultMethod = "POST"
+    static let endpointEnvironmentKeys = ["MASTER_ASR_URL", "MASTER_ASR_BASE_URL", "MASTER_ASR_PATH", "MASTER_ASR_METHOD"]
+    static let endpointDefaultsKeys = ["masters.asr.url", "masters.asr.baseURL", "masters.asr.path", "masters.asr.method"]
+    static let authEnvironmentKeys = ["MASTER_ASR_AUTH_HEADER", "MASTER_ASR_AUTH_SCHEME", "MASTER_ASR_API_KEY", "MASTER_ASR_AUTH_TOKEN"]
+    static let authDefaultsKeys = ["masters.asr.authHeader", "masters.asr.authScheme", "masters.asr.apiKey", "masters.asr.authToken"]
 
     let configuration: MasterASRConfiguration
     let hasExplicitEndpointOverride: Bool
     let hasAuthHeader: Bool
     let hasAPIKey: Bool
+    let rawURLSource: MasterASRConfigSource?
+    let baseURLSource: MasterASRConfigSource?
+    let pathSource: MasterASRConfigSource?
+    let methodSource: MasterASRConfigSource?
+    let authHeaderSource: MasterASRConfigSource?
+    let authSchemeSource: MasterASRConfigSource?
+    let apiKeySource: MasterASRConfigSource?
 
     var status: MasterASRConnectionStatus {
         if usesDefaultProbeRoute {
             return MasterASRConnectionStatus(
                 tone: .warning,
                 title: "ASR 仍在探测路由",
-                detail: "当前仍会请求 \(endpointSummary)。仓内还没有 ClawDB live 的 host / path / method，语音输入暂时只能继续验证探测入口。"
+                detail: "当前仍会请求 \(endpointSummary)。仓内还没有 ClawDB live 的 host / path / method。\(endpointInjectionGuidance) 来源：\(sourceAuditSummary)."
             )
         }
 
@@ -242,7 +266,7 @@ private struct MasterASRConfigurationResolution: Equatable, Sendable {
             return MasterASRConnectionStatus(
                 tone: .warning,
                 title: "ASR live 端点未注入",
-                detail: "当前没有拿到 `MASTER_ASR_URL / MASTER_ASR_BASE_URL / MASTER_ASR_PATH / MASTER_ASR_METHOD` 的覆盖配置，不能把客户端当成已接通 ClawDB live ASR。"
+                detail: "当前没有拿到 live 端点覆盖配置，不能把客户端当成已接通 ClawDB live ASR。\(endpointInjectionGuidance) 来源：\(sourceAuditSummary)."
             )
         }
 
@@ -250,14 +274,14 @@ private struct MasterASRConfigurationResolution: Equatable, Sendable {
             return MasterASRConnectionStatus(
                 tone: .warning,
                 title: "ASR 鉴权尚未补齐",
-                detail: "当前会请求 \(endpointSummary)，但还缺少可发送的鉴权头或密钥。ClawDB live 联调前不能诚实勾选 ASR 主项。"
+                detail: "当前会请求 \(endpointSummary)，但还缺少可发送的鉴权头或密钥。\(authInjectionGuidance) 来源：\(sourceAuditSummary)。ClawDB live 联调前不能诚实勾选 ASR 主项。"
             )
         }
 
         return MasterASRConnectionStatus(
             tone: .ready,
             title: "ASR live 候选配置已注入",
-            detail: "当前会请求 \(endpointSummary)，并携带 \(authHeaderSummary)。客户端已具备 live 联调接缝，但端点是否可用仍需真实服务验证。"
+            detail: "当前会请求 \(endpointSummary)，并携带 \(authHeaderSummary)。来源：\(sourceAuditSummary)。客户端已具备 live 联调接缝，但端点是否可用仍需真实服务验证。"
         )
     }
 
@@ -283,6 +307,78 @@ private struct MasterASRConfigurationResolution: Equatable, Sendable {
             return "\(headerName) 头"
         }
         return "\(headerName) 头（scheme: \(scheme)）"
+    }
+
+    private var endpointInjectionGuidance: String {
+        "可通过 env(\(Self.endpointEnvironmentKeys.joined(separator: " / "))) 或 defaults(\(Self.endpointDefaultsKeys.joined(separator: " / "))) 注入"
+    }
+
+    private var authInjectionGuidance: String {
+        "可通过 env(\(Self.authEnvironmentKeys.joined(separator: " / "))) 或 defaults(\(Self.authDefaultsKeys.joined(separator: " / "))) 注入"
+    }
+
+    private var sourceAuditSummary: String {
+        [
+            endpointSourceSummary,
+            authSourceSummary
+        ].joined(separator: "；")
+    }
+
+    private var endpointSourceSummary: String {
+        if let rawURLSource {
+            return "endpoint=\(rawURLSource.summary)"
+        }
+
+        let parts = [
+            sourceComponent(label: "baseURL", source: baseURLSource),
+            sourceComponent(label: "path", source: pathSource),
+            sourceComponent(label: "method", source: methodSource)
+        ].compactMap { $0 }
+
+        if parts.isEmpty {
+            return "endpoint=内建 probe 默认值"
+        }
+        return "endpoint=" + parts.joined(separator: "，")
+    }
+
+    private var authSourceSummary: String {
+        let parts = [
+            sourceComponent(label: "authHeader", source: authHeaderSource),
+            sourceComponent(label: "authScheme", source: authSchemeSource),
+            sourceComponent(label: "apiKey", source: apiKeySource)
+        ].compactMap { $0 }
+
+        if parts.isEmpty {
+            return "auth=未注入"
+        }
+        return "auth=" + parts.joined(separator: "，")
+    }
+
+    private func sourceComponent(
+        label: String,
+        source: MasterASRConfigSource?
+    ) -> String? {
+        guard let source else { return nil }
+        return "\(label)=\(source.summary)"
+    }
+}
+
+private struct MasterASRResolvedValue: Equatable, Sendable {
+    let value: String
+    let source: MasterASRConfigSource
+}
+
+private enum MasterASRConfigSource: Equatable, Sendable {
+    case environment(String)
+    case userDefaults(String)
+
+    var summary: String {
+        switch self {
+        case .environment(let key):
+            return "env(\(key))"
+        case .userDefaults(let key):
+            return "defaults(\(key))"
+        }
     }
 }
 

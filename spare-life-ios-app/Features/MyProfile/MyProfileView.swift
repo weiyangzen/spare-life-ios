@@ -55,11 +55,23 @@ final class MyProfileStore: ObservableObject {
     @Published var editingProfile = false
     @Published var editingAvatar = false
     @Published var shareSheetActive = false
+    @Published private(set) var xianrenLoadState: MyProfileXianrenLoadState = .idle
+    @Published private(set) var masterStats: MyProfileMasterStats = .empty
+    @Published private(set) var earnSocialStats: MyProfileEarnSocialStats = .mock
+    @Published private(set) var messageStats: MyProfileMessageStats = .mock
+
+    private let xianrenStatsRepository = MyProfileXianrenStatsRepository()
+    private let masterStatsProvider = MyProfileMasterStatsProvider()
 
     func load() {
         guard case .idle = loadState else { return }
         loadState = .loading
+        masterStats = masterStatsProvider.load()
+        earnSocialStats = .mock
+        messageStats = .mock
+        xianrenLoadState = .loading
         Task {
+            async let xianrenRefresh: Void = refreshXianrenStats()
             try? await Task.sleep(nanoseconds: 600_000_000)
             profile = UserProfile(
                 displayName: "陈一帆",
@@ -79,12 +91,27 @@ final class MyProfileStore: ObservableObject {
                 visibleFields: [.name, .bio, .personality, .syncScore]
             )
             loadState = .loaded
+            await xianrenRefresh
         }
     }
 
     func reload() {
         loadState = .idle
         load()
+    }
+
+    private func refreshXianrenStats() async {
+        do {
+            let stats = try await xianrenStatsRepository.loadLiveStats()
+            xianrenLoadState = .live(stats)
+        } catch {
+            let message = error.xianxiaUserFacingMessage
+            if let cachedStats = await xianrenStatsRepository.loadCachedStats() {
+                xianrenLoadState = .cached(cachedStats, message: message)
+            } else {
+                xianrenLoadState = .failure(message)
+            }
+        }
     }
 }
 
@@ -127,27 +154,32 @@ private struct ProfileScrollView: View {
     let profile: UserProfile
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 0) {
-                ProfileHeroSection(store: store, profile: profile)
-                    .padding(.bottom, Spacing.lg)
+        GeometryReader { proxy in
+            let layout = MyProfileDashboardLayout.shared(for: proxy.size.width)
 
-                VStack(spacing: Spacing.md) {
-                    statsRow
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    ProfileHeroSection(store: store, profile: profile)
+                        .padding(.bottom, Spacing.lg)
 
-                    if let avatar = store.avatarProfile {
-                        AvatarPublicProfileCard(avatar: avatar) {
-                            store.editingAvatar = true
+                    VStack(spacing: Spacing.md) {
+                        statsRow(layout: layout)
+                        overviewSection(layout: layout)
+
+                        if let avatar = store.avatarProfile {
+                            AvatarPublicProfileCard(avatar: avatar) {
+                                store.editingAvatar = true
+                            }
                         }
+
+                        // Feature card grid: SyncScore / Personality / Memory / Privacy
+                        featureCardGrid(layout: layout)
+
+                        actionButtons
                     }
-
-                    // Feature card grid: SyncScore / Personality / Memory / Privacy
-                    featureCardGrid
-
-                    actionButtons
+                    .padding(.horizontal, layout.horizontalPadding)
+                    .padding(.bottom, Spacing.xxxl + 32)
                 }
-                .padding(.horizontal, Spacing.lg)
-                .padding(.bottom, Spacing.xxxl + 32)
             }
         }
         .refreshable { store.reload() }
@@ -165,54 +197,62 @@ private struct ProfileScrollView: View {
         }
     }
 
-    private var statsRow: some View {
-        HStack(spacing: Spacing.md) {
+    private func statsRow(layout: MyProfileDashboardLayout) -> some View {
+        LazyVGrid(columns: layout.gridItems, alignment: .leading, spacing: layout.cardSpacing) {
             ProfileStatCard(
                 icon: "bolt.circle.fill",
                 iconColor: .spareYellow,
                 value: "\(profile.energyBalance)",
-                label: "闲能"
+                label: "闲能",
+                minimumHeight: layout.minimumCardHeight
             )
             ProfileStatCard(
                 icon: "person.2.fill",
                 iconColor: .blue,
                 value: "\(profile.socialScore)",
-                label: "社交分"
+                label: "社交分",
+                minimumHeight: layout.minimumCardHeight
             )
             ProfileStatCard(
                 icon: "calendar",
                 iconColor: .secondary,
                 value: daysSince(profile.joinedDate),
-                label: "入驻天"
+                label: "入驻天",
+                minimumHeight: layout.minimumCardHeight
             )
         }
     }
 
+    private func overviewSection(layout: MyProfileDashboardLayout) -> some View {
+        ProfileOverviewSection(
+            layout: layout,
+            xianrenLoadState: store.xianrenLoadState,
+            masterStats: store.masterStats,
+            earnSocialStats: store.earnSocialStats,
+            messageStats: store.messageStats
+        )
+    }
+
     // MARK: - Feature Card Grid (同步度卡 / 人格卡 / 记忆卡 / 隐私卡)
 
-    private var featureCardGrid: some View {
+    private func featureCardGrid(layout: MyProfileDashboardLayout) -> some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             Text("我的功能")
                 .font(.spareTitle3)
                 .padding(.top, Spacing.xs)
 
-            // 2-column grid
-            HStack(alignment: .top, spacing: Spacing.md) {
-                VStack(spacing: Spacing.md) {
-                    syncScoreCard
-                    memoryCard
-                }
-                VStack(spacing: Spacing.md) {
-                    personalityCard
-                    privacyCard
-                }
+            LazyVGrid(columns: layout.gridItems, alignment: .leading, spacing: layout.cardSpacing) {
+                syncScoreCard(minimumHeight: layout.minimumCardHeight)
+                personalityCard(minimumHeight: layout.minimumCardHeight)
+                memoryCard(minimumHeight: layout.minimumCardHeight)
+                privacyCard(minimumHeight: layout.minimumCardHeight)
             }
         }
     }
 
     // MARK: Sync Score Card (同步度卡)
 
-    private var syncScoreCard: some View {
+    private func syncScoreCard(minimumHeight: CGFloat) -> some View {
         NavigationLink(destination: SyncScoreDashboardView()) {
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 HStack(spacing: Spacing.xs) {
@@ -252,16 +292,14 @@ private struct ProfileScrollView: View {
                     .lineLimit(1)
             }
             .padding(Spacing.md)
-            .background(Color.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
-            .cardShadow()
+            .myProfileStage2CardChrome(minimumHeight: minimumHeight)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CardPressStyle())
     }
 
     // MARK: Personality Card (人格卡)
 
-    private var personalityCard: some View {
+    private func personalityCard(minimumHeight: CGFloat) -> some View {
         NavigationLink(destination: AwakeningPersonalityView()) {
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 HStack(spacing: Spacing.xs) {
@@ -300,16 +338,14 @@ private struct ProfileScrollView: View {
                     .foregroundColor(.secondary)
             }
             .padding(Spacing.md)
-            .background(Color.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
-            .cardShadow()
+            .myProfileStage2CardChrome(minimumHeight: minimumHeight)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CardPressStyle())
     }
 
     // MARK: Memory Card (记忆卡)
 
-    private var memoryCard: some View {
+    private func memoryCard(minimumHeight: CGFloat) -> some View {
         NavigationLink(destination: MemoryPalaceView()) {
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 HStack(spacing: Spacing.xs) {
@@ -341,11 +377,9 @@ private struct ProfileScrollView: View {
                 }
             }
             .padding(Spacing.md)
-            .background(Color.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
-            .cardShadow()
+            .myProfileStage2CardChrome(minimumHeight: minimumHeight)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CardPressStyle())
     }
 
     private func memoryBar(label: String, fraction: CGFloat, color: Color) -> some View {
@@ -366,7 +400,7 @@ private struct ProfileScrollView: View {
 
     // MARK: Privacy Card (隐私卡)
 
-    private var privacyCard: some View {
+    private func privacyCard(minimumHeight: CGFloat) -> some View {
         NavigationLink(destination: PrivacyLocalBackendView()) {
             VStack(alignment: .leading, spacing: Spacing.sm) {
                 HStack(spacing: Spacing.xs) {
@@ -414,11 +448,9 @@ private struct ProfileScrollView: View {
                     .foregroundColor(.secondary)
             }
             .padding(Spacing.md)
-            .background(Color.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
-            .cardShadow()
+            .myProfileStage2CardChrome(minimumHeight: minimumHeight)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CardPressStyle())
     }
 
     // MARK: - Action Buttons
@@ -528,6 +560,7 @@ private struct ProfileStatCard: View {
     let iconColor: Color
     let value: String
     let label: String
+    let minimumHeight: CGFloat
 
     var body: some View {
         VStack(spacing: Spacing.xs) {
@@ -540,10 +573,309 @@ private struct ProfileStatCard: View {
                 .font(.spareMicro)
                 .foregroundColor(.secondary)
         }
-        .frame(maxWidth: .infinity)
+        .padding(.horizontal, Spacing.md)
         .padding(.vertical, Spacing.lg)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: CornerRadius.md))
-        .cardShadow()
+        .myProfileStage2CardChrome(minimumHeight: minimumHeight)
+    }
+}
+
+// MARK: - Stage 2 Overview
+
+private struct ProfileOverviewSection: View {
+    let layout: MyProfileDashboardLayout
+    let xianrenLoadState: MyProfileXianrenLoadState
+    let masterStats: MyProfileMasterStats
+    let earnSocialStats: MyProfileEarnSocialStats
+    let messageStats: MyProfileMessageStats
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            Text("总览")
+                .font(.spareTitle3)
+                .padding(.top, Spacing.xs)
+
+            LazyVGrid(columns: layout.gridItems, alignment: .leading, spacing: layout.cardSpacing) {
+                xianrenCard
+                xianliaoCard
+                earnSocialCard
+                messageCard
+            }
+        }
+    }
+
+    private var xianrenCard: some View {
+        ProfileOverviewCard(
+            title: "闲人",
+            icon: "person.3.sequence.fill",
+            accentColor: .blue,
+            minimumHeight: layout.minimumCardHeight,
+            footer: xianrenFooter
+        ) {
+            switch xianrenLoadState {
+            case .idle, .loading:
+                ProfileOverviewLoadingState(text: "正在拉取 ClawDB topics…")
+            case .live(let stats):
+                ProfileOverviewMetricGrid(metrics: [
+                    .init(value: stats.channelCount.formatted(), label: "渠道数"),
+                    .init(value: stats.topicCount.formatted(), label: "话题数"),
+                    .init(value: stats.uniqueIDCount.formatted(), label: "独立 ID"),
+                    .init(value: stats.mentionCount.formatted(), label: "被 Mention")
+                ])
+            case .cached(let stats, _):
+                ProfileOverviewMetricGrid(metrics: [
+                    .init(value: stats.channelCount.formatted(), label: "渠道数"),
+                    .init(value: stats.topicCount.formatted(), label: "话题数"),
+                    .init(value: stats.uniqueIDCount.formatted(), label: "独立 ID"),
+                    .init(value: stats.mentionCount.formatted(), label: "被 Mention")
+                ])
+            case .failure(let message):
+                ProfileOverviewMessageState(icon: "wifi.exclamationmark", text: message)
+            }
+        }
+    }
+
+    private var xianliaoCard: some View {
+        ProfileOverviewCard(
+            title: "闲聊",
+            icon: "bubble.left.and.bubble.right.fill",
+            accentColor: .orange,
+            minimumHeight: layout.minimumCardHeight,
+            footer: xianliaoFooter
+        ) {
+            ProfileOverviewMetricGrid(metrics: [
+                .init(value: masterStats.masterCount.formatted(), label: "交互人数"),
+                .init(value: masterStats.interactionCount.formatted(), label: "交互次数")
+            ])
+        }
+    }
+
+    private var earnSocialCard: some View {
+        ProfileOverviewCard(
+            title: "赚闲能",
+            icon: "sparkles.rectangle.stack.fill",
+            accentColor: .green,
+            minimumHeight: layout.minimumCardHeight,
+            footer: "当前批次允许 mock，先承接人数、次数和个人风格描述。"
+        ) {
+            VStack(alignment: .leading, spacing: Spacing.sm) {
+                ProfileOverviewMetricGrid(metrics: [
+                    .init(value: earnSocialStats.participantCount.formatted(), label: "交互人数"),
+                    .init(value: earnSocialStats.interactionCount.formatted(), label: "交互次数")
+                ])
+
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text("个人赚能风格")
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+                    Text(earnSocialStats.styleDescription)
+                        .font(.spareCaption)
+                        .foregroundColor(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(Spacing.sm)
+                .background(
+                    Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: CornerRadius.sm)
+                )
+            }
+        }
+    }
+
+    private var messageCard: some View {
+        ProfileOverviewCard(
+            title: "消息",
+            icon: "message.fill",
+            accentColor: .purple,
+            minimumHeight: layout.minimumCardHeight,
+            footer: "当前批次允许 mock，先承接真人 / 分身互动统计。"
+        ) {
+            ProfileOverviewMetricGrid(metrics: [
+                .init(value: messageStats.selfHumanInteractionCount.formatted(), label: "本人真人互动"),
+                .init(value: messageStats.selfAvatarOutboundCount.formatted(), label: "本人分身对外"),
+                .init(value: messageStats.outboundHumanInteractionCount.formatted(), label: "对外真人互动"),
+                .init(value: messageStats.avatarToAvatarInteractionCount.formatted(), label: "对外分身互聊")
+            ])
+        }
+    }
+
+    private var xianrenFooter: String {
+        switch xianrenLoadState {
+        case .idle, .loading:
+            return "实时读取 ClawDB topics，并基于 topicPath / summary 聚合指标。"
+        case .live(let stats):
+            if let updated = relativeTimeLabel(for: stats.latestTopicAt) {
+                return "实时读取 ClawDB topics · \(updated)"
+            }
+            return "实时读取 ClawDB topics。"
+        case .cached(let stats, let message):
+            if let updated = relativeTimeLabel(for: stats.latestTopicAt) {
+                return "ClawDB 拉取失败，已回退缓存 · \(updated) · \(message)"
+            }
+            return "ClawDB 拉取失败，已回退缓存 · \(message)"
+        case .failure(let message):
+            return message
+        }
+    }
+
+    private var xianliaoFooter: String {
+        guard masterStats.masterCount > 0 || masterStats.interactionCount > 0 else {
+            return "来自本地大师会话归档，当前还没有历史交互。"
+        }
+
+        if let updated = relativeTimeLabel(for: masterStats.latestInteractionAt) {
+            return "来自本地大师会话归档 · \(updated)"
+        }
+        return "来自本地大师会话归档。"
+    }
+
+    private func relativeTimeLabel(for date: Date?) -> String? {
+        guard let date else { return nil }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return "最近更新 \(formatter.localizedString(for: date, relativeTo: Date()))"
+    }
+}
+
+private struct ProfileOverviewCard<Content: View>: View {
+    let title: String
+    let icon: String
+    let accentColor: Color
+    let minimumHeight: CGFloat
+    let footer: String?
+    private let content: () -> Content
+
+    init(
+        title: String,
+        icon: String,
+        accentColor: Color,
+        minimumHeight: CGFloat,
+        footer: String? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.icon = icon
+        self.accentColor = accentColor
+        self.minimumHeight = minimumHeight
+        self.footer = footer
+        self.content = content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            HStack(spacing: Spacing.xs) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(accentColor)
+                Text(title)
+                    .font(.spareCaptionSB)
+                Spacer()
+            }
+
+            content()
+
+            if let footer, !footer.isEmpty {
+                Text(footer)
+                    .font(.spareMicro)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(Spacing.md)
+        .myProfileStage2CardChrome(minimumHeight: minimumHeight)
+    }
+}
+
+private struct ProfileOverviewMetricGrid: View {
+    let metrics: [ProfileOverviewMetric]
+
+    private let columns = [
+        GridItem(.flexible(), spacing: Spacing.sm),
+        GridItem(.flexible(), spacing: Spacing.sm)
+    ]
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: Spacing.sm) {
+            ForEach(metrics) { metric in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(metric.value)
+                        .font(.spareTitle3)
+                        .foregroundColor(.primary)
+                    Text(metric.label)
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, Spacing.sm)
+                .padding(.horizontal, Spacing.sm)
+                .background(
+                    Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: CornerRadius.sm)
+                )
+            }
+        }
+    }
+}
+
+private struct MyProfileStage2CardModifier: ViewModifier {
+    let minimumHeight: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .frame(maxWidth: .infinity, minHeight: minimumHeight, alignment: .topLeading)
+            .background(Color.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.md))
+            .overlay(
+                RoundedRectangle(cornerRadius: CornerRadius.md)
+                    .stroke(Color.cardStroke, lineWidth: 0.5)
+            )
+            .cardShadow()
+    }
+}
+
+private extension View {
+    func myProfileStage2CardChrome(minimumHeight: CGFloat) -> some View {
+        modifier(MyProfileStage2CardModifier(minimumHeight: minimumHeight))
+    }
+}
+
+private struct ProfileOverviewMetric: Identifiable {
+    let value: String
+    let label: String
+
+    var id: String { label }
+}
+
+private struct ProfileOverviewLoadingState: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: Spacing.sm) {
+            ProgressView()
+                .controlSize(.small)
+            Text(text)
+                .font(.spareCaption)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, Spacing.md)
+    }
+}
+
+private struct ProfileOverviewMessageState: View {
+    let icon: String
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Spacing.sm) {
+            Image(systemName: icon)
+                .foregroundColor(.secondary)
+            Text(text)
+                .font(.spareCaption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

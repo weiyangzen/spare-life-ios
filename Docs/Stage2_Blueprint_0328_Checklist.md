@@ -47,13 +47,15 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [x] 拆分：ClawDB ASR 鉴权 header 名、scheme 与密钥来源仍未提供，live 联调前不能诚实勾选主项。
 - [x] 拆分：已复核 `Docs/Stage2_Blueprint*`、`MasterASRService.swift`、`MasterASRServiceTests.swift` 与当前执行环境，仍未发现可直接用于 live 联调的 `MASTER_ASR_AUTH_HEADER / MASTER_ASR_AUTH_SCHEME / MASTER_ASR_API_KEY / MASTER_ASR_AUTH_TOKEN` 实值或来源说明。
 - [x] 拆分：已补充 `MASTER_ASR_LIVE_SMOKE=1` + `MASTER_ASR_SMOKE_AUDIO_FILE` 驱动的 ASR live smoke test；拿到真实端点与鉴权后，可直接对候选配置发起一次真实转写验证，默认无配置时会跳过。
-- [x] 拆分：2026-03-28 当前执行环境直连 `100.82.60.69:17880` 超时，`/health`、topics 与 `/v1/audio/transcriptions` probe 均未返回，无法从这台机器完成 ClawDB ASR live smoke。
+- [x] 拆分：2026-03-28 当前执行环境直连 `100.82.60.69:17880` 时，`GET /health` 已恢复并返回 `clawdb-topics-gateway`，但 `POST /v1/audio/transcriptions` 仍稳定返回 `{"ok":false,"error":"method_not_allowed"}`；因此仍无法把 ClawDB ASR live 写入口诚实勾选为已接通。
 - [x] 拆分：已复核 `spare-life-ios-preview-host` 与相关工程配置，当前预览宿主仍缺少 `NSMicrophoneUsageDescription`；端到端录音联调暂不能诚实勾选，且宿主 plist 不在本 lane 内。
 - [x] 大师闲聊请求携带全量 context，而不是只带最后一轮浅上下文。
 - [ ] 大师闲聊推理路径切到提供的 `k2p5` 模型与对应后端请求逻辑。
 - [x] 拆分：大师对话服务已支持 OpenAI-compatible `chat/completions` 请求体与 `k2p5` 默认模型配置。
 - [x] 拆分：大师对话服务现已优先读取 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY / MASTER_CHAT_MODEL`（`baseURL` 同时支持 `defaults(masters.chat.baseURL)`），并通过本地单测验证 `/v1/chat/completions` 请求体、`k2p5` 默认模型与全量 context 发送。
-- [x] 拆分：2026-03-28 当前执行环境仍未提供 `MASTER_CHAT_BASE_URL` / `MASTER_CHAT_API_KEY` 的 live `k2p5` 配置；shell 仅见 legacy `ANTHROPIC_*`，`http://24.199.97.185:8080/v1/models` 只枚举 Claude 系列，`model=k2p5` probe 也未返回可用 live 通路。
+- [x] 拆分：2026-03-28 当前执行环境仍未提供 `MASTER_CHAT_BASE_URL` / `MASTER_CHAT_API_KEY` 的 Stage 2 live `k2p5` 配置；shell 仅见 legacy `ANTHROPIC_*`，带鉴权请求 `http://24.199.97.185:8080/v1/models` 仍只枚举 Claude 系列。
+- [x] 拆分：已补充 `MASTER_CHAT_LIVE_SMOKE=1` 驱动的 `MasterExperienceStore` 一对一聊天 smoke test，直接覆盖 `openConversation -> sendMessage -> k2p5` 实际发送链路；拿到 live `MASTER_CHAT_*` 配置后可直接复跑。
+- [x] 拆分：2026-03-28 以当前 shell 的 `ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN` 临时映射到 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY` 执行上述 smoke 时，首轮即返回 `503 No available accounts: no available accounts`；因此基于 live `k2p5` 端点的一对一聊天自动化验证主项仍不能诚实勾选。
 - [ ] 拆分：基于 live `k2p5` 端点的一对一聊天自动化验证仍未完成，主项暂不勾。
 - [ ] 大师回复必须符合上下文和角色设定，像“小说场景中的角色台词”，而不是通用助手口吻。
 - [ ] 闲聊页面完成当前 8 位大师卡片与至少 1 条真实对话链路的本机验证。

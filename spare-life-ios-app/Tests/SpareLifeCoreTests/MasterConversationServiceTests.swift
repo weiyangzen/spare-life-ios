@@ -93,6 +93,99 @@ final class MasterConversationServiceTests: XCTestCase {
         XCTAssertEqual(result.text, "第一句\n\n第二句")
     }
 
+    @MainActor
+    func testMasterExperienceStoreLiveSmokeRunsWhenExplicitlyEnabled() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["MASTER_CHAT_LIVE_SMOKE"] == "1" else {
+            throw XCTSkip("Set MASTER_CHAT_LIVE_SMOKE=1 to run the live k2p5 one-to-one smoke test.")
+        }
+
+        let suiteName = "master-chat-live-smoke-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated user defaults suite")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let configuration = try MasterChatConfiguration.current(
+            environment: environment,
+            userDefaults: defaults,
+            keychainAPIKey: { nil },
+            persistAPIKey: { _ in false }
+        )
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("master-live-chat-tests-\(UUID().uuidString)", isDirectory: true)
+        let archiveURL = tempDirectory.appendingPathComponent("master-conversations.json", isDirectory: false)
+        defer {
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        let service = K2P5MasterConversationService(configuration: configuration) { request in
+            try await URLSession.shared.data(for: request)
+        }
+        let store = MasterExperienceStore(
+            catalogLoader: { try MasterCatalogLoader.load() },
+            conversationService: service,
+            localStateStore: MasterConversationLocalStateStore(archiveURL: archiveURL)
+        )
+
+        await store.refreshCatalog()
+
+        let targetMasterID = environment["MASTER_CHAT_SMOKE_MASTER_ID"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let profile = try XCTUnwrap(
+            targetMasterID.flatMap(store.master(withID:)) ?? store.visibleDirectoryMasters.first
+        )
+        let firstPrompt = requiredLiveSmokeValue(
+            for: "MASTER_CHAT_SMOKE_FIRST_PROMPT",
+            environment: environment,
+            fallback: "我准备在三个月内从内容运营转到 AI 产品，但现金流很紧。你先别安慰我，直接判断我现在最该收缩还是推进。"
+        )
+        let secondPrompt = requiredLiveSmokeValue(
+            for: "MASTER_CHAT_SMOKE_SECOND_PROMPT",
+            environment: environment,
+            fallback: "如果只能做一个今天就能开始、七天内有反馈的动作，你会让我先做什么？"
+        )
+
+        store.openConversation(for: profile)
+        let initialCount = try XCTUnwrap(store.conversation?.messages.count)
+
+        await store.sendMessage(firstPrompt)
+        let firstConversation = try XCTUnwrap(store.conversation)
+        guard firstConversation.serviceStatus.isLiveRemote else {
+            throw XCTSkip("Live k2p5 smoke blocked on first turn: \(firstConversation.serviceStatus.detail)")
+        }
+        XCTAssertGreaterThanOrEqual(firstConversation.messages.count, initialCount + 2)
+        XCTAssertEqual(firstConversation.messages[firstConversation.messages.count - 2].text, firstPrompt)
+        XCTAssertEqual(firstConversation.messages.last?.role, .assistant)
+        XCTAssertFalse(
+            firstConversation.messages.last?.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
+        )
+
+        await store.sendMessage(secondPrompt)
+        let secondConversation = try XCTUnwrap(store.conversation)
+        guard secondConversation.serviceStatus.isLiveRemote else {
+            throw XCTSkip("Live k2p5 smoke blocked on follow-up: \(secondConversation.serviceStatus.detail)")
+        }
+        XCTAssertGreaterThanOrEqual(secondConversation.messages.count, initialCount + 4)
+        XCTAssertEqual(secondConversation.messages[secondConversation.messages.count - 2].text, secondPrompt)
+        XCTAssertEqual(secondConversation.messages.last?.role, .assistant)
+        XCTAssertFalse(
+            secondConversation.messages.last?.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
+        )
+
+        if let expectedSubstring = environment["MASTER_CHAT_SMOKE_EXPECT_SUBSTRING"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !expectedSubstring.isEmpty {
+            XCTAssertTrue(
+                secondConversation.messages.last?.text.localizedCaseInsensitiveContains(expectedSubstring) == true,
+                "Expected reply to contain '\(expectedSubstring)', got '\(secondConversation.messages.last?.text ?? "")'"
+            )
+        }
+    }
+
     private func makeRequest(messagePairCount: Int) throws -> MasterConversationRequest {
         let snapshot = try MasterCatalogLoader.load()
         let profile = try XCTUnwrap(snapshot.masters.first)
@@ -130,6 +223,19 @@ final class MasterConversationServiceTests: XCTestCase {
             relevantStories: Array(profile.stories.prefix(1)),
             recentMessages: messages
         )
+    }
+
+    private func requiredLiveSmokeValue(
+        for key: String,
+        environment: [String: String],
+        fallback: String
+    ) -> String {
+        guard let value = environment[key]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !value.isEmpty else {
+            return fallback
+        }
+        return value
     }
 }
 

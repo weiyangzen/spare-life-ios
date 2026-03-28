@@ -53,6 +53,7 @@ Workers may update only their owned section and the guard will refresh this mirr
 - [ ] 大师闲聊推理路径切到提供的 `k2p5` 模型与对应后端请求逻辑。
 - [x] 拆分：大师对话服务已支持 OpenAI-compatible `chat/completions` 请求体与 `k2p5` 默认模型配置。
 - [x] 拆分：大师对话服务现已优先读取 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY / MASTER_CHAT_MODEL`（`baseURL` 同时支持 `defaults(masters.chat.baseURL)`），并通过本地单测验证 `/v1/chat/completions` 请求体、`k2p5` 默认模型与全量 context 发送。
+- [x] 拆分：已补充本地 `MasterExperienceStore` 集成测试，覆盖 8 张大师卡装载、进入一对一、经 `K2P5MasterConversationService` 连续发送两轮消息、落盘后 `restoreSession` 恢复，以及恢复后继续携带完整历史 context 发送；本地单测已覆盖。
 - [x] 拆分：2026-03-28 当前执行环境仍未提供 `MASTER_CHAT_BASE_URL` / `MASTER_CHAT_API_KEY` 的 Stage 2 live `k2p5` 配置；shell 仅见 legacy `ANTHROPIC_*`，带鉴权请求 `http://24.199.97.185:8080/v1/models` 仍只枚举 Claude 系列。
 - [x] 拆分：已补充 `MASTER_CHAT_LIVE_SMOKE=1` 驱动的 `MasterExperienceStore` 一对一聊天 smoke test，直接覆盖 `openConversation -> sendMessage -> k2p5` 实际发送链路；拿到 live `MASTER_CHAT_*` 配置后可直接复跑。
 - [x] 拆分：2026-03-28 以当前 shell 的 `ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN` 临时映射到 `MASTER_CHAT_BASE_URL / MASTER_CHAT_API_KEY` 执行上述 smoke 时，首轮即返回 `503 No available accounts: no available accounts`；因此基于 live `k2p5` 端点的一对一聊天自动化验证主项仍不能诚实勾选。

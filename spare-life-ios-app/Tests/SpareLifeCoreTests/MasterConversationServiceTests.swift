@@ -186,6 +186,118 @@ final class MasterConversationServiceTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testMasterExperienceStorePersistsOneToOneK2P5ConversationAcrossReloads() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("master-store-k2p5-local-\(UUID().uuidString)", isDirectory: true)
+        let archiveURL = tempDirectory.appendingPathComponent("master-conversations.json", isDirectory: false)
+        defer {
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        let capture = ConversationRequestCapture()
+        let configuration = MasterChatConfiguration(
+            apiKey: "secret-token",
+            credentialSource: .environmentFallback,
+            chatCompletionsURL: URL(string: "https://chat.example.com/v1/chat/completions")!,
+            model: "k2p5"
+        )
+
+        let service = K2P5MasterConversationService(configuration: configuration) { request in
+            let turn = await capture.storeAndReturnCount(request)
+            let reply: String
+            switch turn {
+            case 1:
+                reply = "先收缩现金流口子，再把转岗动作压成一个七天实验。"
+            case 2:
+                reply = "今天只做一件事：把一个可交付样本发给三个能给真实反馈的人。"
+            default:
+                reply = "恢复后继续追问：你最可能自欺的是拿准备感代替真实曝光。"
+            }
+
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]
+            )!
+            let payload = #"{"model":"k2p5","choices":[{"message":{"role":"assistant","content":"\#(reply)"}}]}"#
+            return (payload.data(using: .utf8)!, response)
+        }
+
+        let localStateStore = MasterConversationLocalStateStore(archiveURL: archiveURL)
+        let firstStore = MasterExperienceStore(
+            catalogLoader: { try MasterCatalogLoader.load() },
+            conversationService: service,
+            localStateStore: localStateStore
+        )
+
+        await firstStore.refreshCatalog()
+
+        XCTAssertEqual(firstStore.visibleDirectoryMasters.count, 8)
+        let profile = try XCTUnwrap(firstStore.visibleDirectoryMasters.first)
+        let firstPrompt = "我准备在三个月内从内容运营转到 AI 产品，但现金流很紧。你先别安慰我，直接判断我现在最该收缩还是推进。"
+        let secondPrompt = "如果只能做一个今天就能开始、七天内有反馈的动作，你会让我先做什么？"
+        let resumePrompt = "我照你的话准备收成一个实验了。退出再回来后，请继续沿着刚才的话题追问我最容易自欺的地方。"
+
+        firstStore.openConversation(for: profile)
+        await firstStore.sendMessage(firstPrompt)
+        await firstStore.sendMessage(secondPrompt)
+
+        let firstConversation = try XCTUnwrap(firstStore.conversation)
+        XCTAssertTrue(firstConversation.serviceStatus.isLiveRemote)
+        XCTAssertEqual(firstConversation.serviceStatus.modelName, "k2p5")
+        XCTAssertEqual(firstConversation.messages.count, 5)
+        XCTAssertEqual(firstConversation.messages[1].text, firstPrompt)
+        XCTAssertEqual(firstConversation.messages[2].text, "先收缩现金流口子，再把转岗动作压成一个七天实验。")
+        XCTAssertEqual(firstConversation.messages[3].text, secondPrompt)
+        XCTAssertEqual(firstConversation.messages[4].text, "今天只做一件事：把一个可交付样本发给三个能给真实反馈的人。")
+
+        let reloadedStore = MasterExperienceStore(
+            catalogLoader: { try MasterCatalogLoader.load() },
+            conversationService: service,
+            localStateStore: localStateStore
+        )
+        await reloadedStore.refreshCatalog()
+
+        XCTAssertEqual(reloadedStore.visibleDirectoryMasters.count, 8)
+        let persistedSession = try XCTUnwrap(reloadedStore.recentSessions.first(where: { $0.masterID == profile.id }))
+        reloadedStore.restoreSession(persistedSession)
+
+        let restoredConversation = try XCTUnwrap(reloadedStore.conversation)
+        XCTAssertEqual(restoredConversation.messages.map(\.text), firstConversation.messages.map(\.text))
+        XCTAssertEqual(restoredConversation.messages.count, 5)
+
+        await reloadedStore.sendMessage(resumePrompt)
+
+        let resumedConversation = try XCTUnwrap(reloadedStore.conversation)
+        XCTAssertTrue(resumedConversation.serviceStatus.isLiveRemote)
+        XCTAssertEqual(resumedConversation.serviceStatus.modelName, "k2p5")
+        XCTAssertEqual(resumedConversation.messages.count, 7)
+        XCTAssertEqual(resumedConversation.messages[5].text, resumePrompt)
+        XCTAssertEqual(resumedConversation.messages[6].text, "恢复后继续追问：你最可能自欺的是拿准备感代替真实曝光。")
+
+        let requests = await capture.all()
+        XCTAssertEqual(requests.count, 3)
+
+        let thirdRequest = try XCTUnwrap(requests.last)
+        XCTAssertEqual(thirdRequest.url?.absoluteString, "https://chat.example.com/v1/chat/completions")
+        XCTAssertEqual(thirdRequest.httpMethod, "POST")
+        XCTAssertEqual(thirdRequest.value(forHTTPHeaderField: "Authorization"), "Bearer secret-token")
+
+        let body = try XCTUnwrap(thirdRequest.httpBody)
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(payload["model"] as? String, "k2p5")
+        let messages = try XCTUnwrap(payload["messages"] as? [[String: Any]])
+        XCTAssertEqual(messages.count, 7)
+        XCTAssertEqual(messages.first?["role"] as? String, "system")
+        XCTAssertTrue(messages.contains { ($0["content"] as? String) == firstPrompt })
+        XCTAssertTrue(messages.contains { ($0["content"] as? String) == "先收缩现金流口子，再把转岗动作压成一个七天实验。" })
+        XCTAssertTrue(messages.contains { ($0["content"] as? String) == secondPrompt })
+        XCTAssertTrue(messages.contains { ($0["content"] as? String) == "今天只做一件事：把一个可交付样本发给三个能给真实反馈的人。" })
+        XCTAssertTrue(messages.contains { ($0["content"] as? String) == resumePrompt })
+    }
+
     private func makeRequest(messagePairCount: Int) throws -> MasterConversationRequest {
         let snapshot = try MasterCatalogLoader.load()
         let profile = try XCTUnwrap(snapshot.masters.first)
@@ -240,13 +352,22 @@ final class MasterConversationServiceTests: XCTestCase {
 }
 
 private actor ConversationRequestCapture {
-    private(set) var request: URLRequest?
+    private var requests: [URLRequest] = []
 
     func store(_ request: URLRequest) {
-        self.request = request
+        requests.append(request)
+    }
+
+    func storeAndReturnCount(_ request: URLRequest) -> Int {
+        requests.append(request)
+        return requests.count
     }
 
     func load() -> URLRequest? {
-        request
+        requests.last
+    }
+
+    func all() -> [URLRequest] {
+        requests
     }
 }

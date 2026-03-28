@@ -43,7 +43,11 @@ struct MasterConversationServiceStatus: Hashable {
         deliveryMode == .liveRemote
     }
 
-    static func live(modelName: String, credentialSource: MasterCredentialSource) -> MasterConversationServiceStatus {
+    static func live(
+        modelName: String,
+        credentialSource: MasterCredentialSource,
+        detailOverride: String? = nil
+    ) -> MasterConversationServiceStatus {
         MasterConversationServiceStatus(
             providerName: modelName,
             modelName: modelName,
@@ -51,7 +55,8 @@ struct MasterConversationServiceStatus: Hashable {
             deliveryMode: .liveRemote,
             tone: .success,
             title: "实时对话已接通",
-            detail: "回复走 \(modelName) / chat/completions，密钥只在本机 \(credentialSource.label) 读取，不写进页面配置或版本化文档。"
+            detail: detailOverride ??
+                "回复走 \(modelName) / chat/completions，密钥只在本机 \(credentialSource.label) 读取，不写进页面配置或版本化文档。"
         )
     }
 
@@ -127,58 +132,162 @@ struct MasterChatConfiguration: Equatable, Sendable {
         keychainAPIKey: () -> String? = { K2P5MasterConversationService.keychainAPIKey() },
         persistAPIKey: (String) -> Bool = { K2P5MasterConversationService.storeAPIKeyInKeychain($0) }
     ) throws -> MasterChatConfiguration {
-        let credential = resolveCredential(
+        let resolution = resolved(
             environment: environment,
+            userDefaults: userDefaults,
             keychainAPIKey: keychainAPIKey,
-            persistAPIKey: persistAPIKey
+            persistAPIKey: persistAPIKey,
+            allowPersistEnvironmentAPIKey: true
         )
-        guard let apiKey = credential.value, !apiKey.isEmpty else {
-            throw MasterConversationServiceError.missingAPIKey
+        if let configuration = resolution.configuration {
+            return configuration
         }
+        throw resolution.error ?? .invalidBaseURL
+    }
 
-        let rawBaseURL = environment["MASTER_CHAT_BASE_URL"] ??
-            userDefaults.string(forKey: "masters.chat.baseURL")
-        guard let chatCompletionsURL = chatCompletionsURL(rawValue: rawBaseURL) else {
-            throw MasterConversationServiceError.invalidBaseURL
-        }
-
-        let model =
-            environment["MASTER_CHAT_MODEL"] ??
-            userDefaults.string(forKey: "masters.chat.model") ??
-            K2P5MasterConversationService.modelFallback
-
-        return MasterChatConfiguration(
-            apiKey: apiKey,
-            credentialSource: credential.source,
-            chatCompletionsURL: chatCompletionsURL,
-            model: model.trimmingCharacters(in: .whitespacesAndNewlines)
-        )
+    static func currentStatus(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        userDefaults: UserDefaults = .standard,
+        keychainAPIKey: () -> String? = { K2P5MasterConversationService.keychainAPIKey() },
+        persistAPIKey: (String) -> Bool = { K2P5MasterConversationService.storeAPIKeyInKeychain($0) }
+    ) -> MasterConversationServiceStatus {
+        resolved(
+            environment: environment,
+            userDefaults: userDefaults,
+            keychainAPIKey: keychainAPIKey,
+            persistAPIKey: persistAPIKey,
+            allowPersistEnvironmentAPIKey: false
+        ).status
     }
 
     private static func resolveCredential(
         environment: [String: String],
         keychainAPIKey: () -> String?,
-        persistAPIKey: (String) -> Bool
-    ) -> (value: String?, source: MasterCredentialSource) {
+        persistAPIKey: (String) -> Bool,
+        allowPersistEnvironmentAPIKey: Bool
+    ) -> MasterChatResolvedCredential {
         if let apiKey = keychainAPIKey()?.trimmingCharacters(in: .whitespacesAndNewlines),
            !apiKey.isEmpty {
-            return (apiKey, .keychain)
+            return MasterChatResolvedCredential(
+                value: apiKey,
+                source: .keychain,
+                detailSource: .keychain("\(K2P5MasterConversationService.keychainService)/\(K2P5MasterConversationService.keychainAccount)")
+            )
         }
 
         if let environmentKey = environment["MASTER_CHAT_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines),
            !environmentKey.isEmpty {
-            if persistAPIKey(environmentKey),
+            if allowPersistEnvironmentAPIKey,
+               persistAPIKey(environmentKey),
                let persisted = keychainAPIKey()?.trimmingCharacters(in: .whitespacesAndNewlines),
                !persisted.isEmpty {
-                return (persisted, .keychain)
+                return MasterChatResolvedCredential(
+                    value: persisted,
+                    source: .keychain,
+                    detailSource: .keychain("\(K2P5MasterConversationService.keychainService)/\(K2P5MasterConversationService.keychainAccount)")
+                )
             }
-            return (environmentKey, .environmentFallback)
+            return MasterChatResolvedCredential(
+                value: environmentKey,
+                source: .environmentFallback,
+                detailSource: .environment("MASTER_CHAT_API_KEY")
+            )
         }
 
-        return (nil, .unavailable)
+        return MasterChatResolvedCredential(
+            value: nil,
+            source: .unavailable,
+            detailSource: nil
+        )
     }
 
-    private static func chatCompletionsURL(rawValue: String?) -> URL? {
+    private static func resolvedValue(
+        environment: [String: String],
+        userDefaults: UserDefaults,
+        environmentKey: String,
+        defaultsKey: String
+    ) -> MasterChatResolvedValue? {
+        if let value = environment[environmentKey]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !value.isEmpty {
+            return MasterChatResolvedValue(
+                value: value,
+                source: .environment(environmentKey)
+            )
+        }
+
+        if let value = userDefaults.string(forKey: defaultsKey)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !value.isEmpty {
+            return MasterChatResolvedValue(
+                value: value,
+                source: .userDefaults(defaultsKey)
+            )
+        }
+
+        return nil
+    }
+
+    private static func resolved(
+        environment: [String: String],
+        userDefaults: UserDefaults,
+        keychainAPIKey: () -> String?,
+        persistAPIKey: (String) -> Bool,
+        allowPersistEnvironmentAPIKey: Bool
+    ) -> MasterChatConfigurationResolution {
+        let credential = resolveCredential(
+            environment: environment,
+            keychainAPIKey: keychainAPIKey,
+            persistAPIKey: persistAPIKey,
+            allowPersistEnvironmentAPIKey: allowPersistEnvironmentAPIKey
+        )
+        let baseURL = resolvedValue(
+            environment: environment,
+            userDefaults: userDefaults,
+            environmentKey: "MASTER_CHAT_BASE_URL",
+            defaultsKey: "masters.chat.baseURL"
+        )
+        let model = resolvedValue(
+            environment: environment,
+            userDefaults: userDefaults,
+            environmentKey: "MASTER_CHAT_MODEL",
+            defaultsKey: "masters.chat.model"
+        ) ?? MasterChatResolvedValue(
+            value: K2P5MasterConversationService.modelFallback,
+            source: .fallback(K2P5MasterConversationService.modelFallback)
+        )
+
+        let chatCompletionsURL = chatCompletionsURL(rawValue: baseURL?.value)
+        let configuration: MasterChatConfiguration?
+        let error: MasterConversationServiceError?
+        if credential.value == nil {
+            configuration = nil
+            error = .missingAPIKey
+        } else if baseURL == nil || chatCompletionsURL == nil {
+            configuration = nil
+            error = .invalidBaseURL
+        } else {
+            configuration = MasterChatConfiguration(
+                apiKey: credential.value ?? "",
+                credentialSource: credential.source,
+                chatCompletionsURL: chatCompletionsURL!,
+                model: model.value
+            )
+            error = nil
+        }
+
+        return MasterChatConfigurationResolution(
+            configuration: configuration,
+            error: error,
+            baseURLSource: baseURL?.source,
+            baseURLValue: baseURL?.value,
+            modelSource: model.source,
+            modelValue: model.value,
+            apiKeySource: credential.detailSource,
+            credentialSource: credential.source,
+            legacyEnvironmentKeys: K2P5MasterConversationService.detectedLegacyEnvironmentKeys(in: environment)
+        )
+    }
+
+    fileprivate static func chatCompletionsURL(rawValue: String?) -> URL? {
         guard let rawValue = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
               !rawValue.isEmpty,
               var url = URL(string: rawValue) else {
@@ -202,6 +311,129 @@ struct MasterChatConfiguration: Equatable, Sendable {
     }
 }
 
+private struct MasterChatResolvedCredential {
+    let value: String?
+    let source: MasterCredentialSource
+    let detailSource: MasterChatConfigSource?
+}
+
+private struct MasterChatResolvedValue {
+    let value: String
+    let source: MasterChatConfigSource
+}
+
+private enum MasterChatConfigSource: Hashable {
+    case environment(String)
+    case userDefaults(String)
+    case keychain(String)
+    case fallback(String)
+
+    var summary: String {
+        switch self {
+        case .environment(let key):
+            return "env(\(key))"
+        case .userDefaults(let key):
+            return "defaults(\(key))"
+        case .keychain(let key):
+            return "keychain(\(key))"
+        case .fallback(let value):
+            return "fallback(\(value))"
+        }
+    }
+}
+
+private struct MasterChatConfigurationResolution {
+    let configuration: MasterChatConfiguration?
+    let error: MasterConversationServiceError?
+    let baseURLSource: MasterChatConfigSource?
+    let baseURLValue: String?
+    let modelSource: MasterChatConfigSource
+    let modelValue: String
+    let apiKeySource: MasterChatConfigSource?
+    let credentialSource: MasterCredentialSource
+    let legacyEnvironmentKeys: [String]
+
+    var status: MasterConversationServiceStatus {
+        if let configuration {
+            return .live(
+                modelName: configuration.model,
+                credentialSource: configuration.credentialSource,
+                detailOverride: "回复走 \(configuration.model) / chat/completions，请求 \(configuration.chatCompletionsURL.absoluteString)。来源：\(sourceAuditSummary)。"
+            )
+        }
+
+        if baseURLValue == nil {
+            return MasterConversationServiceStatus(
+                providerName: "本地故事引擎",
+                modelName: nil,
+                credentialSource: credentialSource,
+                deliveryMode: .localFallback,
+                tone: .warning,
+                title: "k2p5 端点未注入",
+                detail: "当前还没有拿到 Stage 2 大师闲聊的 live baseURL，不能把会话当成已接通 `k2p5`。\(endpointInjectionGuidance) \(modelInjectionGuidance) 来源：\(sourceAuditSummary)。\(legacyHint)"
+            )
+        }
+
+        if error == .invalidBaseURL {
+            return MasterConversationServiceStatus(
+                providerName: "本地故事引擎",
+                modelName: nil,
+                credentialSource: credentialSource,
+                deliveryMode: .localFallback,
+                tone: .warning,
+                title: "k2p5 地址无效",
+                detail: "当前 `MASTER_CHAT_BASE_URL` 无法解析成可请求的 `/v1/chat/completions` 地址。\(endpointInjectionGuidance) 来源：\(sourceAuditSummary)。\(legacyHint)"
+            )
+        }
+
+        return MasterConversationServiceStatus(
+            providerName: "本地故事引擎",
+            modelName: nil,
+            credentialSource: credentialSource,
+            deliveryMode: .localFallback,
+            tone: .warning,
+            title: "k2p5 鉴权未配置",
+            detail: "当前会请求 \(resolvedEndpointSummary)，但还缺少可发送的 API key。\(authInjectionGuidance) \(modelInjectionGuidance) 来源：\(sourceAuditSummary)。\(legacyHint)"
+        )
+    }
+
+    private var resolvedEndpointSummary: String {
+        if let configuration {
+            return configuration.chatCompletionsURL.absoluteString
+        }
+        if let rawBaseURL = baseURLValue,
+           let url = MasterChatConfiguration.chatCompletionsURL(rawValue: rawBaseURL) {
+            return url.absoluteString
+        }
+        return "未解析"
+    }
+
+    private var endpointInjectionGuidance: String {
+        "可通过 env(MASTER_CHAT_BASE_URL) 或 defaults(masters.chat.baseURL) 注入。"
+    }
+
+    private var authInjectionGuidance: String {
+        "可通过 env(MASTER_CHAT_API_KEY) 或本机钥匙串 `\(K2P5MasterConversationService.keychainService)` / `\(K2P5MasterConversationService.keychainAccount)` 注入。"
+    }
+
+    private var modelInjectionGuidance: String {
+        "模型可通过 env(MASTER_CHAT_MODEL) 或 defaults(masters.chat.model) 覆盖，默认 `\(K2P5MasterConversationService.modelFallback)`。"
+    }
+
+    private var legacyHint: String {
+        guard !legacyEnvironmentKeys.isEmpty else { return "" }
+        return "当前 shell 只检测到 legacy `ANTHROPIC_*` 配置（\(legacyEnvironmentKeys.joined(separator: ", "))）；Stage 2 的 `k2p5` 链路仍只认 `MASTER_CHAT_*`。"
+    }
+
+    private var sourceAuditSummary: String {
+        [
+            "baseURL=\(baseURLSource?.summary ?? "未注入")",
+            "model=\(modelSource.summary)",
+            "apiKey=\(apiKeySource?.summary ?? "未注入")"
+        ].joined(separator: "；")
+    }
+}
+
 typealias MasterConversationTransport = @Sendable (URLRequest) async throws -> (Data, URLResponse)
 
 @MainActor
@@ -211,9 +443,9 @@ final class K2P5MasterConversationService: MasterConversationReplying {
     nonisolated static let modelFallback = "k2p5"
 
     private let resolveConfiguration: () throws -> MasterChatConfiguration
+    private let resolveStatus: () -> MasterConversationServiceStatus
     private let transport: MasterConversationTransport
     private let processInfo: ProcessInfo
-    private let userDefaults: UserDefaults
 
     init(
         session: URLSession = .shared,
@@ -226,11 +458,16 @@ final class K2P5MasterConversationService: MasterConversationReplying {
                 userDefaults: userDefaults
             )
         }
+        self.resolveStatus = {
+            MasterChatConfiguration.currentStatus(
+                environment: processInfo.environment,
+                userDefaults: userDefaults
+            )
+        }
         self.transport = { request in
             try await session.data(for: request)
         }
         self.processInfo = processInfo
-        self.userDefaults = userDefaults
     }
 
     init(
@@ -238,26 +475,19 @@ final class K2P5MasterConversationService: MasterConversationReplying {
         transport: @escaping MasterConversationTransport
     ) {
         self.resolveConfiguration = { configuration }
+        self.resolveStatus = {
+            .live(
+                modelName: configuration.model,
+                credentialSource: configuration.credentialSource,
+                detailOverride: "回复走 \(configuration.model) / chat/completions，请求 \(configuration.chatCompletionsURL.absoluteString)。来源：baseURL=显式配置；model=显式配置；apiKey=\(configuration.credentialSource.label)。"
+            )
+        }
         self.transport = transport
         self.processInfo = .processInfo
-        self.userDefaults = .standard
     }
 
     var status: MasterConversationServiceStatus {
-        do {
-            let configuration = try resolveConfiguration()
-            return .live(modelName: configuration.model, credentialSource: configuration.credentialSource)
-        } catch {
-            return .fallback(
-                detail: [
-                    "Stage 2 `k2p5` live 配置未接通，当前会继续用本地故事和记忆逻辑回复。",
-                    error.localizedDescription,
-                    Self.legacyEnvironmentHint(environment: processInfo.environment)
-                ]
-                    .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty }
-                    .joined(separator: " ")
-            )
-        }
+        resolveStatus()
     }
 
     func generateReply(for request: MasterConversationRequest) async throws -> MasterConversationServiceResult {
@@ -400,20 +630,16 @@ final class K2P5MasterConversationService: MasterConversationReplying {
         }
     }
 
-    private static func legacyEnvironmentHint(environment: [String: String]) -> String? {
+    nonisolated fileprivate static func detectedLegacyEnvironmentKeys(in environment: [String: String]) -> [String] {
         let legacyKeys = [
             "ANTHROPIC_BASE_URL",
             "ANTHROPIC_API_KEY",
             "ANTHROPIC_AUTH_TOKEN",
             "ANTHROPIC_DEFAULT_SONNET_MODEL"
         ]
-        let present = legacyKeys.filter { key in
+        return legacyKeys.filter { key in
             environment[key]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil
         }
-        guard !present.isEmpty else {
-            return nil
-        }
-        return "当前 shell 只检测到 legacy `ANTHROPIC_*` 配置（\(present.joined(separator: ", "))）；Stage 2 的 `k2p5` 链路只认 `MASTER_CHAT_*`。"
     }
 
     private static func decodeError(data: Data, statusCode: Int) -> MasterConversationServiceError {

@@ -27,6 +27,94 @@ final class MasterConversationServiceTests: XCTestCase {
         XCTAssertEqual(configuration.model, "k2p5")
     }
 
+    func testMasterChatConfigurationStatusWarnsWhenBaseURLMissingAndLegacyEnvExists() {
+        let suiteName = "master-chat-status-missing-base-url-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated user defaults suite")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let status = MasterChatConfiguration.currentStatus(
+            environment: [
+                "MASTER_CHAT_API_KEY": "env-secret",
+                "ANTHROPIC_BASE_URL": "http://24.199.97.185:8080",
+                "ANTHROPIC_AUTH_TOKEN": "legacy-token"
+            ],
+            userDefaults: defaults,
+            keychainAPIKey: { nil },
+            persistAPIKey: { _ in false }
+        )
+
+        XCTAssertEqual(status.title, "k2p5 端点未注入")
+        XCTAssertFalse(status.isLiveRemote)
+        XCTAssertTrue(status.detail.contains("MASTER_CHAT_BASE_URL"))
+        XCTAssertTrue(status.detail.contains("defaults(masters.chat.baseURL)"))
+        XCTAssertTrue(status.detail.contains("ANTHROPIC_BASE_URL"))
+        XCTAssertTrue(status.detail.contains("apiKey=env(MASTER_CHAT_API_KEY)"))
+    }
+
+    func testMasterChatConfigurationStatusWarnsWhenEndpointExistsButAPIKeyMissing() {
+        let suiteName = "master-chat-status-missing-api-key-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated user defaults suite")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        defaults.set("https://chat.example.com/gateway", forKey: "masters.chat.baseURL")
+        defaults.set("stage2-k2p5", forKey: "masters.chat.model")
+
+        let status = MasterChatConfiguration.currentStatus(
+            environment: [:],
+            userDefaults: defaults,
+            keychainAPIKey: { nil },
+            persistAPIKey: { _ in false }
+        )
+
+        XCTAssertEqual(status.title, "k2p5 鉴权未配置")
+        XCTAssertFalse(status.isLiveRemote)
+        XCTAssertTrue(status.detail.contains("https://chat.example.com/gateway/v1/chat/completions"))
+        XCTAssertTrue(status.detail.contains("MASTER_CHAT_API_KEY"))
+        XCTAssertTrue(status.detail.contains(K2P5MasterConversationService.keychainService))
+        XCTAssertTrue(status.detail.contains(K2P5MasterConversationService.keychainAccount))
+        XCTAssertTrue(status.detail.contains("model=defaults(masters.chat.model)"))
+    }
+
+    func testMasterChatConfigurationStatusReportsInjectedLiveCandidateSources() {
+        let suiteName = "master-chat-status-live-candidate-\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Failed to create isolated user defaults suite")
+            return
+        }
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let status = MasterChatConfiguration.currentStatus(
+            environment: [
+                "MASTER_CHAT_BASE_URL": "https://chat.example.com/gateway",
+                "MASTER_CHAT_API_KEY": "env-secret",
+                "MASTER_CHAT_MODEL": "stage2-k2p5"
+            ],
+            userDefaults: defaults,
+            keychainAPIKey: { nil },
+            persistAPIKey: { _ in false }
+        )
+
+        XCTAssertEqual(status.title, "实时对话已接通")
+        XCTAssertTrue(status.isLiveRemote)
+        XCTAssertEqual(status.modelName, "stage2-k2p5")
+        XCTAssertTrue(status.detail.contains("https://chat.example.com/gateway/v1/chat/completions"))
+        XCTAssertTrue(status.detail.contains("baseURL=env(MASTER_CHAT_BASE_URL)"))
+        XCTAssertTrue(status.detail.contains("model=env(MASTER_CHAT_MODEL)"))
+        XCTAssertTrue(status.detail.contains("apiKey=env(MASTER_CHAT_API_KEY)"))
+    }
+
     @MainActor
     func testK2P5ServiceBuildsOpenAICompatibleRequestAndKeepsFullContext() async throws {
         let capture = ConversationRequestCapture()

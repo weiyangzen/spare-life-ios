@@ -823,6 +823,8 @@ private enum XianxiaSenderMask {
 }
 
 private enum XianxiaFeishuTextExtractor {
+    private static let textPattern = #"text\s*\|\s*([^|]+?)\s*\|"#
+
     static func displayText(primary: String?, fallback: String) -> String {
         let primaryExtracted = extract(from: primary)
         if !primaryExtracted.isEmpty {
@@ -841,41 +843,95 @@ private enum XianxiaFeishuTextExtractor {
     private static func extract(from rawValue: String?) -> String {
         guard let rawValue else { return "" }
         let normalized = rawValue.replacingOccurrences(of: "\r\n", with: "\n")
-        let lines = normalized
+        let payload: String
+        if let splitRange = normalized.range(of: "split=-") {
+            payload = String(normalized[splitRange.upperBound...])
+        } else {
+            payload = normalized
+        }
+
+        let lines = payload
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
 
-        var foundSplitMarker = false
         var extracted: [String] = []
 
         for line in lines {
             guard !line.isEmpty else { continue }
-            if line.contains("split=-") {
-                foundSplitMarker = true
+
+            let textSegments = textSegments(in: line)
+            if !textSegments.isEmpty {
+                extracted.append(contentsOf: textSegments)
                 continue
             }
 
-            if let content = textContent(in: line), !content.isEmpty {
-                if foundSplitMarker {
-                    extracted.append(content)
-                } else {
-                    extracted.append(content)
-                }
+            let plainLine = normalizedPlainLine(from: line)
+            if isMeaningfulContent(plainLine) {
+                extracted.append(plainLine)
             }
         }
 
         let cleaned = extracted
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+            .map { cleanContentFragment($0) }
+            .filter { isMeaningfulContent($0) }
 
         guard !cleaned.isEmpty else { return "" }
         return cleaned.joined(separator: "\n")
     }
 
+    private static func textSegments(in line: String) -> [String] {
+        let nsLine = line as NSString
+        let regex = try? NSRegularExpression(pattern: textPattern, options: [.caseInsensitive])
+        let matches = regex?.matches(in: line, options: [], range: NSRange(location: 0, length: nsLine.length)) ?? []
+
+        return matches.compactMap { match in
+            guard match.numberOfRanges > 1 else { return nil }
+            let captured = nsLine.substring(with: match.range(at: 1))
+            let cleaned = cleanContentFragment(captured)
+            return isMeaningfulContent(cleaned) ? cleaned : nil
+        }
+    }
+
+    private static func normalizedPlainLine(from line: String) -> String {
+        line
+            .replacingOccurrences(of: #"^\-\s*"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func cleanContentFragment(_ fragment: String) -> String {
+        fragment
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func isMeaningfulContent(_ value: String) -> Bool {
+        guard !value.isEmpty else { return false }
+        guard !value.contains(":") && !value.contains("=") else { return false }
+        guard !value.contains("{") && !value.contains("}") else { return false }
+        guard !value.contains("\"") else { return false }
+        let lowered = value.lowercased()
+        let metadataHints = [
+            "topic",
+            "status",
+            "canonical",
+            "parent",
+            "messages",
+            "drift",
+            "keywords",
+            "merged",
+            "split",
+            "detail",
+            "code"
+        ]
+        guard !metadataHints.contains(where: { lowered.contains($0) }) else { return false }
+        guard !value.contains("|") else { return false }
+        return true
+    }
+
     private static func textContent(in line: String) -> String? {
-        if let range = line.range(of: #"text\s*\|\s*"#, options: .regularExpression) {
-            let content = String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-            return content.isEmpty ? nil : content
+        let segments = textSegments(in: line)
+        if let first = segments.first {
+            return first
         }
         return nil
     }

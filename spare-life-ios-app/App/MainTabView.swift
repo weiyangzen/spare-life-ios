@@ -61,19 +61,8 @@ struct MainTabView: View {
     @StateObject private var router = ConversationRouter()
 
     var body: some View {
-        ZStack {
-            // Layer 1: Tab interface — always rendered, never changes
-            tabLayer
-
-            // Layer 2: Conversation detail overlay — covers everything including tab bar
-            if router.isShowingDetail {
-                detailOverlay
-                    .transition(.move(edge: .trailing))
-                    .zIndex(1)
-            }
-        }
-        .animation(.spareSpring, value: router.isShowingDetail)
-        .environmentObject(router)
+        presentedRoot
+            .environmentObject(router)
     }
 
     // MARK: - Tab Layer
@@ -111,43 +100,33 @@ struct MainTabView: View {
         .animation(.spareSpring, value: selectedTab)
     }
 
-    // MARK: - Detail Overlay
-
     @ViewBuilder
-    private var detailOverlay: some View {
-        if let thread = router.activeChatThread {
-            NavigationStack {
-                ChatThreadView(thread: thread)
-                    .toolbar {
-                        ToolbarItem(placement: .spareNavigationLeading) {
-                            Button {
-                                router.dismissDetail()
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "chevron.left")
-                                        .font(.system(size: 16, weight: .semibold))
-                                    Text("返回")
-                                        .font(.system(size: 16))
+    private var presentedRoot: some View {
+        #if os(iOS)
+        tabLayer
+            .fullScreenCover(item: $router.activeChatThread) { thread in
+                NavigationStack {
+                    ChatThreadView(thread: thread)
+                        .toolbar {
+                            ToolbarItem(placement: .spareNavigationLeading) {
+                                Button {
+                                    router.activeChatThread = nil
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "chevron.left")
+                                            .font(.system(size: 16, weight: .semibold))
+                                        Text("返回")
+                                            .font(.system(size: 16))
+                                    }
+                                    .foregroundColor(.spareYellow)
                                 }
-                                .foregroundColor(.spareYellow)
                             }
                         }
-                    }
-            }
-            .gesture(edgeSwipeDismissGesture)
-        } else if router.isMasterChatActive, let store = router.activeMasterStore {
-            MasterConversationView(store: store, onBack: { router.dismissDetail() })
-                .gesture(edgeSwipeDismissGesture)
-        }
-    }
-
-    private var edgeSwipeDismissGesture: some Gesture {
-        DragGesture(minimumDistance: 20)
-            .onEnded { value in
-                if value.startLocation.x < 44 && value.translation.width > 80 {
-                    router.dismissDetail()
                 }
             }
+        #else
+        tabLayer
+        #endif
     }
 
     private var bottomSafeArea: CGFloat {

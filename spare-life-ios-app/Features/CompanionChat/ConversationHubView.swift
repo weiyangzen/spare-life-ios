@@ -39,6 +39,9 @@ struct ConversationHubView: View {
             .spareNavigationSearchable(text: $store.searchQuery, prompt: "搜索联系人或消息")
             .toolbar { toolbarContent }
             .task { store.load() }
+            .navigationDestination(for: ConversationThread.self) { thread in
+                ChatThreadView(thread: thread)
+            }
         }
     }
 
@@ -221,9 +224,7 @@ struct ConversationHubView: View {
     }
 
     private func threadRow(_ thread: ConversationThread) -> some View {
-        Button {
-            router.openChat(thread)
-        } label: {
+        NavigationLink(value: thread) {
             HStack(spacing: 10) {
                 ZStack(alignment: .bottomTrailing) {
                     AvatarView(name: thread.contactName, size: 48)
@@ -257,7 +258,6 @@ struct ConversationHubView: View {
             .padding(.vertical, 6)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
         .listRowBackground(thread.isPinned ? Color.spareYellow.opacity(0.08) : Color.white)
         .listRowSeparatorTint(Color.spareYellow.opacity(0.14))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {

@@ -10,7 +10,7 @@ private let masterStage1CardAspectRatio: CGFloat = 5.0 / 8.0
 
 struct MasterChatHomeView: View {
     @StateObject private var store: MasterExperienceStore
-    @EnvironmentObject private var router: ConversationRouter
+    @State private var showConversation = false
 
     @MainActor
     init() {
@@ -53,6 +53,7 @@ struct MasterChatHomeView: View {
                 store.resetDirectoryPagination()
             }
         }
+        .modifier(MasterConversationPresentationModifier(showConversation: $showConversation, store: store))
     }
 
     private var header: some View {
@@ -130,7 +131,7 @@ struct MasterChatHomeView: View {
                             containerWidth: proxy.size.width,
                             onOpen: { profile in
                                 store.openConversation(for: profile)
-                                router.openMasterChat(store)
+                                showConversation = true
                             },
                             onVisible: { profile in
                                 store.loadNextDirectoryBatchIfNeeded(after: profile)
@@ -156,6 +157,30 @@ struct MasterChatHomeView: View {
                 }
             }
         }
+    }
+}
+
+private struct MasterConversationPresentationModifier: ViewModifier {
+    @Binding var showConversation: Bool
+    @ObservedObject var store: MasterExperienceStore
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content
+            .fullScreenCover(isPresented: $showConversation, onDismiss: dismissConversation) {
+                MasterConversationView(store: store, onBack: dismissConversation)
+            }
+        #else
+        content
+            .navigationDestination(isPresented: $showConversation) {
+                MasterConversationView(store: store, onBack: dismissConversation)
+            }
+        #endif
+    }
+
+    private func dismissConversation() {
+        showConversation = false
+        store.conversation = nil
     }
 }
 

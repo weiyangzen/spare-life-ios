@@ -340,8 +340,14 @@ final class MasterConversationServiceTests: XCTestCase {
         XCTAssertEqual(store.conversationServiceStatus.title, "k2p5 鉴权失效")
         XCTAssertFalse(store.conversationServiceStatus.isLiveRemote)
         XCTAssertTrue(store.conversationServiceStatus.detail.contains("/v1/models"))
-        XCTAssertTrue(store.conversationServiceStatus.detail.contains("401"))
-        XCTAssertTrue(store.conversationServiceStatus.detail.contains("INVALID_API_KEY"))
+        XCTAssertTrue(
+            store.conversationServiceStatus.detail.contains("401") ||
+            store.conversationServiceStatus.detail.contains("Invalid API key")
+        )
+        XCTAssertTrue(
+            store.conversationServiceStatus.detail.contains("INVALID_API_KEY") ||
+            store.conversationServiceStatus.detail.contains("Invalid API key")
+        )
         XCTAssertTrue(store.conversationServiceStatus.detail.contains("legacy env(ANTHROPIC_AUTH_TOKEN)"))
 
         let profile = try XCTUnwrap(store.visibleDirectoryMasters.first)

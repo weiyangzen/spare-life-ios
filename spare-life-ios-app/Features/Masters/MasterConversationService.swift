@@ -128,9 +128,9 @@ enum MasterConversationServiceError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            return "未检测到大师对话密钥。请先在本机钥匙串或本机 `MASTER_CHAT_API_KEY` 环境变量里配置。"
+            return "未检测到大师对话密钥。请先在本机钥匙串、`MASTER_CHAT_API_KEY` / `MOONSHOT_API_KEY` 环境变量，或本机 `masters.chat.apiKey` defaults 里配置。"
         case .invalidBaseURL:
-            return "大师对话服务地址无效。请检查本机 `MASTER_CHAT_BASE_URL` 配置。"
+            return "大师对话服务地址无效。请检查本机 `MASTER_CHAT_BASE_URL` / `MOONSHOT_BASE_URL` 配置。"
         case .emptyResponse:
             return "大师服务返回了空回复。"
         case .invalidResponse:
@@ -188,6 +188,7 @@ struct MasterChatConfiguration: Equatable, Sendable {
 
     private static func resolveCredential(
         environment: [String: String],
+        userDefaults: UserDefaults,
         keychainAPIKey: () -> String?,
         persistAPIKey: (String) -> Bool,
         allowPersistEnvironmentAPIKey: Bool
@@ -201,7 +202,10 @@ struct MasterChatConfiguration: Equatable, Sendable {
             )
         }
 
-        if let environmentKey = environment["MASTER_CHAT_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+        if let environmentKey = firstNonEmptyValue(
+            environment["MASTER_CHAT_API_KEY"],
+            environment["MOONSHOT_API_KEY"]
+        ),
            !environmentKey.isEmpty {
             if allowPersistEnvironmentAPIKey,
                persistAPIKey(environmentKey),
@@ -216,7 +220,23 @@ struct MasterChatConfiguration: Equatable, Sendable {
             return MasterChatResolvedCredential(
                 value: environmentKey,
                 source: .environmentFallback,
-                detailSource: .environment("MASTER_CHAT_API_KEY")
+                detailSource: environment["MASTER_CHAT_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                    ? .environment("MASTER_CHAT_API_KEY")
+                    : .environment("MOONSHOT_API_KEY")
+            )
+        }
+
+        if let defaultsKey = firstNonEmptyValue(
+            userDefaults.string(forKey: "masters.chat.apiKey"),
+            userDefaults.string(forKey: "masters.chat.authToken")
+        ),
+           !defaultsKey.isEmpty {
+            return MasterChatResolvedCredential(
+                value: defaultsKey,
+                source: .environmentFallback,
+                detailSource: userDefaults.string(forKey: "masters.chat.apiKey")?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                    ? .userDefaults("masters.chat.apiKey")
+                    : .userDefaults("masters.chat.authToken")
             )
         }
 
@@ -230,23 +250,27 @@ struct MasterChatConfiguration: Equatable, Sendable {
     private static func resolvedValue(
         environment: [String: String],
         userDefaults: UserDefaults,
-        environmentKey: String,
-        defaultsKey: String
+        environmentKeys: [String],
+        defaultsKeys: [String]
     ) -> MasterChatResolvedValue? {
-        if let value = environment[environmentKey]?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !value.isEmpty {
-            return MasterChatResolvedValue(
-                value: value,
-                source: .environment(environmentKey)
-            )
+        for environmentKey in environmentKeys {
+            if let value = environment[environmentKey]?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !value.isEmpty {
+                return MasterChatResolvedValue(
+                    value: value,
+                    source: .environment(environmentKey)
+                )
+            }
         }
 
-        if let value = userDefaults.string(forKey: defaultsKey)?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !value.isEmpty {
-            return MasterChatResolvedValue(
-                value: value,
-                source: .userDefaults(defaultsKey)
-            )
+        for defaultsKey in defaultsKeys {
+            if let value = userDefaults.string(forKey: defaultsKey)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !value.isEmpty {
+                return MasterChatResolvedValue(
+                    value: value,
+                    source: .userDefaults(defaultsKey)
+                )
+            }
         }
 
         return nil
@@ -261,6 +285,7 @@ struct MasterChatConfiguration: Equatable, Sendable {
     ) -> MasterChatConfigurationResolution {
         let credential = resolveCredential(
             environment: environment,
+            userDefaults: userDefaults,
             keychainAPIKey: keychainAPIKey,
             persistAPIKey: persistAPIKey,
             allowPersistEnvironmentAPIKey: allowPersistEnvironmentAPIKey
@@ -268,14 +293,14 @@ struct MasterChatConfiguration: Equatable, Sendable {
         let baseURL = resolvedValue(
             environment: environment,
             userDefaults: userDefaults,
-            environmentKey: "MASTER_CHAT_BASE_URL",
-            defaultsKey: "masters.chat.baseURL"
+            environmentKeys: ["MASTER_CHAT_BASE_URL", "MOONSHOT_BASE_URL"],
+            defaultsKeys: ["masters.chat.baseURL"]
         )
         let model = resolvedValue(
             environment: environment,
             userDefaults: userDefaults,
-            environmentKey: "MASTER_CHAT_MODEL",
-            defaultsKey: "masters.chat.model"
+            environmentKeys: ["MASTER_CHAT_MODEL", "MOONSHOT_MODEL"],
+            defaultsKeys: ["masters.chat.model"]
         ) ?? MasterChatResolvedValue(
             value: K2P5MasterConversationService.modelFallback,
             source: .fallback(K2P5MasterConversationService.modelFallback)
@@ -311,6 +336,12 @@ struct MasterChatConfiguration: Equatable, Sendable {
             credentialSource: credential.source,
             legacyEnvironmentKeys: K2P5MasterConversationService.detectedLegacyEnvironmentKeys(in: environment)
         )
+    }
+
+    private static func firstNonEmptyValue(_ candidates: String?...) -> String? {
+        candidates
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first(where: { !$0.isEmpty })
     }
 
     fileprivate static func chatCompletionsURL(rawValue: String?) -> URL? {
@@ -523,6 +554,9 @@ enum MasterChatLiveProbe {
         if let baseURL = trimmedEnvironmentValue("MASTER_CHAT_BASE_URL", in: environment) {
             resolvedEnvironment["MASTER_CHAT_BASE_URL"] = baseURL
             baseURLSource = "env(MASTER_CHAT_BASE_URL)"
+        } else if let moonshotBaseURL = trimmedEnvironmentValue("MOONSHOT_BASE_URL", in: environment) {
+            resolvedEnvironment["MASTER_CHAT_BASE_URL"] = moonshotBaseURL
+            baseURLSource = "env(MOONSHOT_BASE_URL)"
         } else if let baseURL = trimmedDefaultsValue("masters.chat.baseURL", in: userDefaults) {
             resolvedEnvironment["MASTER_CHAT_BASE_URL"] = baseURL
             baseURLSource = "defaults(masters.chat.baseURL)"
@@ -543,6 +577,12 @@ enum MasterChatLiveProbe {
         } else if let apiKey = trimmedEnvironmentValue("MASTER_CHAT_API_KEY", in: environment) {
             resolvedEnvironment["MASTER_CHAT_API_KEY"] = apiKey
             apiKeySource = "env(MASTER_CHAT_API_KEY)"
+        } else if let moonshotAPIKey = trimmedEnvironmentValue("MOONSHOT_API_KEY", in: environment) {
+            resolvedEnvironment["MASTER_CHAT_API_KEY"] = moonshotAPIKey
+            apiKeySource = "env(MOONSHOT_API_KEY)"
+        } else if let defaultsAPIKey = trimmedDefaultsValue("masters.chat.apiKey", in: userDefaults) {
+            resolvedEnvironment["MASTER_CHAT_API_KEY"] = defaultsAPIKey
+            apiKeySource = "defaults(masters.chat.apiKey)"
         } else if let legacyAuthToken = trimmedEnvironmentValue("ANTHROPIC_AUTH_TOKEN", in: environment) {
             resolvedEnvironment["MASTER_CHAT_API_KEY"] = legacyAuthToken
             apiKeySource = "legacy env(ANTHROPIC_AUTH_TOKEN)"
@@ -557,6 +597,9 @@ enum MasterChatLiveProbe {
         if let model = trimmedEnvironmentValue("MASTER_CHAT_MODEL", in: environment) {
             resolvedEnvironment["MASTER_CHAT_MODEL"] = model
             modelSource = "env(MASTER_CHAT_MODEL)"
+        } else if let model = trimmedEnvironmentValue("MOONSHOT_MODEL", in: environment) {
+            resolvedEnvironment["MASTER_CHAT_MODEL"] = model
+            modelSource = "env(MOONSHOT_MODEL)"
         } else if let model = trimmedDefaultsValue("masters.chat.model", in: userDefaults) {
             resolvedEnvironment["MASTER_CHAT_MODEL"] = model
             modelSource = "defaults(masters.chat.model)"

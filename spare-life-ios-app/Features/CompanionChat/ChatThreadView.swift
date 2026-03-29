@@ -278,6 +278,7 @@ struct ChatThreadView: View {
     let thread: ConversationThread
     @StateObject private var store: ChatThreadStore
     @State private var contextCardsExpanded = false
+    @FocusState private var isComposerFocused: Bool
 
     init(thread: ConversationThread) {
         self.thread = thread
@@ -302,9 +303,6 @@ struct ChatThreadView: View {
                 } else {
                     messageList
                 }
-
-                // Input bar
-                inputBar
             }
 
             // Agent aux panel overlay
@@ -317,6 +315,9 @@ struct ChatThreadView: View {
         .spareNavigationBarTitleDisplayMode(.inline)
         .toolbar { toolbarContent }
         .task { store.load() }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            inputBar
+        }
         .sheet(isPresented: $store.showContactMask) {
             ContactMaskView(contactID: thread.id, contactName: thread.contactName)
                 .presentationDragIndicator(.visible)
@@ -462,6 +463,10 @@ struct ChatThreadView: View {
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.vertical, Spacing.sm)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            dismissKeyboard()
+        }
     }
 
     /// Horizontal scrolling deck of relationship / mask / memory context cards.
@@ -737,7 +742,11 @@ struct ChatThreadView: View {
                 }
                 .padding(.horizontal, Spacing.md)
                 .padding(.vertical, Spacing.md)
-                .padding(.bottom, store.showAgentPanel ? 240 : 0)
+                .padding(.bottom, store.showAgentPanel ? 260 : 0)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                dismissKeyboard()
             }
             .onChange(of: store.messages.count) { _ in
                 if let last = store.messages.last {
@@ -864,8 +873,13 @@ struct ChatThreadView: View {
                     TextField(store.sendMode.placeholder(for: thread.contactName), text: $store.draftText, axis: .vertical)
                         .font(.spareBody)
                         .lineLimit(1...5)
+                        .focused($isComposerFocused)
                         .padding(.horizontal, Spacing.md)
                         .padding(.vertical, Spacing.sm)
+                        .submitLabel(.send)
+                        .onSubmit {
+                            store.send()
+                        }
                 }
                 .background(
                     RoundedRectangle(cornerRadius: CornerRadius.lg)
@@ -881,8 +895,13 @@ struct ChatThreadView: View {
         }
         .padding(.horizontal, Spacing.md)
         .padding(.top, Spacing.sm)
-        .padding(.bottom, Spacing.sm)
-        .background(Color.white)
+        .padding(.bottom, max(spareBottomSafeAreaInset(), Spacing.sm))
+        .frame(maxWidth: .infinity)
+        .background(
+            Rectangle()
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.06), radius: 10, y: -4)
+        )
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(Color.spareYellow.opacity(0.14))
@@ -996,5 +1015,17 @@ struct ChatThreadView: View {
         }
         .padding(Spacing.md)
         .background(Color(red: 1.0, green: 0.98, blue: 0.88), in: RoundedRectangle(cornerRadius: CornerRadius.md))
+    }
+
+    private func dismissKeyboard() {
+        isComposerFocused = false
+        #if canImport(UIKit)
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+        #endif
     }
 }

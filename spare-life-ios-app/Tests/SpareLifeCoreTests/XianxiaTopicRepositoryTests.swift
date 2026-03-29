@@ -7,6 +7,47 @@ final class XianxiaTopicRepositoryTests: XCTestCase {
         XCTAssertEqual(MainTab.xianxia.selectedIcon, "rectangle.grid.1x2.fill")
     }
 
+    func testFeishuTextExtractionKeepsOnlyTextSegmentsAfterSplitMarker() {
+        let raw = """
+        topic_id = group:test::topic-001
+        split=-
+        sender | abc123 |
+        text | 今天晚上一起吃饭吗 | created_at = 2026-03-29
+        message_id = foo
+        text | 我这边八点以后都可以 |
+        status: active
+        """
+
+        let topic = XianxiaTopic(
+            topicId: "group:test::topic-001",
+            topicPath: "group/test/topic-001",
+            status: "active",
+            messageCount: 2,
+            summary: "fallback",
+            senderTail: nil,
+            rawText: raw,
+            updatedAt: nil,
+            shardCount: 0
+        )
+
+        let shard = XianxiaTopicShard(
+            topicId: "group:test::topic-001::shard:1",
+            canonicalTopicId: "group:test::topic-001",
+            topicPath: "group/test/topic-001",
+            status: "active",
+            messageCount: 2,
+            summary: "fallback",
+            senderTail: nil,
+            rawText: raw,
+            updatedAt: nil,
+            shardOrdinal: 1,
+            isCanonical: false
+        )
+
+        XCTAssertEqual(topic.rawTextDisplay, "今天晚上一起吃饭吗\n我这边八点以后都可以")
+        XCTAssertEqual(shard.rawTextDisplay, "今天晚上一起吃饭吗\n我这边八点以后都可以")
+    }
+
     func testWaterfallColumnsUseTwoColumnsForPhoneWidths() {
         XCTAssertEqual(WaterfallColumns.count(for: 393), 2)
         XCTAssertEqual(WaterfallColumns.count(for: 430), 2)

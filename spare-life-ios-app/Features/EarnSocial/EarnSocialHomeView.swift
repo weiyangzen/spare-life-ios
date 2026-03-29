@@ -1,72 +1,50 @@
 // EarnSocialHomeView.swift
-// Spare Life – 赚闲能 A2A home and secondary surfaces
-// Blueprint §3.3 功能点 1-7
-// UIUX lane – slot 2
+// Spare Life – Stage 2 earn-social home
 
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 struct EarnSocialHomeView: View {
-    @StateObject private var store = EarnSocialExperienceStore()
-    @StateObject private var scrollState = WaterfallScrollState()
+    @State private var selectedCategory: EarnSocialCategory = .errand
+    @State private var activeCard: EarnSocialMockCard?
+    @State private var showPreferenceSheet = false
+
+    private var visibleCards: [EarnSocialMockCard] {
+        EarnSocialMockFixtures.cards[selectedCategory] ?? []
+    }
 
     var body: some View {
         NavigationStack {
             ZStack {
                 pageBackground
 
-                ScrollViewReader { proxy in
-                    ZStack(alignment: .bottomTrailing) {
+                VStack(spacing: 0) {
+                    header
+
+                    GeometryReader { proxy in
+                        let spacing = Spacing.sm
+                        let columns = WaterfallColumns.count(for: proxy.size.width)
+                        let totalSpacing = spacing * CGFloat(columns - 1)
+                        let horizontalPadding = Spacing.sm * 2
+                        let columnWidth = max(120, floor((proxy.size.width - horizontalPadding - totalSpacing) / CGFloat(columns)))
+
                         ScrollView(.vertical, showsIndicators: false) {
-                            VStack(alignment: .leading, spacing: Spacing.lg) {
-                                // Scroll offset tracker + anchor
-                                GeometryReader { geo in
-                                    Color.clear.preference(
-                                        key: EarnSocialScrollOffsetKey.self,
-                                        value: geo.frame(in: .named("earnFeedScroll")).minY
-                                    )
+                            WaterfallLayout(columns: columns, spacing: spacing) {
+                                ForEach(visibleCards) { card in
+                                    EarnSocialMockCardView(card: card) {
+                                        activeCard = card
+                                    }
+                                    .frame(width: columnWidth)
                                 }
-                                .frame(height: 0)
-                                .id("earn_feed_top")
-
-                                homeHeader
-
-                                feedBody
                             }
-                            .padding(.horizontal, Spacing.lg)
+                            .padding(.horizontal, Spacing.sm)
                             .padding(.bottom, Spacing.xxxl)
                         }
-                        .coordinateSpace(name: "earnFeedScroll")
-                        .onPreferenceChange(EarnSocialScrollOffsetKey.self) { offset in
-                            scrollState.offsetY = offset
-                            scrollState.isAtTop = offset > -40
-                        }
-                        .refreshable {
-                            await store.refresh()
-                        }
-
-                        if !scrollState.isAtTop {
-                            ScrollToTopButton(isVisible: true) {
-                                withAnimation(.spareSpring) {
-                                    proxy.scrollTo("earn_feed_top", anchor: .top)
-                                }
-                            }
-                            .padding(.trailing, Spacing.lg)
-                            .padding(.bottom, Spacing.xl)
-                            .transition(.scale.combined(with: .opacity))
-                        }
                     }
-                    .animation(.spareSpring, value: scrollState.isAtTop)
                 }
             }
             .spareNavigationBarHidden(true)
-            .task {
-                store.loadIfNeeded()
-            }
-            .sheet(item: $store.activeSheet) { sheet in
-                sheetView(for: sheet)
+            .sheet(item: $activeCard) { card in
+                EarnSocialMockChatView(card: card)
                     .presentationDragIndicator(.visible)
             }
         }
@@ -75,9 +53,9 @@ struct EarnSocialHomeView: View {
     private var pageBackground: some View {
         LinearGradient(
             colors: [
-                Color.spareYellowLight.opacity(0.52),
+                Color.spareYellow.opacity(0.12),
                 Color.white,
-                Color(.systemGroupedBackground)
+                Color.white
             ],
             startPoint: .top,
             endPoint: .bottom
@@ -85,2926 +63,758 @@ struct EarnSocialHomeView: View {
         .ignoresSafeArea()
     }
 
-    private var homeHeader: some View {
-        VStack(alignment: .leading, spacing: Spacing.lg) {
-            topBar
-            heroCard
-            dashboardControls
-        }
-        .padding(.top, Spacing.lg)
-    }
-
-    private var topBar: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .top, spacing: Spacing.md) {
-                VStack(alignment: .leading, spacing: Spacing.sm) {
-                    Label("A2A 陌生社交主战场", systemImage: "bolt.horizontal.circle.fill")
-                        .font(.spareMicro)
-                        .foregroundColor(.spareDark)
-                        .padding(.horizontal, Spacing.sm)
-                        .padding(.vertical, 6)
-                        .background(Color.spareYellow, in: Capsule())
-
-                    Text("赚闲能")
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .foregroundColor(.spareDark)
-
-                    Text("六条 A2A 赛道混排成一条能逛、能赚、能破冰的陌生社交主战场。")
-                        .font(.spareCaption)
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: Spacing.sm)
-
-                Button {
-                    store.openWallet()
-                } label: {
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("闲能余额")
-                            .font(.spareMicro)
-                            .foregroundColor(.secondary)
-
-                        HStack(spacing: 6) {
-                            Image(systemName: "bolt.circle.fill")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(.spareDark)
-                            Text("\(store.wallet.balance)")
-                                .font(.system(size: 26, weight: .bold, design: .rounded))
-                                .foregroundColor(.spareDark)
-                        }
-
-                        Text("看账本")
-                            .font(.spareMicro)
-                            .foregroundColor(.spareDark.opacity(0.62))
-                    }
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.vertical, Spacing.md)
-                    .background(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(Color.white)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(Color.spareYellow.opacity(0.32), lineWidth: 1)
-                    )
-                    .shadow(color: Color(red: 0.92, green: 0.76, blue: 0.12).opacity(0.18), radius: 12, y: 4)
-                }
-                .buttonStyle(.plain)
-            }
-
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: Spacing.sm) {
-                    EarnHeaderBadge(symbol: store.selectedLane.symbol, label: store.selectedLane.title, tint: store.selectedLane.accentColor)
-                    EarnHeaderBadge(symbol: store.selectedFilter.symbol, label: store.selectedFilter.title, tint: store.selectedFilter.accentColor)
-                    EarnRefreshBadge(date: store.lastRefreshAt)
-                }
-
-                VStack(alignment: .leading, spacing: Spacing.sm) {
-                    EarnHeaderBadge(symbol: store.selectedLane.symbol, label: store.selectedLane.title, tint: store.selectedLane.accentColor)
-                    EarnHeaderBadge(symbol: store.selectedFilter.symbol, label: store.selectedFilter.title, tint: store.selectedFilter.accentColor)
-                    EarnRefreshBadge(date: store.lastRefreshAt)
-                }
-            }
-        }
-        .padding(Spacing.lg)
-        .background(
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(Color.white.opacity(0.96))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .stroke(Color.spareYellow.opacity(0.22), lineWidth: 1)
-                )
-        )
-        .shadow(color: Color(red: 0.92, green: 0.76, blue: 0.12).opacity(0.16), radius: 16, y: 6)
-    }
-
-    private var heroCard: some View {
-        let lane = store.selectedLane
-        let laneChip = store.selectedLaneChip
-        let laneTrend = store.selectedLaneTrend
-
-        return VStack(alignment: .leading, spacing: Spacing.lg) {
-            HStack(alignment: .top, spacing: Spacing.md) {
-                VStack(alignment: .leading, spacing: Spacing.sm) {
-                    HStack(spacing: Spacing.sm) {
-                        EarnHeaderBadge(symbol: lane.symbol, label: lane.title, tint: lane.accentColor)
-                        EarnHeaderBadge(symbol: "bolt.fill", label: "今日可赚 +\(store.wallet.todayEarnable)", tint: .spareYellow)
-                    }
-
-                    Text("在 \(lane.title) 里，先让分身替你把不值得投入的沟通筛掉。")
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
-                        .foregroundColor(.spareDark)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Text(lane.summary)
-                        .font(.spareBody)
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: Spacing.sm)
-
-                if let laneTrend {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("热点任务")
-                            .font(.spareMicro)
-                            .foregroundColor(.secondary)
-                        Text(laneTrend.eventTitle)
-                            .font(.spareCaptionSB)
-                            .foregroundColor(.spareDark)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text("+\(laneTrend.rewardAmount)")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundColor(lane.accentColor)
-                    }
-                    .padding(.horizontal, Spacing.md)
-                    .padding(.vertical, Spacing.md)
-                    .frame(maxWidth: 158, alignment: .leading)
-                    .background(Color.spareYellowLight.opacity(0.52), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: CornerRadius.lg)
-                            .stroke(Color.spareYellow.opacity(0.28), lineWidth: 1)
-                    )
-                }
-            }
-
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: Spacing.sm) {
-                    EarnHeroMetricTile(
-                        title: "闲能余额",
-                        value: "\(store.wallet.balance)",
-                        footnote: "冻结 \(store.wallet.frozenBalance)",
-                        tint: .spareYellow
-                    )
-                    EarnHeroMetricTile(
-                        title: "赛道热度",
-                        value: laneChip.map { String(format: "%.1f", $0.heatScore) } ?? "--",
-                        footnote: "\(laneChip?.openIntentCount ?? 0) 条机会",
-                        tint: lane.accentColor
-                    )
-                    EarnHeroMetricTile(
-                        title: "奖励",
-                        value: "+\(laneChip?.rewardAmount ?? 0)",
-                        footnote: laneTrend?.eventTitle ?? "热点任务",
-                        tint: .emotionPositive
-                    )
-                }
-
-                VStack(spacing: Spacing.sm) {
-                    EarnHeroMetricTile(
-                        title: "闲能余额",
-                        value: "\(store.wallet.balance)",
-                        footnote: "冻结 \(store.wallet.frozenBalance)",
-                        tint: .spareYellow
-                    )
-                    EarnHeroMetricTile(
-                        title: "赛道热度",
-                        value: laneChip.map { String(format: "%.1f", $0.heatScore) } ?? "--",
-                        footnote: "\(laneChip?.openIntentCount ?? 0) 条机会",
-                        tint: lane.accentColor
-                    )
-                    EarnHeroMetricTile(
-                        title: "奖励",
-                        value: "+\(laneChip?.rewardAmount ?? 0)",
-                        footnote: laneTrend?.eventTitle ?? "热点任务",
-                        tint: .emotionPositive
-                    )
-                }
-            }
-
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text("为什么这条赛道值得刷")
-                    .font(.spareCaptionSB)
-                    .foregroundColor(.secondary)
-
-                Text(lane.savedSteps)
-                    .font(.spareBodySB)
-                    .foregroundColor(.primary)
-
-                if let laneTrend {
-                    HStack(alignment: .top, spacing: Spacing.sm) {
-                        Image(systemName: "flame.fill")
-                            .foregroundColor(.spareYellowInk)
-                            .padding(.top, 2)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(laneTrend.eventTitle)
-                                .font(.spareCaptionSB)
-                                .foregroundColor(.spareDark)
-                            Text(laneTrend.eventSummary)
-                                .font(.spareCaption)
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .padding(Spacing.md)
-                    .background(Color.spareYellowLight.opacity(0.34), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-                }
-            }
-
-            Button {
-                store.openMarket()
-            } label: {
-                HStack(spacing: Spacing.md) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("在 \(lane.title) 发一个意图")
-                            .font(.spareTitle3)
-                            .foregroundColor(.spareDark)
-                        Text("让分身先筛掉不值得真人投入的那部分沟通")
-                            .font(.spareCaptionSB)
-                            .foregroundColor(.spareDark.opacity(0.76))
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.spareDark)
-                        .padding(12)
-                        .background(Color.white.opacity(0.78), in: Circle())
-                }
-                .padding(.horizontal, Spacing.lg)
-                .padding(.vertical, Spacing.lg)
-                .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color.spareYellow)
-                )
-            }
-            .buttonStyle(.plain)
-
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: Spacing.sm) {
-                    SecondaryActionButton(
-                        title: "看趋势热点",
-                        subtitle: "探索奖励",
-                        symbol: "chart.bar.fill",
-                        tint: lane.accentColor
-                    ) {
-                        store.openTrends()
-                    }
-
-                    SecondaryActionButton(
-                        title: "围观竞技场",
-                        subtitle: "赢闲能",
-                        symbol: "figure.boxing",
-                        tint: .emotionSplit
-                    ) {
-                        store.openArena()
-                    }
-                }
-
-                VStack(spacing: Spacing.sm) {
-                    SecondaryActionButton(
-                        title: "看趋势热点",
-                        subtitle: "探索奖励",
-                        symbol: "chart.bar.fill",
-                        tint: lane.accentColor
-                    ) {
-                        store.openTrends()
-                    }
-                    SecondaryActionButton(
-                        title: "围观竞技场",
-                        subtitle: "赢闲能",
-                        symbol: "figure.boxing",
-                        tint: .emotionSplit
-                    ) {
-                        store.openArena()
-                    }
-                }
-            }
-        }
-        .padding(Spacing.xl)
-        .background(
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(Color.white.opacity(0.97))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .stroke(Color.spareYellow.opacity(0.24), lineWidth: 1)
-        )
-        .shadow(color: Color(red: 0.92, green: 0.76, blue: 0.12).opacity(0.16), radius: 16, y: 6)
-    }
-
-    private var dashboardControls: some View {
-        VStack(alignment: .leading, spacing: Spacing.lg) {
-            HStack(alignment: .top, spacing: Spacing.md) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("探索控制台")
-                        .font(.spareTitle3)
-                    Text("先选赛道，再切筛选，下面的混排 feed 会跟着当前上下文一起重排。")
-                        .font(.spareCaption)
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: Spacing.sm)
-
-                if let laneChip = store.selectedLaneChip {
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("当前机会")
-                            .font(.spareMicro)
-                            .foregroundColor(.secondary)
-                        Text("\(laneChip.openIntentCount) 条")
-                            .font(.spareCaptionSB)
-                            .foregroundColor(store.selectedLane.accentColor)
-                    }
-                }
-            }
-
-            laneChipStrip
-
-            Rectangle()
-                .fill(Color.black.opacity(0.06))
-                .frame(height: 1)
-
-            quickFilterStrip
-        }
-        .padding(Spacing.lg)
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color.white.opacity(0.97))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.spareYellow.opacity(0.20), lineWidth: 1)
-                )
-        )
-        .shadow(color: Color(red: 0.92, green: 0.76, blue: 0.12).opacity(0.14), radius: 12, y: 4)
-    }
-
-    private var laneChipStrip: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
+    private var header: some View {
+        VStack(spacing: Spacing.md) {
             HStack {
-                Text("六条赛道")
-                    .font(.spareCaptionSB)
-                    .foregroundColor(.secondary)
-
                 Spacer()
-
-                if let laneChip = store.selectedLaneChip {
-                    EarnHeaderBadge(
-                        symbol: "gift.fill",
-                        label: "奖励 +\(laneChip.rewardAmount)",
-                        tint: .spareYellow
-                    )
-                }
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.sm) {
-                    ForEach(store.laneChips) { chip in
-                        EarnLaneChipButton(
-                            chip: chip,
-                            isSelected: chip.lane == store.selectedLane
-                        ) {
-                            withAnimation(.spareSpring) {
-                                store.selectLane(chip.lane)
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 1)
-            }
-        }
-    }
-
-    private var quickFilterStrip: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack {
-                Text("快捷筛选")
-                    .font(.spareCaptionSB)
-                    .foregroundColor(.secondary)
-
-                Spacer()
-
-                Text(store.lastRefreshAt, style: .time)
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.sm) {
-                    ForEach(store.quickFilters) { filter in
-                        FilterButton(
-                            filter: filter,
-                            isSelected: filter == store.selectedFilter
-                        ) {
-                            UISelectionFeedbackGenerator().selectionChanged()
-                            withAnimation(.spareFast) {
-                                store.selectQuickFilter(filter)
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 1)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var feedBody: some View {
-        switch store.homeState {
-        case .idle, .loading:
-            VStack(spacing: Spacing.md) {
-                EarnFeedDeckHeader(
-                    title: "混排 feed",
-                    subtitle: "按 \(store.selectedFilter.title) 查看 \(store.selectedLane.title) 的混排卡片。",
-                    countLabel: "加载中",
-                    refreshedAt: store.lastRefreshAt,
-                    tint: store.selectedLane.accentColor
-                )
-                WaterfallSkeleton(count: 8)
-                    .frame(height: 860)
-            }
-
-        case .error(let message):
-            VStack(spacing: Spacing.md) {
-                EarnFeedDeckHeader(
-                    title: "混排 feed",
-                    subtitle: "按 \(store.selectedFilter.title) 查看 \(store.selectedLane.title) 的混排卡片。",
-                    countLabel: "状态异常",
-                    refreshedAt: store.lastRefreshAt,
-                    tint: .emotionNegative
-                )
-
-                ErrorStateView(
-                    message: message,
-                    retry: { Task { await store.refresh() } }
-                )
-                .padding(.top, Spacing.xl)
-            }
-
-        case .loaded:
-            let cards = store.visibleFeedCards
-            VStack(alignment: .leading, spacing: Spacing.md) {
-                EarnFeedDeckHeader(
-                    title: "混排 feed",
-                    subtitle: "按 \(store.selectedFilter.title) 查看 \(store.selectedLane.title) 的混排卡片。",
-                    countLabel: "\(cards.count) 张卡",
-                    refreshedAt: store.lastRefreshAt,
-                    tint: store.selectedLane.accentColor
-                )
-
-                if let toastMessage = store.toastMessage {
-                    EarnInlineToast(message: toastMessage) {
-                        store.closeToast()
-                    }
-                }
-
-                if cards.isEmpty {
-                    EmptyStateView(
-                        icon: "rectangle.on.rectangle.slash",
-                        title: "这一档筛选已经刷空了",
-                        message: store.selectedFilter == .bestMatch
-                            ? "你已经把当前赛道的公开分身都略过或屏蔽了，可以清空缓存重新刷一轮。"
-                            : "换一条赛道，或者切回“机会最多”，让卡片重新混排回来。",
-                        actionLabel: store.selectedFilter == .bestMatch ? "清空缓存" : "切回机会最多",
-                        action: {
-                            if store.selectedFilter == .bestMatch {
-                                store.resetPersonaCache()
-                            } else {
-                                store.selectQuickFilter(.opportunities)
-                            }
-                        }
-                    )
-                    .padding(.top, Spacing.xl)
-                } else {
-                    GeometryReader { proxy in
-                        WaterfallLayout(columns: WaterfallColumns.count(for: proxy.size.width), spacing: Spacing.md) {
-                            ForEach(cards) { card in
-                                feedCard(for: card)
-                                    .transition(.asymmetric(
-                                        insertion: .scale(scale: 0.92).combined(with: .opacity),
-                                        removal: .opacity
-                                    ))
-                            }
-                        }
-                    }
-                    .frame(minHeight: CGFloat(cards.count / 2 + 1) * 200)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func feedCard(for card: EarnSocialFeedCard) -> some View {
-        switch card {
-        case .wallet(let wallet):
-            WalletEnergyCard(wallet: wallet, ledgerEntries: Array(store.ledgerEntries.prefix(3))) {
-                store.openWallet()
-            }
-
-        case .opportunity(let intent):
-            LaneOpportunityCardView(intent: intent) {
-                store.selectLane(intent.lane)
-                store.openMarket()
-            }
-
-        case .persona(let persona):
-            PersonaDiscoveryCardView(persona: persona, isLiked: store.likedPersonaIDs.contains(persona.id)) {
-                store.selectLane(persona.lane)
-                store.openPersonaDeck()
-            } primaryAction: {
-                store.startIcebreak(with: persona)
-            }
-
-        case .icebreakPrompt(let prompt):
-            IcebreakPromptCardView(prompt: prompt) {
-                store.openIcebreak()
-            }
-
-        case .icebreak(let session):
-            IcebreakProgressCardView(session: session) {
-                store.openIcebreak()
-            }
-
-        case .trend(let trend):
-            TrendSnapshotCardView(trend: trend) {
-                store.selectLane(trend.lane)
-                store.openTrends()
-            }
-
-        case .arena(let match):
-            ArenaBattleCardView(match: match) {
-                store.openArena()
-            }
-
-        case .bondPrompt(let prompt):
-            BondPromptCardView(prompt: prompt) {
-                store.openBond()
-            }
-
-        case .bond(let story):
-            BondStoryCardView(story: story) {
-                store.openBond()
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func sheetView(for sheet: EarnSocialSheet) -> some View {
-        switch sheet {
-        case .market:
-            EarnIntentMarketView(store: store)
-        case .personas:
-            EarnPersonaDeckView(store: store)
-        case .icebreak:
-            EarnIcebreakView(store: store)
-        case .trends:
-            EarnTrendExplorerView(store: store)
-        case .arena:
-            EarnArenaExperienceView(store: store)
-        case .bond:
-            EarnBondJourneyView(store: store)
-        case .wallet:
-            EarnWalletLedgerView(store: store)
-        }
-    }
-}
-
-// MARK: - Home Components
-
-// MARK: - Scroll Offset Key
-
-private struct EarnSocialScrollOffsetKey: PreferenceKey {
-    nonisolated(unsafe) static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
-private struct EarnHeaderBadge: View {
-    let symbol: String
-    let label: String
-    let tint: Color
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: symbol)
-                .font(.system(size: 11, weight: .semibold))
-            Text(label)
-                .lineLimit(1)
-        }
-        .font(.spareMicro)
-        .foregroundColor(tint)
-        .padding(.horizontal, Spacing.md)
-        .padding(.vertical, 8)
-        .background(
-            Capsule()
-                .fill(Color.white)
-        )
-        .overlay(
-            Capsule()
-                .stroke(Color.spareYellow.opacity(0.22), lineWidth: 1)
-        )
-    }
-}
-
-private struct EarnRefreshBadge: View {
-    let date: Date
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "clock.arrow.circlepath")
-                .font(.system(size: 11, weight: .semibold))
-            Text(date, style: .time)
-        }
-        .font(.spareMicro)
-        .foregroundColor(.secondary)
-        .padding(.horizontal, Spacing.md)
-        .padding(.vertical, 8)
-        .background(
-            Capsule()
-                .fill(Color.white)
-        )
-        .overlay(
-            Capsule()
-                .stroke(Color.spareYellow.opacity(0.22), lineWidth: 1)
-        )
-    }
-}
-
-private struct EarnHeroMetricTile: View {
-    let title: String
-    let value: String
-    let footnote: String
-    let tint: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(tint)
-                    .frame(width: 8, height: 8)
-                Text(title)
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
-            }
-
-            Text(value)
-                .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundColor(.spareDark)
-
-            Text(footnote)
-                .font(.spareMicro)
-                .foregroundColor(tint)
-                .lineLimit(2)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Spacing.md)
-        .background(Color.spareYellowLight.opacity(0.28), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke(Color.spareYellow.opacity(0.24), lineWidth: 1)
-        )
-    }
-}
-
-private struct EarnFeedDeckHeader: View {
-    let title: String
-    let subtitle: String
-    let countLabel: String
-    let refreshedAt: Date
-    let tint: Color
-
-    var body: some View {
-        HStack(alignment: .top, spacing: Spacing.md) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
+                Text("赚闲能")
                     .font(.spareTitle2)
-                Text(subtitle)
-                    .font(.spareCaption)
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundColor(.primary)
+                Spacer()
             }
 
-            Spacer(minLength: Spacing.sm)
-
-            VStack(alignment: .trailing, spacing: 8) {
-                Text(countLabel)
-                    .font(.spareCaptionSB)
-                    .foregroundColor(.spareDark)
-                    .padding(.horizontal, Spacing.md)
-                    .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                            .fill(Color.spareYellow)
-                    )
-
-                HStack(spacing: 6) {
-                    Image(systemName: "clock")
-                    Text(refreshedAt, style: .time)
-                }
-                .font(.spareMicro)
-                .foregroundColor(.secondary)
+            HStack(alignment: .center, spacing: Spacing.sm) {
+                categoryTabs
+                preferenceButton
             }
         }
-        .padding(Spacing.lg)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(Color.spareYellow.opacity(0.22), lineWidth: 1)
-                )
+        .padding(.horizontal, Spacing.lg)
+        .padding(.top, Spacing.md)
+        .padding(.bottom, Spacing.md)
+    }
+
+    private var preferenceButton: some View {
+        Button {
+            showPreferenceSheet = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .bold))
+                Text("我的偏好")
+                    .font(.spareCaptionSB)
+            }
+            .foregroundColor(.spareDark)
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, 10)
+            .background(Color.white, in: Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.spareYellow.opacity(0.24), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showPreferenceSheet) {
+            EarnSocialPreferenceSheet(category: selectedCategory)
+                .presentationDragIndicator(.visible)
+        }
+    }
+
+    private var categoryTabs: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Spacing.sm) {
+                ForEach(EarnSocialCategory.allCases) { category in
+                    EarnSocialCategoryTabButton(
+                        category: category,
+                        isSelected: category == selectedCategory
+                    ) {
+                        withAnimation(.spareEase) {
+                            selectedCategory = category
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 1)
+        }
+    }
+}
+
+private enum EarnSocialCategory: String, CaseIterable, Identifiable {
+    case errand
+    case mouthpiece
+    case buddy
+    case romance
+    case career
+    case funding
+    case idle
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .errand: return "跑腿"
+        case .mouthpiece: return "嘴替"
+        case .buddy: return "搭子"
+        case .romance: return "两性"
+        case .career: return "求职招聘"
+        case .funding: return "投融资"
+        case .idle: return "闲置"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .errand: return "figure.run"
+        case .mouthpiece: return "bubble.left.and.bubble.right.fill"
+        case .buddy: return "person.2.fill"
+        case .romance: return "heart.fill"
+        case .career: return "briefcase.fill"
+        case .funding: return "banknote.fill"
+        case .idle: return "shippingbox.fill"
+        }
+    }
+
+    var summary: String {
+        switch self {
+        case .errand:
+            return "有人发需求，也有人接单。先看时间、地点和预算能不能对上。"
+        case .mouthpiece:
+            return "有人想找人代聊、代沟通，也有人愿意出面表达。"
+        case .buddy:
+            return "有人找搭子，有人愿意一起去。重点看节奏、兴趣和城市。"
+        case .romance:
+            return "有人主动认识，也有人开放接触。重点先看边界和期待。"
+        case .career:
+            return "有人找工作，也有人招人。核心是岗位、履历和到岗方式。"
+        case .funding:
+            return "有人找钱，也有人找项目。先看阶段、金额和决策窗口。"
+        case .idle:
+            return "有人求购，也有人求售。先看成色、价格和交易方式。"
+        }
+    }
+
+    var bidirectionalHint: String {
+        switch self {
+        case .errand: return "双向身份：发需求 / 可接单"
+        case .mouthpiece: return "双向身份：求嘴替 / 做嘴替"
+        case .buddy: return "双向身份：找搭子 / 可搭"
+        case .romance: return "双向身份：想认识 / 愿意聊"
+        case .career: return "双向身份：找工作 / 招人"
+        case .funding: return "双向身份：找钱 / 找项目"
+        case .idle: return "双向身份：求购 / 求售"
+        }
+    }
+
+    var chatPrompt: String {
+        switch self {
+        case .errand: return "时间、地点和预算"
+        case .mouthpiece: return "说话边界和目标"
+        case .buddy: return "时间、活动和相处节奏"
+        case .romance: return "边界、期待和安全感"
+        case .career: return "岗位、履历和合作方式"
+        case .funding: return "阶段、金额和决策窗口"
+        case .idle: return "价格、成色和交易方式"
+        }
+    }
+}
+
+private struct EarnSocialMockCard: Identifiable, Hashable {
+    let id: String
+    let category: EarnSocialCategory
+    let direction: String
+    let actorRole: String
+    let counterpartRole: String
+    let title: String
+    let summary: String
+    let meta: String
+    let reward: String
+    let tags: [String]
+}
+
+private extension EarnSocialMockCard {
+    var isAgentPreChatted: Bool {
+        EarnSocialMockFixtures.preChattedCardIDs.contains(id)
+    }
+}
+
+private enum EarnSocialMockFixtures {
+    static let preChattedCardIDs: Set<String> = [
+        "errand-01", "errand-06",
+        "mouthpiece-02", "mouthpiece-08",
+        "buddy-01", "buddy-10",
+        "romance-02", "romance-07",
+        "career-01", "career-08",
+        "funding-01", "funding-06",
+        "idle-02", "idle-07"
+    ]
+
+    static let cards: [EarnSocialCategory: [EarnSocialMockCard]] = [
+        .errand: [
+            card("errand-01", .errand, "发需求", "代取方", "想找接单人", "今晚代取静安体检报告", "6 点前从医院窗口代取报告，再顺路送到静安寺地铁口。", "上海 · 今晚 18:00 前", "预算 35", ["静安", "代取", "今晚"]),
+            card("errand-02", .errand, "可接单", "接单方", "想找发需求的人", "晚高峰可接文件递送", "本人电瓶车通勤，黄浦到徐汇之间可接加急文件递送。", "上海 · 工作日 17:00 后", "接单 25 起", ["加急", "文件", "黄浦"]),
+            card("errand-03", .errand, "发需求", "代买方", "想找顺路代买的人", "帮买两杯少糖奶茶送到公司", "公司楼下不方便离岗，想找人顺路代买并送到前台。", "深圳 · 福田", "预算 20 + 跑腿费", ["奶茶", "办公室", "即刻"]),
+            card("errand-04", .errand, "可接单", "应答方", "想找临时任务", "午休时间可接同城小任务", "中午 11:30 到 13:30 有空，可以接打印、取件、代送一类的小单。", "北京 · 朝阳", "接单 18 起", ["午休", "同城", "临时"]),
+            card("errand-05", .errand, "发需求", "发单方", "想找晚上能帮忙的人", "宠物医院开药后顺路送回家", "晚上加班脱不开身，需要有人把药从宠物医院送回小区门口。", "杭州 · 拱墅", "预算 40", ["宠物", "夜间", "顺路"]),
+            card("errand-06", .errand, "可接单", "接单方", "想找稳定需求", "每周可固定代排队 2 次", "熟悉几家热门店取号流程，可以固定接早高峰排队任务。", "广州 · 天河", "接单 50 起", ["排队", "固定", "熟门熟路"]),
+            card("errand-07", .errand, "发需求", "代办方", "想找周末跑腿", "周末帮送一箱书到朋友家", "书比较重，车程 20 分钟，希望有人帮忙搬上楼。", "成都 · 锦江", "预算 60", ["周末", "搬运", "书籍"]),
+            card("errand-08", .errand, "可接单", "应答方", "想找校园附近需求", "大学城周边可接代拿快递", "住在学校旁边，晚上都在宿舍区，可以帮忙代拿快递和送上门。", "武汉 · 洪山", "接单 10 起", ["校园", "快递", "晚上"]),
+            card("errand-09", .errand, "发需求", "帮办方", "想找熟悉政务的人", "明早帮我领一份营业执照副本", "需要早上去政务窗口排队取件，我中午才能请出时间。", "苏州 · 工业园区", "预算 50", ["政务", "排队", "明早"]),
+            card("errand-10", .errand, "可接单", "接单方", "想找附近长期小单", "小区周边可顺手代送晚饭", "下班固定经过 3 个小区，能接顺路送餐和小件送达。", "南京 · 建邺", "接单 12 起", ["晚饭", "顺路", "长期"])
+        ],
+        .mouthpiece: [
+            card("mouthpiece-01", .mouthpiece, "求嘴替", "委托方", "想找代聊的人", "帮我礼貌拒绝一个不合适的合作", "对方比较热情，我不想直接生硬拒绝，想先把话说圆一点。", "远程 · 今天内", "预算 30", ["合作", "礼貌拒绝", "微信"]),
+            card("mouthpiece-02", .mouthpiece, "做嘴替", "代聊方", "想找明确场景", "擅长帮人写边界感消息", "适合处理暧昧拉扯、朋友越界、同事冒犯一类需要留体面的沟通。", "远程 · 晚上可接", "接单 25 起", ["边界感", "体面", "改文案"]),
+            card("mouthpiece-03", .mouthpiece, "求嘴替", "委托方", "想找情绪稳的人", "帮我跟房东谈一次续租降价", "我自己一聊就容易上头，希望有人帮我先把话术准备好。", "上海 · 远程", "预算 50", ["房租", "谈判", "续租"]),
+            card("mouthpiece-04", .mouthpiece, "做嘴替", "代聊方", "想找职场沟通需求", "可代写 HR 跟进和 offer 询问", "熟悉职场沟通语气，擅长写不卑不亢的催进度消息。", "远程 · 工作日", "接单 35 起", ["HR", "offer", "催进度"]),
+            card("mouthpiece-05", .mouthpiece, "求嘴替", "委托方", "想找会安抚的人", "帮我给暧昧对象发一次止损消息", "不想继续拖着，但也不希望把话说得太伤人。", "远程 · 今晚", "预算 28", ["止损", "暧昧", "降温"]),
+            card("mouthpiece-06", .mouthpiece, "做嘴替", "代聊方", "想找关系修复场景", "擅长写道歉和解释消息", "适合朋友冷战、情侣误会、家人冲突后的第一条消息。", "远程 · 随时", "接单 20 起", ["道歉", "修复", "第一条"]),
+            card("mouthpiece-07", .mouthpiece, "求嘴替", "委托方", "想找强势表达的人", "帮我回绝临时加班要求", "需要表达我能配合到什么程度，同时把边界说清楚。", "远程 · 工作日", "预算 32", ["加班", "边界", "老板"]),
+            card("mouthpiece-08", .mouthpiece, "做嘴替", "代聊方", "想找复杂对话场景", "可陪你一起打磨三轮聊天稿", "不只是写一句话，会一起把前后话术顺一遍。", "远程 · 3 轮内", "接单 45 起", ["打磨", "三轮", "复杂对话"]),
+            card("mouthpiece-09", .mouthpiece, "求嘴替", "委托方", "想找会谈价格的人", "帮我跟供应商压一次报价", "我不是很会讨价还价，希望有人给出可复制的表达。", "远程 · 今天", "预算 40", ["报价", "压价", "供应商"]),
+            card("mouthpiece-10", .mouthpiece, "做嘴替", "代聊方", "想找长期委托", "适合社媒私信和商务开场", "可以提供第一句开场、第二轮跟进和礼貌收尾。", "远程 · 长期", "接单 18 起", ["私信", "商务", "开场"])
+        ],
+        .buddy: [
+            card("buddy-01", .buddy, "找搭子", "发起方", "想找同频的人", "周六看展 + citywalk", "想找一个不赶场、愿意边走边聊的人一起看展。", "上海 · 周六下午", "AA", ["看展", "citywalk", "轻松"]),
+            card("buddy-02", .buddy, "可搭", "响应方", "想找稳定搭子", "我能做晨跑搭子", "工作日 6:30 固定晨跑，节奏稳定，不会临时放鸽子。", "杭州 · 滨江", "长期", ["晨跑", "规律", "长期"]),
+            card("buddy-03", .buddy, "找搭子", "发起方", "想找周中咖啡搭子", "下班后一起探店 1 小时", "只是想找人一起喝杯咖啡聊聊近况，不卷社交任务。", "广州 · 珠江新城", "AA", ["咖啡", "下班后", "放松"]),
+            card("buddy-04", .buddy, "可搭", "响应方", "想找周末活动", "周末羽毛球可拼半场", "有球拍，也知道场馆订位，适合新手一起打。", "深圳 · 南山", "AA", ["羽毛球", "新手友好", "周末"]),
+            card("buddy-05", .buddy, "找搭子", "发起方", "想找写作共学", "每周两次安静共写", "线上也可以，重点是一起开着摄像头写，不聊天也行。", "远程 · 周二周四", "免费", ["共学", "写作", "线上"]),
+            card("buddy-06", .buddy, "可搭", "响应方", "想找同城电影搭子", "可一起看偏冷门片单", "喜欢纪录片和独立电影，不适合纯爆米花路线。", "北京 · 朝阳", "AA", ["电影", "冷门片", "同城"]),
+            card("buddy-07", .buddy, "找搭子", "发起方", "想找音乐节搭子", "五一音乐节想拼住宿和出行", "希望节奏合拍，不临时变计划，能提前把预算说清楚。", "成都 · 五一", "AA", ["音乐节", "住宿", "出行"]),
+            card("buddy-08", .buddy, "可搭", "响应方", "想找学习搭子", "考公晚间自习可互相打卡", "不需要互相讲题，主要是监督和稳定在线。", "武汉 · 线上/同城", "免费", ["自习", "打卡", "考公"]),
+            card("buddy-09", .buddy, "找搭子", "发起方", "想找周日徒步搭子", "中低强度山线，不卷配速", "希望一起拍照、补给，不是硬核拉练。", "厦门 · 周日", "AA", ["徒步", "拍照", "低强度"]),
+            card("buddy-10", .buddy, "可搭", "响应方", "想找播客搭子", "可一起逛展并录一期播客", "我负责设备和剪辑，希望对方愿意聊天和表达。", "上海 · 双休日", "共创", ["播客", "逛展", "共创"])
+        ],
+        .romance: [
+            card("romance-01", .romance, "想认识", "主动方", "想找认真接触的人", "慢热型，希望先稳定聊两周", "不着急线下见面，先确认价值观和沟通方式。", "上海 · 认真关系", "真诚优先", ["慢热", "稳定聊", "认真"]),
+            card("romance-02", .romance, "愿意聊", "回应方", "想找边界清晰的人", "可以先从日常聊天开始", "接受慢慢认识，不接受凌晨高频轰炸式聊天。", "深圳 · 两周内可聊", "边界明确", ["边界", "日常聊天", "轻压力"]),
+            card("romance-03", .romance, "想认识", "主动方", "想找同城线下可能性", "希望认识愿意一起做饭的人", "不看模板式自我介绍，更看重生活节奏是否能对上。", "杭州 · 同城", "认真接触", ["做饭", "生活感", "同城"]),
+            card("romance-04", .romance, "愿意聊", "回应方", "想找表达稳定的人", "接受先语音再见面", "比较在意对方是不是能持续表达，而不是一开始很热后面失踪。", "北京 · 慢慢来", "先语音", ["稳定表达", "先语音", "不消失"]),
+            card("romance-05", .romance, "想认识", "主动方", "想找不敷衍的人", "下班后能认真聊半小时就很好", "期待的是温和、持续、有回应的接触感。", "广州 · 工作日晚", "认真沟通", ["下班后", "认真聊", "持续"]),
+            card("romance-06", .romance, "愿意聊", "回应方", "想找尊重节奏的人", "不接受刚认识就强推见面", "更适合先交换生活方式和边界，再决定要不要往前走。", "成都 · 线上先聊", "尊重节奏", ["节奏", "边界", "线上先聊"]),
+            card("romance-07", .romance, "想认识", "主动方", "想找价值观合拍的人", "先聊消费观和亲密关系观", "不需要立刻甜，但需要方向明确。", "南京 · 同城优先", "价值观对齐", ["消费观", "方向明确", "同城"]),
+            card("romance-08", .romance, "愿意聊", "回应方", "想找愿意共建的人", "接受从朋友感开始升温", "希望关系是慢慢长出来的，不是靠话术堆出来的。", "苏州 · 双向选择", "朋友感", ["共建", "升温", "自然"]),
+            card("romance-09", .romance, "想认识", "主动方", "想找周末可以见面的人", "如果聊得顺，愿意周末咖啡见一面", "偏好低压力场景，不想上来就是饭局考核。", "厦门 · 周末", "咖啡见面", ["低压力", "咖啡", "周末"]),
+            card("romance-10", .romance, "愿意聊", "回应方", "想找有安全感的人", "可以先交换真实生活照片", "不想玩失真滤镜式人设，希望一开始就轻度真实。", "重庆 · 真诚优先", "真实交换", ["安全感", "真实", "轻度真实"])
+        ],
+        .career: [
+            card("career-01", .career, "找工作", "候选人", "想找招聘方", "iOS 工程师想聊正式岗位", "3 年 SwiftUI + UIKit，希望先确认团队节奏和业务方向。", "上海 · 可一月内到岗", "月薪面议", ["iOS", "正式岗位", "一月内"]),
+            card("career-02", .career, "招人", "招聘方", "想找候选人", "招增长产品经理，偏内容社区", "希望候选人有 0 到 1 起盘经验，能接受小团队快节奏。", "北京 · 全职", "预算 25-35K", ["产品经理", "内容社区", "全职"]),
+            card("career-03", .career, "找工作", "候选人", "想找远程机会", "后端工程师希望先看协作方式", "熟悉 Go 和微服务，希望团队文档和评审比较成熟。", "远程 · 即刻可聊", "薪资面议", ["Go", "远程", "协作"]),
+            card("career-04", .career, "招人", "招聘方", "想找设计师", "招品牌设计，偏消费品视觉", "希望有人做过包装或电商视觉，不只是纯海报输出。", "广州 · 全职/合作", "预算 18-25K", ["品牌设计", "消费品", "视觉"]),
+            card("career-05", .career, "找工作", "候选人", "想找兼职项目", "前端开发可接中短期外包", "更适合营销页、品牌官网、小程序前台项目。", "远程 · 两周内", "按项目报价", ["前端", "外包", "中短期"]),
+            card("career-06", .career, "招人", "招聘方", "想找运营", "短视频账号招兼职脚本运营", "希望能写选题、拆结构，也能跟剪辑对一下方向。", "深圳 · 兼职", "时薪 80 起", ["短视频", "脚本", "兼职"]),
+            card("career-07", .career, "找工作", "候选人", "想找更稳定团队", "测试工程师想换到业务清晰的团队", "偏功能测试和流程设计，想先看是不是长期岗位。", "杭州 · 同城优先", "薪资面议", ["测试", "稳定", "长期"]),
+            card("career-08", .career, "招人", "招聘方", "想找销售", "ToB SaaS 招售前顾问", "需要能做需求梳理、演示支持和客户跟进。", "成都 · 全职", "预算 15-25K + 提成", ["售前", "SaaS", "ToB"]),
+            card("career-09", .career, "找工作", "候选人", "想找转岗机会", "内容运营希望转用户研究", "需要有人愿意先聊 transferable skills 和试用方式。", "北京 · 可实习过渡", "薪资面议", ["转岗", "用户研究", "内容运营"]),
+            card("career-10", .career, "招人", "招聘方", "想找工程顾问", "创业团队找兼职技术顾问", "每周固定看一次方案，给架构和节奏建议。", "远程 · 长期兼职", "月顾问费", ["顾问", "架构", "创业团队"])
+        ],
+        .funding: [
+            card("funding-01", .funding, "找钱", "项目方", "想找投资人", "AI 工具项目想聊天使轮", "已有早期付费用户，想找懂效率工具和 ToC 的投资人。", "远程/上海", "目标 300 万", ["AI 工具", "天使轮", "付费用户"]),
+            card("funding-02", .funding, "找项目", "投资方", "想找项目方", "看早期消费品牌项目", "更关心复购、单店模型和创始人执行力。", "远程 · 本月看项目", "单笔 100-300 万", ["消费品牌", "早期", "复购"]),
+            card("funding-03", .funding, "找钱", "项目方", "想找懂 SaaS 的钱", "企业服务产品想聊 Pre-A", "团队来自行业一线，已经有 8 家付费 B 端客户。", "北京/远程", "目标 800 万", ["企业服务", "Pre-A", "B 端"]),
+            card("funding-04", .funding, "找项目", "投资方", "想看硬科技团队", "关注机器人和智能制造方向", "可以接受长周期，但需要技术壁垒真实。", "深圳 · 季度内", "单笔 500 万起", ["机器人", "硬科技", "制造"]),
+            card("funding-05", .funding, "找钱", "项目方", "想找产业资源型投资人", "跨境电商工具想换资源型股东", "需要的不只是钱，更希望带渠道和供应链资源。", "杭州 · 可见面", "目标 500 万", ["跨境", "资源型", "供应链"]),
+            card("funding-06", .funding, "找项目", "投资方", "想找有现金流的项目", "看教育和职业培训方向", "偏好已经跑出小规模现金流、不是纯故事。", "上海 · 本季度", "单笔 200 万起", ["教育", "现金流", "职业培训"]),
+            card("funding-07", .funding, "找钱", "项目方", "想找愿意陪跑的 FA", "想先找能打磨材料和结构的人", "BP 基本有了，但故事线还不够清楚。", "远程 · 两周内", "顾问费 + success fee", ["FA", "BP", "陪跑"]),
+            card("funding-08", .funding, "找项目", "投资方", "想看文娱内容项目", "看有 IP 潜力和社群基础的内容品牌", "更看重内容效率和用户粘性，不急着规模化。", "远程 · 持续看", "单笔 50-150 万", ["文娱", "内容品牌", "IP"]),
+            card("funding-09", .funding, "找钱", "项目方", "想找第一张机构支票", "健康食品品牌想从个人投资转机构投资", "已有稳定复购，希望资金用于放大渠道。", "广州 · 可路演", "目标 200 万", ["健康食品", "机构支票", "渠道"]),
+            card("funding-10", .funding, "找项目", "投资方", "想找女性消费项目", "关注女性健康、情绪、关系类产品", "需要项目表达清楚用户增长与长期复购。", "远程 · 本月", "单笔 100-200 万", ["女性消费", "健康", "复购"])
+        ],
+        .idle: [
+            card("idle-01", .idle, "求购", "买家", "想找卖家", "求一台 9 成新 Kindle Oasis", "偏好带原装壳和充电线，预算可以商量。", "上海 · 同城优先", "预算 900", ["Kindle", "同城", "原装"]),
+            card("idle-02", .idle, "求售", "卖家", "想找买家", "出 95 新 AirPods Pro 2", "买来三个月，盒子和小票都在，支持验货。", "北京 · 可面交", "售价 1150", ["AirPods", "验货", "面交"]),
+            card("idle-03", .idle, "求购", "买家", "想找稳定卖家", "求二手人体工学椅", "最好在 1500 以内，希望椅背和升降都正常。", "深圳 · 南山", "预算 1500", ["工学椅", "二手", "正常升降"]),
+            card("idle-04", .idle, "求售", "卖家", "想找识货买家", "出 8 成新索尼相机镜头", "功能正常，无磕碰，适合入门人像拍摄。", "广州 · 可邮寄", "售价 1800", ["索尼", "镜头", "邮寄"]),
+            card("idle-05", .idle, "求购", "买家", "想找女生衣柜清仓", "求购春夏通勤西装外套", "偏好基础色和轻薄材质，能接受轻微使用痕迹。", "杭州 · 同城/邮寄", "预算 200 内", ["通勤", "西装", "女生"]),
+            card("idle-06", .idle, "求售", "卖家", "想找同城面交", "出 9 成新米家投影仪", "家里升级设备，原盒还在，可现场试机。", "成都 · 面交优先", "售价 1600", ["投影仪", "试机", "原盒"]),
+            card("idle-07", .idle, "求购", "买家", "想找靠谱卖家", "求 Mac mini M2 基础版", "只要国行和正常使用机，面交最好。", "南京 · 面交", "预算 2500", ["Mac mini", "国行", "正常使用"]),
+            card("idle-08", .idle, "求售", "卖家", "想找学生买家", "出考研全套英语资料", "标注比较全，适合二战或基础薄弱的人。", "武汉 · 校园周边", "售价 120", ["考研", "英语", "资料"]),
+            card("idle-09", .idle, "求购", "买家", "想找带发票的卖家", "求二手显示器 24 寸左右", "主要办公用，希望屏幕无坏点，支架稳定。", "苏州 · 同城", "预算 500", ["显示器", "办公", "无坏点"]),
+            card("idle-10", .idle, "求售", "卖家", "想找爽快买家", "出闲置咖啡机一台", "买来后使用不多，适合想入门手冲和意式的人。", "厦门 · 同城/邮寄", "售价 680", ["咖啡机", "入门", "闲置"])
+        ]
+    ]
+
+    private static func card(
+        _ id: String,
+        _ category: EarnSocialCategory,
+        _ direction: String,
+        _ actorRole: String,
+        _ counterpartRole: String,
+        _ title: String,
+        _ summary: String,
+        _ meta: String,
+        _ reward: String,
+        _ tags: [String]
+    ) -> EarnSocialMockCard {
+        EarnSocialMockCard(
+            id: id,
+            category: category,
+            direction: direction,
+            actorRole: actorRole,
+            counterpartRole: counterpartRole,
+            title: title,
+            summary: summary,
+            meta: meta,
+            reward: reward,
+            tags: tags
         )
     }
 }
 
-private struct LaneChipStat: View {
-    let label: String
-    let value: String
-    let tint: Color
-    let background: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(label)
-                .font(.spareMicro)
-                .foregroundColor(tint.opacity(0.88))
-            Text(value)
-                .font(.spareCaptionSB)
-                .foregroundColor(tint)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Spacing.sm)
-        .padding(.vertical, 8)
-        .background(background, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-}
-
-private struct EarnLaneChipButton: View {
-    let chip: EarnSocialLaneChip
+private struct EarnSocialCategoryTabButton: View {
+    let category: EarnSocialCategory
     let isSelected: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: Spacing.md) {
-                HStack(alignment: .top, spacing: Spacing.sm) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(isSelected ? Color.white.opacity(0.72) : Color.spareYellowLight.opacity(0.34))
-                            .frame(width: 34, height: 34)
-                        Image(systemName: chip.lane.symbol)
-                            .foregroundColor(isSelected ? .spareDark : chip.lane.accentColor)
+            HStack(spacing: Spacing.sm) {
+                Image(systemName: category.symbol)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(category.title)
+                    .font(.spareCaptionSB)
+            }
+            .foregroundColor(.spareDark)
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(isSelected ? Color.spareYellow : Color.white)
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.spareYellow.opacity(isSelected ? 0.55 : 0.20), lineWidth: 1)
+            )
+            .shadow(
+                color: Color.spareYellow.opacity(isSelected ? 0.16 : 0.06),
+                radius: isSelected ? 8 : 4,
+                y: 2
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct EarnSocialPreferenceSheet: View {
+    let category: EarnSocialCategory
+
+    @Environment(\.dismiss) private var dismiss
+
+    private var preferenceTags: [String] {
+        switch category {
+        case .errand:
+            return ["同城优先", "预算明确", "晚上可聊", "只看已代聊"]
+        case .mouthpiece:
+            return ["边界清楚", "语气体面", "可三轮打磨", "只看已代聊"]
+        case .buddy:
+            return ["同城优先", "周末可约", "节奏稳定", "只看已代聊"]
+        case .romance:
+            return ["认真接触", "先聊边界", "慢热可接受", "只看已代聊"]
+        case .career:
+            return ["岗位明确", "先看合作方式", "远程可聊", "只看已代聊"]
+        case .funding:
+            return ["阶段清楚", "金额明确", "决策窗口短", "只看已代聊"]
+        case .idle:
+            return ["同城优先", "价格明确", "支持验货", "只看已代聊"]
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: Spacing.lg) {
+                Text("我的偏好")
+                    .font(.spareTitle2)
+
+                Text("这些只是当前 \(category.title) 的 mock 偏好。带“分身已代聊”的卡片表示系统已经帮你先聊过一轮。")
+                    .font(.spareCaption)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                FlexiblePreferenceFlow(tags: preferenceTags)
+
+                Spacer()
+            }
+            .padding(Spacing.lg)
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
+            .navigationTitle("我的偏好")
+            .spareNavigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .spareNavigationLeading) {
+                    Button("关闭") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct FlexiblePreferenceFlow: View {
+    let tags: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            ForEach(chunked(tags, size: 2), id: \.self) { row in
+                HStack(spacing: Spacing.sm) {
+                    ForEach(row, id: \.self) { tag in
+                        Text(tag)
+                            .font(.spareCaptionSB)
+                            .foregroundColor(.spareDark)
+                            .padding(.horizontal, Spacing.md)
+                            .padding(.vertical, Spacing.sm)
+                            .background(Color.white, in: Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.spareYellow.opacity(0.22), lineWidth: 1)
+                            )
+                    }
+                    Spacer()
+                }
+            }
+        }
+    }
+}
+
+private struct EarnSocialMockCardView: View {
+    let card: EarnSocialMockCard
+    let openChat: () -> Void
+
+    var body: some View {
+        Button(action: openChat) {
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: CornerRadius.xl, style: .continuous)
+                    .fill(Color.white)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .top, spacing: Spacing.sm) {
+                        HStack(spacing: Spacing.xs) {
+                            EarnSocialPill(label: card.direction, filled: true)
+                            if card.isAgentPreChatted {
+                                EarnSocialStatePill(label: "分身已代聊")
+                            }
+                        }
+
+                        Spacer()
+
+                        Text(card.reward)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.spareDark)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(Color.spareYellowLight, in: Capsule())
                     }
 
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(chip.lane.title)
-                            .font(.spareCaptionSB)
-                            .foregroundColor(isSelected ? .spareDark : .primary)
-                        Text(chip.lane.shortcut)
-                            .font(.spareMicro)
-                            .foregroundColor(isSelected ? .spareDark.opacity(0.68) : .secondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(card.title)
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                            .foregroundColor(.spareDark)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+
+                        Text("\(card.actorRole) · 面向 \(card.counterpartRole)")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+
+                        Text(card.summary)
+                            .font(.system(size: 13, weight: .regular))
+                            .foregroundColor(.secondary)
+                            .lineSpacing(1)
+                            .lineLimit(3)
+                    }
+
+                    EarnSocialMetaBlock(text: card.meta)
+
+                    HStack(spacing: Spacing.xs) {
+                        ForEach(Array(card.tags.prefix(3)), id: \.self) { tag in
+                            EarnSocialPill(label: tag)
+                        }
                     }
 
                     Spacer(minLength: 0)
 
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
+                    Rectangle()
+                        .fill(Color.spareYellow.opacity(0.14))
+                        .frame(height: 1)
+
+                    HStack {
+                        Label(card.isAgentPreChatted ? "查看代聊后继续聊" : "打开聊天", systemImage: "message.fill")
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.spareDark)
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.secondary)
                     }
                 }
-
-                HStack(spacing: Spacing.sm) {
-                    LaneChipStat(
-                        label: "机会",
-                        value: "\(chip.openIntentCount)",
-                        tint: isSelected ? .spareDark : chip.lane.accentColor,
-                        background: isSelected ? Color.white.opacity(0.68) : Color.spareYellowLight.opacity(0.20)
-                    )
-                    LaneChipStat(
-                        label: "热度",
-                        value: String(format: "%.1f", chip.heatScore),
-                        tint: isSelected ? .spareDark : .spareYellowInk,
-                        background: isSelected ? Color.white.opacity(0.68) : Color.spareYellowLight.opacity(0.20)
-                    )
-                }
-
-                HStack {
-                    Label("+\(chip.rewardAmount)", systemImage: "gift.fill")
-                        .font(.spareMicro)
-                        .foregroundColor(.spareDark)
-                        .padding(.horizontal, Spacing.sm)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(isSelected ? Color.white.opacity(0.84) : Color.spareYellowLight.opacity(0.65))
-                        )
-
-                    Spacer()
-
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(isSelected ? .spareDark.opacity(0.72) : .secondary)
-                }
+                .padding(12)
             }
-            .frame(width: isSelected ? 194 : 176, alignment: .leading)
-            .padding(Spacing.md)
-            .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(isSelected ? Color.spareYellow : Color.white)
-            )
+            .aspectRatio(5.0 / 8.0, contentMode: .fit)
             .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(isSelected ? Color.spareYellow.opacity(0.6) : Color.spareYellow.opacity(0.20), lineWidth: 1)
+                RoundedRectangle(cornerRadius: CornerRadius.xl, style: .continuous)
+                    .stroke(Color.spareYellow.opacity(0.22), lineWidth: 1)
             )
-            .shadow(color: Color(red: 0.92, green: 0.76, blue: 0.12).opacity(isSelected ? 0.22 : 0.10), radius: isSelected ? 14 : 10, y: 5)
+            .shadow(color: Color.spareYellow.opacity(0.10), radius: 8, y: 4)
         }
         .buttonStyle(.plain)
     }
 }
 
-private struct FilterButton: View {
-    let filter: EarnSocialQuickFilter
-    let isSelected: Bool
-    let action: () -> Void
+private struct EarnSocialPill: View {
+    let label: String
+    var filled: Bool = false
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: Spacing.sm) {
-                ZStack {
-                    Circle()
-                        .fill(isSelected ? Color.white.opacity(0.62) : Color.spareYellowLight.opacity(0.32))
-                        .frame(width: 28, height: 28)
-                    Image(systemName: filter.symbol)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(isSelected ? .spareDark : .spareDark.opacity(0.72))
-                }
-                Text(filter.title)
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .bold))
-                }
-            }
-            .font(.spareCaptionSB)
-            .foregroundColor(isSelected ? .spareDark : .primary)
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, 10)
+        Text(label)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundColor(.spareDark)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(isSelected ? Color.spareYellow : Color.white)
+                Capsule()
+                    .fill(filled ? Color.spareYellow : Color.spareYellowLight.opacity(0.45))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.spareYellow.opacity(isSelected ? 0.55 : 0.20), lineWidth: 1)
+                Capsule()
+                    .stroke(Color.spareYellow.opacity(filled ? 0.45 : 0.18), lineWidth: 1)
             )
-        }
-        .buttonStyle(.plain)
     }
 }
 
-private struct SecondaryActionButton: View {
-    let title: String
-    let subtitle: String
-    let symbol: String
-    let tint: Color
-    let action: () -> Void
+private struct EarnSocialStatePill: View {
+    let label: String
 
     var body: some View {
-        Button(action: action) {
-            HStack(alignment: .center, spacing: Spacing.sm) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.spareYellowLight.opacity(0.44))
-                        .frame(width: 42, height: 42)
-                    Image(systemName: symbol)
-                        .foregroundColor(.spareDark)
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.spareCaptionSB)
-                        .foregroundColor(.primary)
-                    Text(subtitle)
-                        .font(.spareMicro)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.spareDark.opacity(0.72))
-            }
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.md)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        Text(label)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .background(Color(.systemGray6), in: Capsule())
             .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(Color.spareYellow.opacity(0.20), lineWidth: 1)
+                Capsule()
+                    .stroke(Color(.systemGray5), lineWidth: 1)
             )
-        }
-        .buttonStyle(.plain)
     }
 }
 
-private struct EarnMetricCapsule: View {
-    let title: String
-    let value: String
-    let footnote: String
-    let tint: Color
+private struct EarnSocialMetaBlock: View {
+    let text: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.spareMicro)
+            Text("场景信息")
+                .font(.system(size: 10, weight: .medium))
                 .foregroundColor(.secondary)
-            Text(value)
-                .font(.spareTitle3)
-                .foregroundColor(.primary)
-            Text(footnote)
-                .font(.spareMicro)
-                .foregroundColor(tint)
+
+            Text(text)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.spareDark)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(1)
         }
+        .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Spacing.md)
-        .padding(.vertical, Spacing.sm)
         .background(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .fill(tint.opacity(0.10))
+            RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                .fill(Color.spareYellow.opacity(0.10))
         )
-    }
-}
-
-private struct EarnInlineToast: View {
-    let message: String
-    let dismiss: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: Spacing.sm) {
-            Image(systemName: "sparkles")
-                .foregroundColor(.spareYellow)
-            Text(message)
-                .font(.spareCaptionSB)
-                .foregroundColor(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer()
-            Button(action: dismiss) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.secondary)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(Spacing.md)
-        .background(Color.white.opacity(0.9), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
         .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke(Color.spareYellow.opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                .stroke(Color.spareYellow.opacity(0.16), lineWidth: 1)
         )
     }
 }
 
-private struct InlineErrorBanner: View {
-    let message: String
+private struct EarnSocialMockChatView: View {
+    let card: EarnSocialMockCard
 
-    var body: some View {
-        HStack(alignment: .top, spacing: Spacing.sm) {
-            Image(systemName: "exclamationmark.octagon.fill")
-                .foregroundColor(.emotionNegative)
-            Text(message)
-                .font(.spareCaptionSB)
-                .foregroundColor(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer()
-        }
-        .padding(Spacing.md)
-        .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke(Color.emotionNegative.opacity(0.24), lineWidth: 1)
-        )
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: String = ""
+    @State private var messages: [EarnSocialChatMessage]
+
+    init(card: EarnSocialMockCard) {
+        self.card = card
+        _messages = State(initialValue: EarnSocialChatMessage.seed(for: card))
     }
-}
-
-// MARK: - Feed Cards
-
-private struct LaneOpportunityCardView: View {
-    let intent: EarnIntentCard
-    let action: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Image(systemName: intent.lane.symbol)
-                            .foregroundColor(intent.lane.accentColor)
-                        Text(intent.lane.title)
-                            .font(.spareMicro)
-                            .foregroundColor(.secondary)
-                    }
-                    Text(intent.title)
-                        .font(.spareTitle3)
-                        .foregroundColor(.primary)
-                }
+        NavigationStack {
+            VStack(spacing: 0) {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: Spacing.md) {
+                        chatHeader
 
-                Spacer()
-
-                IntentModeBadge(mode: intent.mode)
-            }
-
-            Text(intent.summary)
-                .font(.spareBody)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("A2A 省掉哪几步")
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
-                Text(intent.reason)
-                    .font(.spareCaptionSB)
-                    .foregroundColor(intent.lane.accentColor)
-            }
-
-            FlowTagCloud(tags: Array(intent.tags.prefix(4)), tint: intent.lane.accentColor)
-
-            Button("发同类意图") {
-                action()
-            }
-            .font(.spareCaptionSB)
-            .buttonStyle(.plain)
-            .foregroundColor(.primary)
-        }
-        .padding(Spacing.md)
-        .background(Color.white.opacity(0.9), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke(intent.lane.accentColor.opacity(0.18), lineWidth: 1)
-        )
-        .cardShadow()
-    }
-}
-
-private struct PersonaDiscoveryCardView: View {
-    let persona: EarnPersonaCard
-    let isLiked: Bool
-    let action: () -> Void
-    let primaryAction: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .top, spacing: Spacing.sm) {
-                AvatarView(name: persona.displayName, size: 48)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(persona.displayName)
-                            .font(.spareTitle3)
-                        if isLiked {
-                            Image(systemName: "heart.fill")
-                                .foregroundColor(.spareOrange)
+                        ForEach(messages) { message in
+                            EarnSocialChatBubble(message: message)
                         }
                     }
-
-                    Text(persona.publicBio)
-                        .font(.spareCaption)
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Spacing.lg)
+                    .padding(.top, Spacing.lg)
+                    .padding(.bottom, Spacing.xxxl)
                 }
 
-                Spacer()
+                composer
             }
-
-            HStack(spacing: Spacing.sm) {
-                ScoreChip(label: "匹配 \(Int(persona.matchScore))", tint: persona.lane.accentColor)
-                ScoreChip(label: "信任 \(persona.trustScore)", tint: .emotionPositive)
-            }
-
-            FlowTagCloud(tags: Array((persona.personaTags + persona.expertiseTags).prefix(5)), tint: persona.lane.accentColor)
-
-            if let explanation = persona.explanationTags.first {
-                Text(explanation)
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
-            }
-
-            HStack(spacing: Spacing.sm) {
-                Button("看公开卡") {
-                    action()
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
+            .navigationTitle(card.category.title)
+            .spareNavigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .spareNavigationLeading) {
+                    Button("关闭") {
+                        dismiss()
+                    }
                 }
-                .buttonStyle(.plain)
-                .font(.spareCaptionSB)
-
-                Spacer()
-
-                Button(persona.allowsAgentIntro ? "双方分身先聊" : "仅看资料") {
-                    primaryAction()
-                }
-                .buttonStyle(.plain)
-                .font(.spareCaptionSB)
-                .foregroundColor(persona.lane.accentColor)
             }
         }
-        .padding(Spacing.md)
-        .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke(persona.lane.accentColor.opacity(0.18), lineWidth: 1)
-        )
-        .cardShadow()
     }
-}
 
-private struct IcebreakPromptCardView: View {
-    let prompt: EarnIcebreakPrompt
-    let action: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(spacing: 8) {
-                StepGlyph(symbol: "person.fill", isActive: true, tint: .emotionPositive)
-                StepGlyph(symbol: "person.crop.circle.badge.questionmark", isActive: true, tint: .spareYellow)
-                StepGlyph(symbol: "person.crop.circle.badge.questionmark", isActive: true, tint: .spareYellowInk)
-                StepGlyph(symbol: "person.2.fill", isActive: false, tint: .emotionPositive)
+    private var chatHeader: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(spacing: Spacing.xs) {
+                EarnSocialPill(label: card.direction, filled: true)
+                if card.isAgentPreChatted {
+                    EarnSocialStatePill(label: "分身已代聊")
+                }
             }
 
-            Text(prompt.headline)
+            Text(card.title)
                 .font(.spareTitle3)
 
-            Text(prompt.body)
-                .font(.spareBody)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Button("打开破冰面板") {
-                action()
-            }
-            .font(.spareCaptionSB)
-            .buttonStyle(.plain)
-            .foregroundColor(.primary)
-        }
-        .padding(Spacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.spareYellowLight.opacity(0.62),
-                            Color.white.opacity(0.9)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        )
-        .cardShadow()
-    }
-}
-
-private struct IcebreakProgressCardView: View {
-    let session: EarnIcebreakSession
-    let action: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("双 Agent 破冰")
-                        .font(.spareMicro)
-                        .foregroundColor(.secondary)
-                    Text(session.intentTitle)
-                        .font(.spareTitle3)
-                }
-                Spacer()
-                StatusBadge(label: session.stage.label, tint: session.stage.tintColor)
-            }
-
-            Text("目标分身：\(session.counterpartName)")
-                .font(.spareCaptionSB)
-
-            HStack(spacing: Spacing.sm) {
-                EarnMetricCapsule(
-                    title: "兼容度",
-                    value: "\(Int(session.compatibilityScore))",
-                    footnote: "审计 \(session.audits.count) 条",
-                    tint: session.lane.accentColor
-                )
-                EarnMetricCapsule(
-                    title: "授权",
-                    value: "\(session.initiatorGranted ? 1 : 0)/\(session.counterpartGranted ? 1 : 0)",
-                    footnote: "双方都要点头",
-                    tint: .emotionPositive
-                )
-            }
-
-            Text(session.summary)
-                .font(.spareBody)
-                .foregroundColor(.secondary)
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(session.messages.prefix(2)) { message in
-                    HStack(alignment: .top, spacing: 6) {
-                        Circle()
-                            .fill(message.actor == .counterpartAgent ? Color.spareYellowInk : Color.spareYellow)
-                            .frame(width: 7, height: 7)
-                            .padding(.top, 6)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(message.actor.displayName)
-                                .font(.spareMicro)
-                                .foregroundColor(.secondary)
-                            Text(message.content)
-                                .font(.spareCaption)
-                                .foregroundColor(.primary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-            }
-
-            Button("继续破冰") {
-                action()
-            }
-            .font(.spareCaptionSB)
-            .buttonStyle(.plain)
-            .foregroundColor(.primary)
-        }
-        .padding(Spacing.md)
-        .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke(session.stage.tintColor.opacity(0.18), lineWidth: 1)
-        )
-        .cardShadow()
-    }
-}
-
-private struct TrendSnapshotCardView: View {
-    let trend: EarnTrendSnapshot
-    let action: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(trend.lane.title)
-                        .font(.spareTitle3)
-                    Text(trend.eventTitle)
-                        .font(.spareCaptionSB)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                if trend.isClaimed {
-                    StatusBadge(label: "已领取", tint: .emotionPositive)
-                } else {
-                    StatusBadge(label: "+\(trend.rewardAmount)", tint: .spareYellow)
-                }
-            }
-
-            Text(trend.eventSummary)
-                .font(.spareBody)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            EarnMiniBar(label: "热度", value: trend.heatScore / 50, tint: trend.lane.accentColor)
-            EarnMiniBar(label: "响应速度", value: trend.responseSpeedScore / 50, tint: .emotionPositive)
-            EarnMiniBar(label: "供需缺口", value: trend.supplyGapScore / 50, tint: .emotionSplit)
-
-            Button("看趋势层") {
-                action()
-            }
-            .font(.spareCaptionSB)
-            .buttonStyle(.plain)
-            .foregroundColor(.primary)
-        }
-        .padding(Spacing.md)
-        .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke(trend.lane.accentColor.opacity(0.18), lineWidth: 1)
-        )
-        .cardShadow()
-    }
-}
-
-private struct ArenaBattleCardView: View {
-    let match: EarnArenaMatch
-    let action: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("A2A 竞技场")
-                        .font(.spareMicro)
-                        .foregroundColor(.secondary)
-                    Text(match.theme)
-                        .font(.spareTitle3)
-                }
-                Spacer()
-                StatusBadge(label: match.status == .active ? "投票中" : "已结算", tint: match.status == .active ? .emotionSplit : .emotionPositive)
-            }
-
-            VStack(spacing: Spacing.sm) {
-                ArenaContenderRow(title: "挑战方", contender: match.challenger, score: match.challengerScore, tint: .emotionSplit)
-                ArenaContenderRow(title: "守擂方", contender: match.opponent, score: match.opponentScore, tint: .emotionPositive)
-            }
-
-            HStack(spacing: Spacing.sm) {
-                ScoreChip(label: "围观 \(match.votes.count)", tint: .emotionSplit)
-                ScoreChip(label: "奖励 +\(match.rewardAmount)", tint: .spareYellow)
-            }
-
-            Text(match.summary)
+            Text("先把 \(card.category.chatPrompt) 说清楚，再决定要不要继续往下聊。")
                 .font(.spareCaption)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-
-            Button("去围观") {
-                action()
-            }
-            .font(.spareCaptionSB)
-            .buttonStyle(.plain)
-            .foregroundColor(.primary)
         }
-        .padding(Spacing.md)
-        .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+        .padding(Spacing.lg)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.xl, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke(Color.emotionSplit.opacity(0.18), lineWidth: 1)
+            RoundedRectangle(cornerRadius: CornerRadius.xl, style: .continuous)
+                .stroke(Color.spareYellow.opacity(0.22), lineWidth: 1)
         )
-        .cardShadow()
     }
-}
 
-private struct BondPromptCardView: View {
-    let prompt: EarnBondPromptCard
-    let action: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("关系升温与羁绊任务")
-                .font(.spareTitle3)
-            Text(prompt.message)
-                .font(.spareBody)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            Button("打开羁绊面板") {
-                action()
-            }
-            .font(.spareCaptionSB)
-            .buttonStyle(.plain)
-        }
-        .padding(Spacing.md)
-        .background(Color.white.opacity(0.9), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke(Color.emotionPositive.opacity(0.18), lineWidth: 1)
-        )
-        .cardShadow()
-    }
-}
-
-private struct BondStoryCardView: View {
-    let story: EarnBondStory
-    let action: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(story.memorialTitle)
-                        .font(.spareTitle3)
-                    Text(story.memorialSummary)
-                        .font(.spareCaption)
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
-                StatusBadge(label: story.level.title, tint: .emotionPositive)
-            }
-
-            EarnMiniBar(label: "关系强度 \(story.strengthScore)", value: Double(story.strengthScore) / 100, tint: .emotionPositive)
-
-            ForEach(story.tasks.prefix(2)) { task in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(task.title)
-                            .font(.spareCaptionSB)
-                        Spacer()
-                        Text("\(task.progressCount)/\(task.targetCount)")
-                            .font(.spareMicro)
-                            .foregroundColor(.secondary)
-                    }
-                    EarnMiniBar(label: "", value: Double(task.progressCount) / Double(max(1, task.targetCount)), tint: story.lane.accentColor, showLabel: false)
-                }
-            }
-
-            Button("看任务") {
-                action()
-            }
-            .font(.spareCaptionSB)
-            .buttonStyle(.plain)
-            .foregroundColor(.primary)
-        }
-        .padding(Spacing.md)
-        .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke(Color.emotionPositive.opacity(0.18), lineWidth: 1)
-        )
-        .cardShadow()
-    }
-}
-
-private struct WalletEnergyCard: View {
-    let wallet: EarnWalletSnapshot
-    let ledgerEntries: [EarnLedgerEntry]
-    let action: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("闲能经济系统")
-                        .font(.spareTitle3)
-                    Text("收入、消耗、冻结、结算都在这里可视化。")
-                        .font(.spareCaption)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                Text("\(wallet.balance)")
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundColor(.spareYellow)
-            }
-
-            HStack(spacing: Spacing.sm) {
-                EarnMetricCapsule(title: "累计赚到", value: "\(wallet.lifetimeEarned)", footnote: "连续 \(wallet.streakDays) 天", tint: .emotionPositive)
-                EarnMetricCapsule(title: "冻结中", value: "\(wallet.frozenBalance)", footnote: "竞技场 / 结算", tint: .emotionSplit)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(ledgerEntries) { entry in
-                    HStack(alignment: .top, spacing: Spacing.sm) {
-                        Circle()
-                            .fill(entry.kind.tintColor)
-                            .frame(width: 8, height: 8)
-                            .padding(.top, 5)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(entry.title)
-                                .font(.spareCaptionSB)
-                            Text(entry.detail)
-                                .font(.spareMicro)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Text(entry.amount >= 0 ? "+\(entry.amount)" : "\(entry.amount)")
-                            .font(.spareCaptionSB)
-                            .foregroundColor(entry.amount >= 0 ? .emotionPositive : .primary)
-                    }
-                }
-            }
-
-            Button("看完整账本") {
-                action()
-            }
-            .font(.spareCaptionSB)
-            .buttonStyle(.plain)
-            .foregroundColor(.primary)
-        }
-        .padding(Spacing.md)
-        .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke(Color.spareYellow.opacity(0.18), lineWidth: 1)
-        )
-        .cardShadow()
-    }
-}
-
-private struct ArenaContenderRow: View {
-    let title: String
-    let contender: EarnArenaContender
-    let score: Double
-    let tint: Color
-
-    var body: some View {
+    private var composer: some View {
         HStack(spacing: Spacing.sm) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
-                Text(contender.displayName)
-                    .font(.spareCaptionSB)
-                Text(contender.subtitle)
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(String(format: "%.1f", score))
-                    .font(.spareCaptionSB)
-                    .foregroundColor(tint)
-                Text("综合分")
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-}
-
-private struct IntentModeBadge: View {
-    let mode: EarnIntentVisibilityMode
-
-    var body: some View {
-        Label(mode.title, systemImage: mode.symbol)
-            .font(.spareMicro)
-            .foregroundColor(mode.tintColor)
-            .padding(.horizontal, Spacing.sm)
-            .padding(.vertical, Spacing.xs)
-            .background(
-                Capsule()
-                    .fill(mode.tintColor.opacity(0.12))
-            )
-    }
-}
-
-private struct ScoreChip: View {
-    let label: String
-    let tint: Color
-
-    var body: some View {
-        Text(label)
-            .font(.spareMicro)
-            .foregroundColor(tint)
-            .padding(.horizontal, Spacing.sm)
-            .padding(.vertical, Spacing.xs)
-            .background(
-                Capsule()
-                    .fill(tint.opacity(0.12))
-            )
-    }
-}
-
-private struct FlowTagCloud: View {
-    let tags: [String]
-    let tint: Color
-
-    var body: some View {
-        FlexibleTagCloud(tags: tags, tint: tint)
-    }
-}
-
-private struct FlexibleTagCloud: View {
-    let tags: [String]
-    let tint: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.xs) {
-            ForEach(chunked(tags, size: 2), id: \.self) { row in
-                HStack(spacing: Spacing.xs) {
-                    ForEach(row, id: \.self) { tag in
-                        Text(tag)
-                            .font(.spareMicro)
-                            .foregroundColor(tint)
-                            .padding(.horizontal, Spacing.sm)
-                            .padding(.vertical, Spacing.xs)
-                            .background(
-                                Capsule()
-                                    .fill(tint.opacity(0.10))
-                            )
-                    }
-                }
-            }
-        }
-    }
-}
-
-private struct EarnMiniBar: View {
-    let label: String
-    let value: Double
-    let tint: Color
-    var showLabel: Bool = true
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if showLabel {
-                Text(label)
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color(.systemGray5))
-                    Capsule()
-                        .fill(tint)
-                        .frame(width: geo.size.width * min(max(value, 0.02), 1))
-                }
-            }
-            .frame(height: 8)
-        }
-    }
-}
-
-private struct StepGlyph: View {
-    let symbol: String
-    let isActive: Bool
-    let tint: Color
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(isActive ? tint.opacity(0.18) : Color(.systemGray5))
-                .frame(width: 30, height: 30)
-            Image(systemName: symbol)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(isActive ? tint : .secondary)
-        }
-    }
-}
-
-private struct StatusBadge: View {
-    let label: String
-    let tint: Color
-
-    var body: some View {
-        Text(label)
-            .font(.spareMicro)
-            .foregroundColor(tint)
-            .padding(.horizontal, Spacing.sm)
-            .padding(.vertical, Spacing.xs)
-            .background(
-                Capsule()
-                    .fill(tint.opacity(0.12))
-            )
-    }
-}
-
-// MARK: - Market Sheet
-
-private struct EarnIntentMarketView: View {
-    @ObservedObject var store: EarnSocialExperienceStore
-
-    var body: some View {
-        NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: Spacing.lg) {
-                    marketHeader
-
-                    laneSelector
-
-                    templateSection
-
-                    if let validation = store.marketValidationMessage {
-                        InlineErrorBanner(message: validation)
-                    }
-
-                    if let success = store.marketSuccessMessage {
-                        EarnInlineToast(message: success) {
-                            store.clearMarketMessages()
-                        }
-                    }
-
-                    draftSection
-
-                    recentIntentSection
-
-                    recommendedPersonaSection
-                }
-                .padding(.horizontal, Spacing.lg)
-                .padding(.top, Spacing.lg)
-                .padding(.bottom, 120)
-            }
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
-            .navigationTitle("陌生社交意图市场")
-            .spareNavigationBarTitleDisplayMode(.inline)
-            .safeAreaInset(edge: .bottom) {
-                VStack(spacing: Spacing.sm) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("完成度 \(Int(store.marketDraft.completionScore * 100))%")
-                                .font(.spareCaptionSB)
-                            Text(store.marketDraft.visibility.detail)
-                                .font(.spareMicro)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Button("发布让分身先筛") {
-                            store.publishDraft()
-                        }
-                        .font(.spareCaptionSB)
-                        .padding(.horizontal, Spacing.lg)
-                        .padding(.vertical, Spacing.md)
-                        .background(Color.spareYellow, in: Capsule())
-                        .foregroundColor(.spareDark)
-                    }
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.top, Spacing.sm)
-                    .padding(.bottom, Spacing.sm)
-                }
-                .background(.thinMaterial)
-            }
-        }
-    }
-
-    private var marketHeader: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(store.marketDraft.lane.title)
-                        .font(.spareTitle2)
-                    Text("先选赛道，再选模板，再决定公开范围。不是先找人。")
-                        .font(.spareBody)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                StatusBadge(label: store.marketDraft.visibility.title, tint: store.marketDraft.visibility.tintColor)
-            }
-
-            EarnMiniBar(label: "模板填写进度", value: store.marketDraft.completionScore, tint: store.marketDraft.lane.accentColor)
-        }
-        .padding(Spacing.lg)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.xl))
-        .cardShadow()
-    }
-
-    private var laneSelector: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("切赛道")
-                .font(.spareCaptionSB)
-                .foregroundColor(.secondary)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: Spacing.sm) {
-                    ForEach(store.laneChips) { chip in
-                        EarnLaneChipButton(chip: chip, isSelected: store.marketDraft.lane == chip.lane) {
-                            withAnimation(.spareFast) {
-                                store.updateDraftLane(chip.lane)
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 1)
-            }
-        }
-    }
-
-    private var templateSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("模板")
-                .font(.spareCaptionSB)
-                .foregroundColor(.secondary)
-
-            ForEach(store.templatesByLane[store.marketDraft.lane] ?? []) { template in
-                Button {
-                    store.updateDraftTemplate(template)
-                } label: {
-                    HStack(alignment: .top, spacing: Spacing.md) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(template.title)
-                                .font(.spareTitle3)
-                            Text(template.summary)
-                                .font(.spareCaption)
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            FlowTagCloud(tags: template.tags, tint: template.lane.accentColor)
-                        }
-                        Spacer()
-                        if template.id == store.marketDraft.template.id {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(template.lane.accentColor)
-                        }
-                    }
-                    .padding(Spacing.md)
-                    .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: CornerRadius.lg)
-                            .stroke(template.id == store.marketDraft.template.id ? template.lane.accentColor.opacity(0.3) : Color.cardStroke, lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private var draftSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("填写意图")
-                .font(.spareCaptionSB)
-                .foregroundColor(.secondary)
-
-            VStack(spacing: Spacing.md) {
-                ForEach(store.marketDraft.fields) { field in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 4) {
-                            Text(field.label)
-                                .font(.spareCaptionSB)
-                            if field.isRequired {
-                                Text("*")
-                                    .font(.spareCaptionSB)
-                                    .foregroundColor(.spareOrange)
-                            }
-                        }
-                        TextField(field.placeholder, text: binding(for: field.id))
-                            .font(.spareBody)
-                            .padding(Spacing.md)
-                            .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: CornerRadius.md))
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("补充说明")
-                        .font(.spareCaptionSB)
-                    TextEditor(text: Binding(
-                        get: { store.marketDraft.note },
-                        set: { store.updateDraftNote($0) }
-                    ))
-                    .frame(minHeight: 96)
-                    .padding(Spacing.sm)
-                    .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: CornerRadius.md))
-                }
-
-                VStack(alignment: .leading, spacing: Spacing.sm) {
-                    Text("公开范围")
-                        .font(.spareCaptionSB)
-                    ForEach(EarnIntentVisibilityMode.allCases) { mode in
-                        Button {
-                            store.updateDraftVisibility(mode)
-                        } label: {
-                            HStack(alignment: .top, spacing: Spacing.md) {
-                                Image(systemName: mode.symbol)
-                                    .foregroundColor(mode.tintColor)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(mode.title)
-                                        .font(.spareCaptionSB)
-                                    Text(mode.detail)
-                                        .font(.spareCaption)
-                                        .foregroundColor(.secondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Spacer()
-                                if store.marketDraft.visibility == mode {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(mode.tintColor)
-                                }
-                            }
-                            .padding(Spacing.md)
-                            .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: CornerRadius.lg)
-                                    .stroke(store.marketDraft.visibility == mode ? mode.tintColor.opacity(0.28) : Color.cardStroke, lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            .padding(Spacing.md)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.xl))
-            .cardShadow()
-        }
-    }
-
-    private var recentIntentSection: some View {
-        let intents = store.visibleRecentIntents(for: store.marketDraft.lane)
-        return VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("最近意图")
-                .font(.spareCaptionSB)
-                .foregroundColor(.secondary)
-
-            if intents.isEmpty {
-                EmptyStateView(
-                    icon: "tray",
-                    title: "这条赛道还没有意图",
-                    message: "先发一个，让系统开始给你出推荐。",
-                    actionLabel: nil,
-                    action: nil
-                )
-            } else {
-                ForEach(intents.prefix(3)) { intent in
-                    LaneOpportunityCardView(intent: intent) {
-                        store.updateDraftLane(intent.lane)
-                        if let template = store.templatesByLane[intent.lane]?.first(where: { $0.id == intent.templateID }) {
-                            store.updateDraftTemplate(template)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private var recommendedPersonaSection: some View {
-        let personas = store.visiblePersonas(for: store.marketDraft.lane)
-        return VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack {
-                Text("推荐分身")
-                    .font(.spareCaptionSB)
-                    .foregroundColor(.secondary)
-                Spacer()
-                Button("看完整卡组") {
-                    store.openPersonaDeck()
-                }
-                .font(.spareMicro)
-                .buttonStyle(.plain)
-            }
-
-            ForEach(personas.prefix(2)) { persona in
-                PersonaDiscoveryCardView(persona: persona, isLiked: store.likedPersonaIDs.contains(persona.id)) {
-                    store.openPersonaDeck()
-                } primaryAction: {
-                    store.startIcebreak(with: persona)
-                }
-            }
-        }
-    }
-
-    private func binding(for fieldID: String) -> Binding<String> {
-        Binding(
-            get: {
-                store.marketDraft.fields.first(where: { $0.id == fieldID })?.value ?? ""
-            },
-            set: { newValue in
-                store.updateDraftField(id: fieldID, value: newValue)
-            }
-        )
-    }
-}
-
-// MARK: - Persona Deck
-
-private struct EarnPersonaDeckView: View {
-    @ObservedObject var store: EarnSocialExperienceStore
-
-    private var personas: [EarnPersonaCard] {
-        store.visiblePersonas(for: store.selectedLane)
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: Spacing.lg) {
-                    header
-
-                    if let message = store.personaDeckMessage {
-                        EarnInlineToast(message: message) {
-                            store.clearPersonaDeckMessage()
-                        }
-                    }
-
-                    if personas.isEmpty {
-                        EmptyStateView(
-                            icon: "person.crop.rectangle.stack",
-                            title: "公开分身已经刷完了",
-                            message: "你把这条赛道的分身都略过、屏蔽或举报了。本地缓存已经生效，减少重复曝光。",
-                            actionLabel: "清空缓存",
-                            action: { store.resetPersonaCache() }
-                        )
-                        .padding(.top, Spacing.xl)
-                    } else {
-                        ForEach(personas) { persona in
-                            PersonaDeckRow(
-                                persona: persona,
-                                isLiked: store.likedPersonaIDs.contains(persona.id),
-                                onLike: { store.likePersona(persona) },
-                                onSkip: { store.skipPersona(persona) },
-                                onReport: { store.reportPersona(persona) },
-                                onStart: { store.startIcebreak(with: persona) }
-                            )
-                        }
-                    }
-                }
-                .padding(.horizontal, Spacing.lg)
-                .padding(.top, Spacing.lg)
-                .padding(.bottom, Spacing.xxxl)
-            }
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
-            .navigationTitle("发现别人的分身")
-            .spareNavigationBarTitleDisplayMode(.inline)
-        }
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("\(store.selectedLane.title) · 公共分身卡")
-                .font(.spareTitle2)
-
-            Text("看到的不是传统个人资料页，而是别人愿意拿出来社交的分身卡。每张卡都有可解释理由和可控曝光反馈。")
+            TextField("输入消息", text: $draft)
                 .font(.spareBody)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, Spacing.md)
+                .padding(.vertical, Spacing.md)
+                .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                        .stroke(Color.spareYellow.opacity(0.18), lineWidth: 1)
+                )
 
-            HStack(spacing: Spacing.sm) {
-                EarnMetricCapsule(title: "喜欢", value: "\(store.likedPersonaIDs.count)", footnote: "会更早推荐", tint: .emotionPositive)
-                EarnMetricCapsule(title: "已缓存", value: "\(store.blockedPersonaIDs.count)", footnote: "减少重复曝光", tint: store.selectedLane.accentColor)
-            }
-        }
-        .padding(Spacing.lg)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.xl))
-        .cardShadow()
-    }
-}
-
-private struct PersonaDeckRow: View {
-    let persona: EarnPersonaCard
-    let isLiked: Bool
-    let onLike: () -> Void
-    let onSkip: () -> Void
-    let onReport: () -> Void
-    let onStart: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .top, spacing: Spacing.md) {
-                AvatarView(name: persona.displayName, size: 56)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(persona.displayName)
-                            .font(.spareTitle3)
-                        if isLiked {
-                            Image(systemName: "heart.fill")
-                                .foregroundColor(.spareOrange)
-                        }
-                    }
-                    Text(persona.publicBio)
-                        .font(.spareBody)
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer()
-            }
-
-            HStack(spacing: Spacing.sm) {
-                ScoreChip(label: "匹配 \(Int(persona.matchScore))", tint: persona.lane.accentColor)
-                ScoreChip(label: "信任 \(persona.trustScore)", tint: .emotionPositive)
-                if persona.allowsAgentIntro {
-                    ScoreChip(label: "允许先聊", tint: .spareYellow)
-                }
-            }
-
-            FlowTagCloud(tags: persona.personaTags + persona.expertiseTags, tint: persona.lane.accentColor)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("开放时段：\(persona.openHours.joined(separator: " / "))")
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
-                Text("期望对象：\(persona.expectedPartner.joined(separator: " / "))")
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
-                Text(persona.explanationTags.joined(separator: " · "))
-                    .font(.spareMicro)
-                    .foregroundColor(persona.lane.accentColor)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            HStack(spacing: Spacing.sm) {
-                SmallActionButton(title: "喜欢", tint: .emotionPositive, action: onLike)
-                SmallActionButton(title: "略过", tint: .secondary, action: onSkip)
-                SmallActionButton(title: "举报", tint: .emotionNegative, action: onReport)
-            }
-
-            Button("让双方分身先聊") {
-                onStart()
+            Button("发送") {
+                sendDraft()
             }
             .font(.spareCaptionSB)
+            .foregroundColor(.spareDark)
             .padding(.horizontal, Spacing.lg)
             .padding(.vertical, Spacing.md)
-            .frame(maxWidth: .infinity)
-            .background(persona.lane.accentGradient, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-            .foregroundColor(.white)
+            .background(Color.spareYellow, in: Capsule())
+            .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .opacity(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.45 : 1)
         }
-        .padding(Spacing.md)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.xl))
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.xl)
-                .stroke(persona.lane.accentColor.opacity(0.18), lineWidth: 1)
-        )
-        .cardShadow()
-    }
-}
-
-private struct SmallActionButton: View {
-    let title: String
-    let tint: Color
-    let action: () -> Void
-
-    var body: some View {
-        Button(title, action: action)
-            .font(.spareMicro)
-            .padding(.horizontal, Spacing.md)
-            .padding(.vertical, Spacing.sm)
-            .background(tint.opacity(0.12), in: Capsule())
-            .foregroundColor(tint)
-            .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Icebreak Sheet
-
-private struct EarnIcebreakView: View {
-    @ObservedObject var store: EarnSocialExperienceStore
-
-    var body: some View {
-        NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: Spacing.lg) {
-                    header
-
-                    if let session = store.activeIcebreak {
-                        sessionView(session)
-                    } else {
-                        emptyView
-                    }
-                }
-                .padding(.horizontal, Spacing.lg)
-                .padding(.top, Spacing.lg)
-                .padding(.bottom, Spacing.xxxl)
-            }
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
-            .navigationTitle("双 Agent 破冰")
-            .spareNavigationBarTitleDisplayMode(.inline)
-        }
+        .padding(.horizontal, Spacing.lg)
+        .padding(.top, Spacing.sm)
+        .padding(.bottom, Spacing.lg)
+        .background(Color.white.opacity(0.96))
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("human → agent → agent → human")
-                .font(.spareTitle2)
+    private func sendDraft() {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
 
-            HStack(spacing: Spacing.sm) {
-                StepGlyph(symbol: "person.fill", isActive: true, tint: .emotionPositive)
-                StepGlyph(symbol: "person.crop.circle.badge.questionmark", isActive: true, tint: .spareYellow)
-                StepGlyph(symbol: "person.crop.circle.badge.questionmark", isActive: true, tint: .spareYellowInk)
-                StepGlyph(symbol: "person.2.fill", isActive: store.activeIcebreak?.stage == .humanTakeover, tint: .emotionPositive)
-            }
-
-            Text("陌生社交不直接真人对真人，先让双方分身摸底、过滤、暖场、探边界，再决定要不要真人接手。")
-                .font(.spareBody)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(Spacing.lg)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.xl))
-        .cardShadow()
-    }
-
-    @ViewBuilder
-    private func sessionView(_ session: EarnIcebreakSession) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(session.intentTitle)
-                        .font(.spareTitle3)
-                    Text("目标分身：\(session.counterpartName)")
-                        .font(.spareCaption)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                StatusBadge(label: session.stage.label, tint: session.stage.tintColor)
-            }
-
-            HStack(spacing: Spacing.sm) {
-                EarnMetricCapsule(title: "兼容度", value: "\(Int(session.compatibilityScore))", footnote: "\(session.lane.title)", tint: session.lane.accentColor)
-                EarnMetricCapsule(title: "审计", value: "\(session.audits.count)", footnote: session.auditPassed ? "全部通过" : "存在风险", tint: .emotionPositive)
-            }
-
-            Text(session.summary)
-                .font(.spareBody)
-                .foregroundColor(.secondary)
-
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text("对话审计")
-                    .font(.spareCaptionSB)
-                    .foregroundColor(.secondary)
-
-                ForEach(session.messages) { message in
-                    HStack(alignment: .top, spacing: Spacing.sm) {
-                        Circle()
-                            .fill(message.actor == .counterpartAgent ? Color.spareYellowInk : message.actor == .system ? Color.emotionNeutral : Color.spareYellow)
-                            .frame(width: 8, height: 8)
-                            .padding(.top, 6)
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 6) {
-                                Text(message.actor.displayName)
-                                    .font(.spareMicro)
-                                    .foregroundColor(.secondary)
-                                StatusBadge(label: message.auditPassed ? "审计通过" : "需复核", tint: message.auditPassed ? .emotionPositive : .emotionNegative)
-                            }
-                            Text(message.content)
-                                .font(.spareBody)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .padding(.bottom, Spacing.xs)
-                }
-            }
-            .padding(Spacing.md)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text("接手规则")
-                    .font(.spareCaptionSB)
-                    .foregroundColor(.secondary)
-                ForEach(session.handoffRules, id: \.self) { rule in
-                    HStack(alignment: .top, spacing: 6) {
-                        Image(systemName: "checkmark.seal.fill")
-                            .foregroundColor(session.lane.accentColor)
-                            .padding(.top, 2)
-                        Text(rule)
-                            .font(.spareCaption)
-                            .foregroundColor(.primary)
-                    }
-                }
-            }
-            .padding(Spacing.md)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text("双方授权")
-                    .font(.spareCaptionSB)
-                    .foregroundColor(.secondary)
-
-                consentRow(
-                    title: "我方真人接手",
-                    granted: session.initiatorGranted,
-                    allow: { store.updateConsent(side: .initiator, granted: true) },
-                    hold: { store.updateConsent(side: .initiator, granted: false) }
-                )
-                consentRow(
-                    title: "对方真人接手",
-                    granted: session.counterpartGranted,
-                    allow: { store.updateConsent(side: .counterpart, granted: true) },
-                    hold: { store.updateConsent(side: .counterpart, granted: false) }
-                )
-            }
-            .padding(Spacing.md)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-
-            if session.stage == .humanTakeover, store.bondStory != nil {
-                Button {
-                    store.openBond()
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("真人接手入口已生成")
-                                .font(.spareCaptionSB)
-                                .foregroundColor(.primary)
-                            Text("初遇纪念卡和羁绊任务已经挂到消息线程前。")
-                                .font(.spareCaption)
-                                .foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Image(systemName: "arrow.right.circle.fill")
-                            .foregroundColor(.emotionPositive)
-                    }
-                    .padding(Spacing.md)
-                    .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private var emptyView: some View {
-        VStack(spacing: Spacing.md) {
-            EmptyStateView(
-                icon: "person.crop.circle.badge.questionmark",
-                title: "先挑一个分身开始破冰",
-                message: "从公开分身卡进入，让双方分身先做边界确认和意图筛选，再决定真人要不要出现。",
-                actionLabel: "去看分身卡",
-                action: { store.openPersonaDeck() }
+        withAnimation(.spareEase) {
+            messages.append(
+                EarnSocialChatMessage(sender: .me, text: trimmed)
             )
-
-            if let topPersona = store.visiblePersonas(for: store.selectedLane).first {
-                PersonaDiscoveryCardView(persona: topPersona, isLiked: store.likedPersonaIDs.contains(topPersona.id)) {
-                    store.openPersonaDeck()
-                } primaryAction: {
-                    store.startIcebreak(with: topPersona)
-                }
-            }
+            messages.append(
+                EarnSocialChatMessage(
+                    sender: .other,
+                    text: "收到。我这边更想先确认 \(card.category.chatPrompt)，如果这些能对上，我们再继续。"
+                )
+            )
         }
+
+        draft = ""
+    }
+}
+
+private struct EarnSocialChatMessage: Identifiable, Hashable {
+    enum Sender {
+        case me
+        case other
     }
 
-    private func consentRow(title: String, granted: Bool, allow: @escaping () -> Void, hold: @escaping () -> Void) -> some View {
+    let id = UUID()
+    let sender: Sender
+    let text: String
+
+    static func seed(for card: EarnSocialMockCard) -> [EarnSocialChatMessage] {
+        var messages: [EarnSocialChatMessage] = []
+
+        if card.isAgentPreChatted {
+            messages.append(
+                EarnSocialChatMessage(
+                    sender: .other,
+                    text: "这张卡片已经由分身先代聊过一轮，基础条件大致对齐。"
+                )
+            )
+        }
+
+        messages.append(
+            EarnSocialChatMessage(
+                sender: .other,
+                text: "你好，我这边发的是「\(card.direction)」卡片。"
+            )
+        )
+        messages.append(
+            EarnSocialChatMessage(
+                sender: .other,
+                text: card.summary
+            )
+        )
+        messages.append(
+            EarnSocialChatMessage(
+                sender: .me,
+                text: "我对这个方向有兴趣，想先确认一下 \(card.category.chatPrompt)。"
+            )
+        )
+
+        return messages
+    }
+}
+
+private struct EarnSocialChatBubble: View {
+    let message: EarnSocialChatMessage
+
+    var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.spareCaptionSB)
-                Text(granted ? "已授权" : "尚未授权")
-                    .font(.spareMicro)
-                    .foregroundColor(granted ? .emotionPositive : .secondary)
-            }
-            Spacer()
-            SmallActionButton(title: "允许", tint: .emotionPositive, action: allow)
-            SmallActionButton(title: "停在分身层", tint: .emotionNegative, action: hold)
-        }
-    }
-}
+            if message.sender == .me { Spacer(minLength: 40) }
 
-// MARK: - Trend Sheet
-
-private struct EarnTrendExplorerView: View {
-    @ObservedObject var store: EarnSocialExperienceStore
-
-    var body: some View {
-        NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: Spacing.lg) {
-                    header
-
-                    ForEach(store.trendBoard.sorted { $0.heatScore > $1.heatScore }) { trend in
-                        TrendExplorerRow(trend: trend) {
-                            store.claimTrendReward(for: trend.lane)
-                        }
-                    }
-                }
-                .padding(.horizontal, Spacing.lg)
-                .padding(.top, Spacing.lg)
-                .padding(.bottom, Spacing.xxxl)
-            }
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
-            .navigationTitle("六赛道趋势与热点")
-            .spareNavigationBarTitleDisplayMode(.inline)
-        }
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("看哪里最热、响应最快、最赚钱、最缺供给。")
+            Text(message.text)
                 .font(.spareBody)
-                .foregroundColor(.secondary)
-
-            HStack(spacing: Spacing.sm) {
-                if let hottest = store.trendBoard.max(by: { $0.heatScore < $1.heatScore }) {
-                    EarnMetricCapsule(title: "最热", value: hottest.lane.title, footnote: hottest.eventTitle, tint: hottest.lane.accentColor)
-                }
-                if let fastest = store.trendBoard.max(by: { $0.responseSpeedScore < $1.responseSpeedScore }) {
-                    EarnMetricCapsule(title: "最快响应", value: fastest.lane.title, footnote: "抢占高回复窗口", tint: .emotionPositive)
-                }
-            }
-        }
-        .padding(Spacing.lg)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.xl))
-        .cardShadow()
-    }
-}
-
-private struct TrendExplorerRow: View {
-    let trend: EarnTrendSnapshot
-    let onClaim: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(trend.lane.title)
-                        .font(.spareTitle3)
-                    Text(trend.eventTitle)
-                        .font(.spareCaptionSB)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                if trend.isClaimed {
-                    StatusBadge(label: "已领奖励", tint: .emotionPositive)
-                } else {
-                    Button("+\(trend.rewardAmount) 领取") {
-                        onClaim()
-                    }
-                    .font(.spareMicro)
-                    .padding(.horizontal, Spacing.md)
-                    .padding(.vertical, Spacing.sm)
-                    .background(Color.spareYellow, in: Capsule())
-                    .foregroundColor(.spareDark)
-                    .buttonStyle(.plain)
-                }
-            }
-
-            Text(trend.eventSummary)
-                .font(.spareBody)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            EarnMiniBar(label: "热度 \(String(format: "%.1f", trend.heatScore))", value: trend.heatScore / 50, tint: trend.lane.accentColor)
-            EarnMiniBar(label: "响应速度 \(Int(trend.responseSpeedScore))", value: trend.responseSpeedScore / 50, tint: .emotionPositive)
-            EarnMiniBar(label: "赚钱空间 \(Int(trend.profitScore))", value: trend.profitScore / 50, tint: .spareYellow)
-            EarnMiniBar(label: "供需缺口 \(Int(trend.supplyGapScore))", value: trend.supplyGapScore / 50, tint: .emotionSplit)
-        }
-        .padding(Spacing.md)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.xl))
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.xl)
-                .stroke(trend.lane.accentColor.opacity(0.18), lineWidth: 1)
-        )
-        .cardShadow()
-    }
-}
-
-// MARK: - Arena Sheet
-
-private struct EarnArenaExperienceView: View {
-    @ObservedObject var store: EarnSocialExperienceStore
-
-    var body: some View {
-        NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: Spacing.lg) {
-                    if let match = store.arenaMatch {
-                        header(match)
-                        rounds(match)
-                        votePanel(match)
-                    } else {
-                        EmptyStateView(
-                            icon: "figure.boxing",
-                            title: "竞技场暂时空场",
-                            message: "等一局新的分身对战发起后，这里会出现辩题、评分和围观投票。",
-                            actionLabel: nil,
-                            action: nil
-                        )
-                        .padding(.top, Spacing.xxxl)
-                    }
-                }
-                .padding(.horizontal, Spacing.lg)
-                .padding(.top, Spacing.lg)
-                .padding(.bottom, Spacing.xxxl)
-            }
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
-            .navigationTitle("A2A 竞技场")
-            .spareNavigationBarTitleDisplayMode(.inline)
-        }
-    }
-
-    private func header(_ match: EarnArenaMatch) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(match.theme)
-                        .font(.spareTitle2)
-                    Text("让分身先打擂台，赢了再进入真人阶段。")
-                        .font(.spareBody)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                StatusBadge(label: match.status == .active ? "围观投票中" : "结算完成", tint: match.status == .active ? .emotionSplit : .emotionPositive)
-            }
-
-            ArenaContenderRow(title: "挑战方", contender: match.challenger, score: match.challengerScore, tint: .emotionSplit)
-            ArenaContenderRow(title: "守擂方", contender: match.opponent, score: match.opponentScore, tint: .emotionPositive)
-
-            if let winner = match.winnerSide {
-                Text("\(winner.title) 已胜出，\(match.summary)")
-                    .font(.spareCaptionSB)
-                    .foregroundColor(.primary)
-            } else {
-                Text("当前还未结算，围观票会直接影响综合得分。")
-                    .font(.spareCaptionSB)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(Spacing.lg)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.xl))
-        .cardShadow()
-    }
-
-    private func rounds(_ match: EarnArenaMatch) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("回放摘要")
-                .font(.spareCaptionSB)
-                .foregroundColor(.secondary)
-
-            ForEach(match.rounds) { round in
-                VStack(alignment: .leading, spacing: Spacing.md) {
-                    Text("第 \(round.index) 回合 · \(round.prompt)")
-                        .font(.spareCaptionSB)
-
-                    ArenaResponseBubble(title: match.challenger.displayName, bodyText: round.challengerReply, score: round.challengerScore, tint: .emotionSplit)
-                    ArenaResponseBubble(title: match.opponent.displayName, bodyText: round.opponentReply, score: round.opponentScore, tint: .emotionPositive)
-
-                    Text(round.summary)
-                        .font(.spareMicro)
-                        .foregroundColor(.secondary)
-                }
-                .padding(Spacing.md)
-                .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-                .cardShadow()
-            }
-        }
-    }
-
-    private func votePanel(_ match: EarnArenaMatch) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            Text("围观投票")
-                .font(.spareCaptionSB)
-                .foregroundColor(.secondary)
-
-            HStack(spacing: Spacing.sm) {
-                Button("投挑战方") {
-                    store.castArenaVote(.challenger)
-                }
-                .font(.spareCaptionSB)
-                .padding(.horizontal, Spacing.lg)
+                .foregroundColor(.spareDark)
+                .padding(.horizontal, Spacing.md)
                 .padding(.vertical, Spacing.md)
-                .background(Color.emotionSplit.opacity(0.16), in: Capsule())
-                .foregroundColor(.primary)
-                .buttonStyle(.plain)
-
-                Button("投守擂方") {
-                    store.castArenaVote(.opponent)
-                }
-                .font(.spareCaptionSB)
-                .padding(.horizontal, Spacing.lg)
-                .padding(.vertical, Spacing.md)
-                .background(Color.emotionPositive.opacity(0.16), in: Capsule())
-                .foregroundColor(.primary)
-                .buttonStyle(.plain)
-            }
-
-            Text("当前你支持：\(store.selectedArenaVote?.title ?? "还没投票")")
-                .font(.spareMicro)
-                .foregroundColor(.secondary)
-
-            Button(match.status == .active ? "结算本局并发放闲能" : "本局已结算") {
-                store.resolveArenaIfNeeded()
-            }
-            .font(.spareCaptionSB)
-            .padding(.horizontal, Spacing.lg)
-            .padding(.vertical, Spacing.md)
-            .frame(maxWidth: .infinity)
-            .background(match.status == .active ? Color.spareYellow : Color(.systemGray5), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-            .foregroundColor(match.status == .active ? .spareDark : .secondary)
-            .buttonStyle(.plain)
-        }
-        .padding(Spacing.lg)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.xl))
-        .cardShadow()
-    }
-}
-
-private struct ArenaResponseBubble: View {
-    let title: String
-    let bodyText: String
-    let score: Double
-    let tint: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title)
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
-                Spacer()
-                Text(String(format: "%.1f", score))
-                    .font(.spareMicro)
-                    .foregroundColor(tint)
-            }
-            Text(bodyText)
-                .font(.spareCaption)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(Spacing.md)
-        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-    }
-}
-
-// MARK: - Bond Sheet
-
-private struct EarnBondJourneyView: View {
-    @ObservedObject var store: EarnSocialExperienceStore
-
-    var body: some View {
-        NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: Spacing.lg) {
-                    if let story = store.bondStory {
-                        header(story)
-                        taskList(story)
-                        milestoneSection(story)
-                    } else {
-                        EmptyStateView(
-                            icon: "heart.text.square",
-                            title: "还没有生成羁绊任务",
-                            message: "先完成一次双 Agent 互相授权，系统才会把初遇纪念卡、连续互动任务和线程迁移挂上来。",
-                            actionLabel: "去做破冰",
-                            action: { store.openIcebreak() }
-                        )
-                        .padding(.top, Spacing.xxxl)
-                    }
-                }
-                .padding(.horizontal, Spacing.lg)
-                .padding(.top, Spacing.lg)
-                .padding(.bottom, Spacing.xxxl)
-            }
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
-            .navigationTitle("关系升温与羁绊任务")
-            .spareNavigationBarTitleDisplayMode(.inline)
-        }
-    }
-
-    private func header(_ story: EarnBondStory) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(story.memorialTitle)
-                        .font(.spareTitle2)
-                    Text(story.memorialSummary)
-                        .font(.spareBody)
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
-                StatusBadge(label: story.level.title, tint: .emotionPositive)
-            }
-
-            EarnMiniBar(label: "关系强度 \(story.strengthScore)", value: Double(story.strengthScore) / 100, tint: story.lane.accentColor)
-
-            HStack(spacing: Spacing.sm) {
-                EarnMetricCapsule(title: "任务数", value: "\(story.tasks.count)", footnote: "持续从陌生到熟悉", tint: story.lane.accentColor)
-                EarnMetricCapsule(title: "里程碑", value: "\(story.milestones.count)", footnote: "自动沉淀到消息页", tint: .emotionPositive)
-            }
-
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.right.circle.fill")
-                    .foregroundColor(.emotionPositive)
-                Text("线程迁移：\(story.threadRoute)")
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-            }
-        }
-        .padding(Spacing.lg)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.xl))
-        .cardShadow()
-    }
-
-    private func taskList(_ story: EarnBondStory) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("任务清单")
-                .font(.spareCaptionSB)
-                .foregroundColor(.secondary)
-
-            ForEach(story.tasks) { task in
-                VStack(alignment: .leading, spacing: Spacing.md) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(task.title)
-                                .font(.spareTitle3)
-                            Text(task.summary)
-                                .font(.spareCaption)
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer()
-                        StatusBadge(label: task.isCompleted ? "已完成" : "+\(task.rewardAmount)", tint: task.isCompleted ? .emotionPositive : story.lane.accentColor)
-                    }
-
-                    EarnMiniBar(label: "进度 \(task.progressCount)/\(task.targetCount)", value: Double(task.progressCount) / Double(max(1, task.targetCount)), tint: story.lane.accentColor)
-
-                    Button(task.isCompleted ? "已完成" : "推进一次") {
-                        store.advanceBondTask(task)
-                    }
-                    .font(.spareCaptionSB)
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.vertical, Spacing.md)
-                    .background(
-                        RoundedRectangle(cornerRadius: CornerRadius.lg)
-                            .fill(task.isCompleted ? AnyShapeStyle(Color(.systemGray5)) : AnyShapeStyle(story.lane.accentGradient))
-                    )
-                    .foregroundColor(task.isCompleted ? .secondary : .white)
-                    .buttonStyle(.plain)
-                }
-                .padding(Spacing.md)
-                .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-                .cardShadow()
-            }
-        }
-    }
-
-    private func milestoneSection(_ story: EarnBondStory) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("里程碑")
-                .font(.spareCaptionSB)
-                .foregroundColor(.secondary)
-
-            if story.milestones.isEmpty {
-                EmptyStateView(
-                    icon: "flag.checkered",
-                    title: "还没有点亮里程碑",
-                    message: "先推进一两个轻量任务，系统就会把关系节点写进纪念卡。",
-                    actionLabel: nil,
-                    action: nil
+                .background(
+                    message.sender == .me ? Color.spareYellow : Color.white,
+                    in: RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
                 )
-            } else {
-                ForEach(story.milestones) { milestone in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(milestone.title)
-                            .font(.spareCaptionSB)
-                        Text(milestone.summary)
-                            .font(.spareCaption)
-                            .foregroundColor(.secondary)
-                        Text(milestone.achievedAt, style: .relative)
-                            .font(.spareMicro)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(Spacing.md)
-                    .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-                    .cardShadow()
-                }
-            }
+                .overlay(
+                    RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                        .stroke(Color.spareYellow.opacity(0.18), lineWidth: 1)
+                )
+
+            if message.sender == .other { Spacer(minLength: 40) }
         }
     }
 }
 
-// MARK: - Wallet Sheet
-
-private struct EarnWalletLedgerView: View {
-    @ObservedObject var store: EarnSocialExperienceStore
-
-    var body: some View {
-        NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: Spacing.lg) {
-                    header
-                    antiCheat
-                    ledgerList
-                }
-                .padding(.horizontal, Spacing.lg)
-                .padding(.top, Spacing.lg)
-                .padding(.bottom, Spacing.xxxl)
-            }
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
-            .navigationTitle("闲能经济系统")
-            .spareNavigationBarTitleDisplayMode(.inline)
-        }
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("\(store.wallet.balance)")
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
-                        .foregroundColor(.spareYellow)
-                    Text("收入、支出、冻结、结算都要能解释。")
-                        .font(.spareBody)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-            }
-
-            HStack(spacing: Spacing.sm) {
-                EarnMetricCapsule(title: "累计赚到", value: "\(store.wallet.lifetimeEarned)", footnote: "今日还可赚 \(store.wallet.todayEarnable)", tint: .emotionPositive)
-                EarnMetricCapsule(title: "累计花掉", value: "\(store.wallet.lifetimeSpent)", footnote: "冻结 \(store.wallet.frozenBalance)", tint: .emotionSplit)
-            }
-        }
-        .padding(Spacing.lg)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.xl))
-        .cardShadow()
-    }
-
-    private var antiCheat: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("规则和风控")
-                .font(.spareCaptionSB)
-                .foregroundColor(.secondary)
-
-            HStack(alignment: .top, spacing: Spacing.sm) {
-                Image(systemName: "shield.lefthalf.filled")
-                    .foregroundColor(.emotionPositive)
-                Text("黑客松阶段先用本地规则模拟，但每一笔闲能仍然要写清来源、去向、冻结和结算状态，避免“赚了什么、花到哪了”变成黑盒。")
-                    .font(.spareBody)
-                    .foregroundColor(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(Spacing.md)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-        }
-    }
-
-    private var ledgerList: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            Text("账本")
-                .font(.spareCaptionSB)
-                .foregroundColor(.secondary)
-
-            ForEach(store.ledgerEntries) { entry in
-                HStack(alignment: .top, spacing: Spacing.sm) {
-                    Circle()
-                        .fill(entry.kind.tintColor)
-                        .frame(width: 9, height: 9)
-                        .padding(.top, 6)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(entry.title)
-                                .font(.spareCaptionSB)
-                            Spacer()
-                            Text(entry.amount >= 0 ? "+\(entry.amount)" : "\(entry.amount)")
-                                .font(.spareCaptionSB)
-                                .foregroundColor(entry.amount >= 0 ? .emotionPositive : .primary)
-                        }
-
-                        Text(entry.detail)
-                            .font(.spareCaption)
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        HStack {
-                            if let lane = entry.lane {
-                                Text(lane.title)
-                                    .font(.spareMicro)
-                                    .foregroundColor(lane.accentColor)
-                            }
-                            Spacer()
-                            Text(entry.statusLabel)
-                                .font(.spareMicro)
-                                .foregroundColor(.secondary)
-                            Text(entry.timestamp, style: .relative)
-                                .font(.spareMicro)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                .padding(Spacing.md)
-                .background(Color.white, in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-                .cardShadow()
-            }
-        }
-    }
-}
-
-// MARK: - Helpers
-
-private extension EarnSocialLaneID {
-    var accentColor: Color {
-        switch self {
-        case .idleGoods: return .spareYellow
-        case .skillQA: return .spareYellowInk
-        case .romance: return .spareYellow
-        case .friendship: return .spareYellowLight
-        case .jobHiring: return .spareYellowInk
-        case .errandHelp: return .spareYellow
-        }
-    }
-
-    var accentGradient: LinearGradient {
-        switch self {
-        case .idleGoods:
-            return LinearGradient(colors: [.spareYellowLight, .spareYellow], startPoint: .topLeading, endPoint: .bottomTrailing)
-        case .skillQA:
-            return LinearGradient(colors: [.spareYellowWash, .spareYellowInk], startPoint: .topLeading, endPoint: .bottomTrailing)
-        case .romance:
-            return LinearGradient(colors: [.spareYellowLight, .spareYellowInk], startPoint: .topLeading, endPoint: .bottomTrailing)
-        case .friendship:
-            return LinearGradient(colors: [.spareYellowWash, .spareYellow], startPoint: .topLeading, endPoint: .bottomTrailing)
-        case .jobHiring:
-            return LinearGradient(colors: [.spareYellowLight, .spareYellowInk], startPoint: .topLeading, endPoint: .bottomTrailing)
-        case .errandHelp:
-            return LinearGradient(colors: [.spareYellow, .spareYellowInk], startPoint: .topLeading, endPoint: .bottomTrailing)
-        }
-    }
-}
-
-private extension EarnIntentVisibilityMode {
-    var tintColor: Color {
-        switch self {
-        case .public: return .emotionPositive
-        case .semiPublic: return .emotionSplit
-        case .direct: return .emotionNegative
-        }
-    }
-}
-
-private extension EarnSocialQuickFilter {
-    var accentColor: Color {
-        switch self {
-        case .opportunities: return .spareYellow
-        case .bestMatch: return .emotionPositive
-        case .trends: return .spareYellowInk
-        case .arena: return .emotionSplit
-        }
-    }
-}
-
-private extension EarnIcebreakStage {
-    var tintColor: Color {
-        switch self {
-        case .screening: return .spareYellow
-        case .consentPending: return .emotionSplit
-        case .humanTakeover: return .emotionPositive
-        case .blocked: return .emotionNegative
-        }
-    }
-}
-
-private extension EarnLedgerEntryKind {
-    var tintColor: Color {
-        switch self {
-        case .income: return .emotionPositive
-        case .expense: return .emotionNegative
-        case .freeze: return .emotionSplit
-        case .settlement: return .spareYellow
-        }
-    }
-}
-
-private func chunked(_ tags: [String], size: Int) -> [[String]] {
-    guard size > 0 else { return [tags] }
-    var rows: [[String]] = []
+private func chunked<T>(_ array: [T], size: Int) -> [[T]] {
+    guard size > 0 else { return [array] }
+    var result: [[T]] = []
     var index = 0
-    while index < tags.count {
-        rows.append(Array(tags[index..<min(index + size, tags.count)]))
+
+    while index < array.count {
+        let end = min(index + size, array.count)
+        result.append(Array(array[index..<end]))
         index += size
     }
-    return rows
+
+    return result
 }

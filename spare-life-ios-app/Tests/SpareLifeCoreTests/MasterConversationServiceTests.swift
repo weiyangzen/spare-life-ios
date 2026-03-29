@@ -603,6 +603,8 @@ final class MasterConversationServiceTests: XCTestCase {
         setenv("SPARE_MASTERS_AUTOMATION_MASTER_ID", "001546", 1)
 
         XCTAssertTrue(MasterStage1Automation.isEnabled())
+        let expectedTotalMasterCount = try MasterCatalogLoader.load().masters.count
+        let expectedVisibleMasterCount = min(expectedTotalMasterCount, 8)
 
         let store = MasterExperienceStore(
             catalogLoader: { try MasterCatalogLoader.load() },
@@ -615,9 +617,9 @@ final class MasterConversationServiceTests: XCTestCase {
 
         XCTAssertEqual(payload["command"] as? String, "directory_snapshot")
         XCTAssertEqual(payload["success"] as? Bool, true)
-        XCTAssertEqual(payload["visibleMasterCount"] as? Int, 8)
-        XCTAssertEqual(payload["totalMasterCount"] as? Int, 8)
-        XCTAssertEqual(payload["matchedCoverageCount"] as? Int, 8)
+        XCTAssertEqual(payload["visibleMasterCount"] as? Int, expectedVisibleMasterCount)
+        XCTAssertEqual(payload["totalMasterCount"] as? Int, expectedTotalMasterCount)
+        XCTAssertEqual(payload["matchedCoverageCount"] as? Int, expectedTotalMasterCount)
         XCTAssertEqual(payload["hasExactStage1Coverage"] as? Bool, true)
         XCTAssertNil(payload["error"] as? String)
         XCTAssertNotNil(store)
@@ -648,6 +650,8 @@ final class MasterConversationServiceTests: XCTestCase {
         setenv("SPARE_MASTERS_AUTOMATION_MASTER_ID", "001546", 1)
         setenv("SPARE_MASTERS_AUTOMATION_FIRST_PROMPT", firstPrompt, 1)
         setenv("SPARE_MASTERS_AUTOMATION_SECOND_PROMPT", secondPrompt, 1)
+        let expectedTotalMasterCount = try MasterCatalogLoader.load().masters.count
+        let expectedVisibleMasterCount = min(expectedTotalMasterCount, 8)
 
         let capture = ConversationRequestCapture()
         let store = MasterExperienceStore(
@@ -662,9 +666,9 @@ final class MasterConversationServiceTests: XCTestCase {
         XCTAssertEqual(payload["command"] as? String, "stage2_smoke")
         XCTAssertEqual(payload["success"] as? Bool, true)
         XCTAssertEqual(payload["masterID"] as? String, "001546")
-        XCTAssertEqual(payload["visibleMasterCount"] as? Int, 8)
-        XCTAssertEqual(payload["totalMasterCount"] as? Int, 8)
-        XCTAssertEqual(payload["matchedCoverageCount"] as? Int, 8)
+        XCTAssertEqual(payload["visibleMasterCount"] as? Int, expectedVisibleMasterCount)
+        XCTAssertEqual(payload["totalMasterCount"] as? Int, expectedTotalMasterCount)
+        XCTAssertEqual(payload["matchedCoverageCount"] as? Int, expectedTotalMasterCount)
         XCTAssertEqual(payload["hasExactStage1Coverage"] as? Bool, true)
         XCTAssertEqual(payload["transcriptCount"] as? Int, 5)
         XCTAssertEqual(payload["serviceMode"] as? String, "liveRemote")
@@ -714,6 +718,8 @@ final class MasterConversationServiceTests: XCTestCase {
 
         setenv("SPARE_MASTERS_AUTOMATION_COMMAND", "stage2_smoke", 1)
         setenv("SPARE_MASTERS_AUTOMATION_MASTER_ID", "001546", 1)
+        let expectedTotalMasterCount = try MasterCatalogLoader.load().masters.count
+        let expectedVisibleMasterCount = min(expectedTotalMasterCount, 8)
 
         let blockedStatus = MasterConversationServiceStatus(
             providerName: "k2p5",
@@ -738,9 +744,9 @@ final class MasterConversationServiceTests: XCTestCase {
         XCTAssertEqual(payload["command"] as? String, "stage2_smoke")
         XCTAssertEqual(payload["success"] as? Bool, false)
         XCTAssertEqual(payload["masterID"] as? String, "001546")
-        XCTAssertEqual(payload["visibleMasterCount"] as? Int, 8)
-        XCTAssertEqual(payload["totalMasterCount"] as? Int, 8)
-        XCTAssertEqual(payload["matchedCoverageCount"] as? Int, 8)
+        XCTAssertEqual(payload["visibleMasterCount"] as? Int, expectedVisibleMasterCount)
+        XCTAssertEqual(payload["totalMasterCount"] as? Int, expectedTotalMasterCount)
+        XCTAssertEqual(payload["matchedCoverageCount"] as? Int, expectedTotalMasterCount)
         XCTAssertEqual(payload["hasExactStage1Coverage"] as? Bool, true)
         XCTAssertEqual(payload["serviceMode"] as? String, "localFallback")
         XCTAssertEqual(payload["serviceTitle"] as? String, "k2p5 预检未通过")

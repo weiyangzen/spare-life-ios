@@ -14,7 +14,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "F5695DBC0F36F4C22BE523AE"
+               BlueprintIdentifier = "78FFF56EEBE0BDBA91080387"
                BuildableName = "SpareLifePreviewHost.app"
                BlueprintName = "SpareLifePreviewHost"
                ReferencedContainer = "container:SpareLifePreviewHost.xcodeproj">
@@ -28,7 +28,7 @@
             buildForAnalyzing = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "8E996303BEF5102DB0E9F990"
+               BlueprintIdentifier = "3DF30BA6D549B3468D1F0D04"
                BuildableName = "SpareLifePreviewHostUITests.xctest"
                BlueprintName = "SpareLifePreviewHostUITests"
                ReferencedContainer = "container:SpareLifePreviewHost.xcodeproj">
@@ -44,7 +44,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "F5695DBC0F36F4C22BE523AE"
+            BlueprintIdentifier = "78FFF56EEBE0BDBA91080387"
             BuildableName = "SpareLifePreviewHost.app"
             BlueprintName = "SpareLifePreviewHost"
             ReferencedContainer = "container:SpareLifePreviewHost.xcodeproj">
@@ -53,7 +53,7 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "F5695DBC0F36F4C22BE523AE"
+            BlueprintIdentifier = "78FFF56EEBE0BDBA91080387"
             BuildableName = "SpareLifePreviewHost.app"
             BlueprintName = "SpareLifePreviewHost"
             ReferencedContainer = "container:SpareLifePreviewHost.xcodeproj">
@@ -64,7 +64,7 @@
             skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "8E996303BEF5102DB0E9F990"
+               BlueprintIdentifier = "3DF30BA6D549B3468D1F0D04"
                BuildableName = "SpareLifePreviewHostUITests.xctest"
                BlueprintName = "SpareLifePreviewHostUITests"
                ReferencedContainer = "container:SpareLifePreviewHost.xcodeproj">
@@ -86,7 +86,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "F5695DBC0F36F4C22BE523AE"
+            BlueprintIdentifier = "78FFF56EEBE0BDBA91080387"
             BuildableName = "SpareLifePreviewHost.app"
             BlueprintName = "SpareLifePreviewHost"
             ReferencedContainer = "container:SpareLifePreviewHost.xcodeproj">
@@ -103,7 +103,7 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "F5695DBC0F36F4C22BE523AE"
+            BlueprintIdentifier = "78FFF56EEBE0BDBA91080387"
             BuildableName = "SpareLifePreviewHost.app"
             BlueprintName = "SpareLifePreviewHost"
             ReferencedContainer = "container:SpareLifePreviewHost.xcodeproj">

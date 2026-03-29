@@ -147,11 +147,17 @@ private extension MasterStage1Automation {
         }
 
         private func directorySnapshotResult() throws -> Result {
-            guard store.masters.count == 8 else {
-                throw AutomationError("目录装载数量异常：expected=8 actual=\(store.masters.count)")
+            let matchedCoverageCount = store.catalogCoverage?.matchedAssetCount ?? 0
+            let expectedVisibleCount = min(matchedCoverageCount, 8)
+
+            guard matchedCoverageCount > 0 else {
+                throw AutomationError("目录映射结果为空。")
             }
-            guard store.visibleDirectoryMasters.count == 8 else {
-                throw AutomationError("目录可见数量异常：expected=8 actual=\(store.visibleDirectoryMasters.count)")
+            guard store.masters.count == matchedCoverageCount else {
+                throw AutomationError("目录装载数量异常：expected=\(matchedCoverageCount) actual=\(store.masters.count)")
+            }
+            guard store.visibleDirectoryMasters.count == expectedVisibleCount else {
+                throw AutomationError("目录可见数量异常：expected=\(expectedVisibleCount) actual=\(store.visibleDirectoryMasters.count)")
             }
             guard store.catalogCoverage?.hasExactStage1Coverage == true else {
                 throw AutomationError("Stage 1 目录、字段、图片映射没有完全对齐。")

@@ -2,27 +2,29 @@ import XCTest
 @testable import SpareLifeCore
 
 final class MasterCatalogLoaderTests: XCTestCase {
-    func testMasterCatalogLoadsExpectedEightMasters() throws {
+    func testMasterCatalogLoadsEveryMatchedLocalMaster() throws {
         let snapshot = try MasterCatalogLoader.load()
-        let expectedIDs = ["001546", "001550", "001560", "001565", "001567", "001570", "001572", "001580"]
+        let expectedIDs = currentMatchedLocalMasterIDs()
 
-        XCTAssertEqual(snapshot.masters.count, 8)
-        XCTAssertEqual(snapshot.masterIndex.count, 8)
-        XCTAssertEqual(snapshot.domainIndex.count, 4)
+        XCTAssertEqual(snapshot.masters.count, expectedIDs.count)
+        XCTAssertEqual(snapshot.masterIndex.count, expectedIDs.count)
+        XCTAssertFalse(snapshot.domainIndex.isEmpty)
         XCTAssertEqual(
             Set(snapshot.masters.map(\.id)),
             Set(expectedIDs)
         )
         XCTAssertEqual(snapshot.sessions.count, 0)
-        XCTAssertEqual(snapshot.domains.count, 4)
         XCTAssertEqual(snapshot.catalogCoverage.directoryManifestName, "master_service_directory.json")
         XCTAssertEqual(snapshot.catalogCoverage.serviceDirectoryAssetIDs, expectedIDs)
         XCTAssertEqual(snapshot.catalogCoverage.localCharacterAssetIDs, expectedIDs)
         XCTAssertEqual(snapshot.catalogCoverage.localImageAssetIDs, expectedIDs)
         XCTAssertEqual(snapshot.catalogCoverage.matchedAssetIDs, expectedIDs)
         XCTAssertTrue(snapshot.catalogCoverage.hasExactStage1Coverage)
-        XCTAssertEqual(snapshot.catalogCoverage.indexCoverageSummary, "目录8 · 字段8 · 图片8")
-        XCTAssertEqual(snapshot.catalogCoverage.mappingSummary, "8/8 已匹配")
+        XCTAssertEqual(
+            snapshot.catalogCoverage.indexCoverageSummary,
+            "目录\(expectedIDs.count) · 字段\(expectedIDs.count) · 图片\(expectedIDs.count)"
+        )
+        XCTAssertEqual(snapshot.catalogCoverage.mappingSummary, "\(expectedIDs.count)/\(expectedIDs.count) 已匹配")
     }
 
     func testMasterCatalogMappingUsesMatchedLocalAssets() throws {
@@ -86,11 +88,12 @@ final class MasterCatalogLoaderTests: XCTestCase {
         XCTAssertEqual(coverage.fieldSourceDisplayPath, "./assets/char")
         XCTAssertEqual(coverage.imageSourceDisplayPath, "./assets/assets")
         XCTAssertEqual(coverage.imageIndexDisplayPath, "./assets/assets/char")
-        XCTAssertEqual(coverage.serviceDirectoryAssetIDs, ["001546", "001550", "001560", "001565", "001567", "001570", "001572", "001580"])
-        XCTAssertEqual(coverage.localCharacterAssetIDs, ["001546", "001550", "001560", "001565", "001567", "001570", "001572", "001580"])
-        XCTAssertEqual(coverage.localImageAssetIDs, ["001546", "001550", "001560", "001565", "001567", "001570", "001572", "001580"])
+        let expectedIDs = currentMatchedLocalMasterIDs()
+        XCTAssertEqual(coverage.serviceDirectoryAssetIDs, expectedIDs)
+        XCTAssertEqual(coverage.localCharacterAssetIDs, expectedIDs)
+        XCTAssertEqual(coverage.localImageAssetIDs, expectedIDs)
         XCTAssertTrue(coverage.hasExactStage1Coverage)
-        XCTAssertEqual(coverage.indexCoverageSummary, "目录8 · 字段8 · 图片8")
+        XCTAssertEqual(coverage.indexCoverageSummary, "目录\(expectedIDs.count) · 字段\(expectedIDs.count) · 图片\(expectedIDs.count)")
         XCTAssertEqual(Set(coverage.mappedImageFiles), Set(["avatar.png", "image.png", "background.jpg"]))
     }
 
@@ -137,29 +140,31 @@ final class MasterCatalogLoaderTests: XCTestCase {
 
         await store.refreshCatalog()
 
-        XCTAssertEqual(store.masters.count, 8)
-        XCTAssertEqual(store.masterIndex.count, 8)
+        let expectedCount = currentMatchedLocalMasterIDs().count
+        XCTAssertEqual(store.masters.count, expectedCount)
+        XCTAssertEqual(store.masterIndex.count, expectedCount)
         XCTAssertEqual(store.catalogAccessPolicy, .browseAndChatOnly)
         XCTAssertFalse(store.catalogAccessPolicy.allowsMasterMutation)
         XCTAssertEqual(store.directoryMasters.count, store.masters.count)
-        XCTAssertEqual(store.visibleDirectoryMasters.map(\.id), store.masters.map(\.id))
+        XCTAssertEqual(store.visibleDirectoryMasters.map(\.id), Array(store.masters.prefix(8)).map(\.id))
         XCTAssertEqual(store.directoryManifestName, "master_service_directory.json")
-        XCTAssertEqual(store.resourceMappingSummary, "8/8 已匹配")
+        XCTAssertEqual(store.resourceMappingSummary, "\(expectedCount)/\(expectedCount) 已匹配")
         XCTAssertEqual(store.catalogCoverage?.fieldSourceDisplayPath, "./assets/char")
         XCTAssertEqual(store.catalogCoverage?.imageSourceDisplayPath, "./assets/assets")
         XCTAssertEqual(store.catalogCoverage?.imageIndexDisplayPath, "./assets/assets/char")
-        XCTAssertEqual(store.catalogCoverage?.indexCoverageSummary, "目录8 · 字段8 · 图片8")
-        XCTAssertEqual(store.catalogCoverage?.serviceDirectoryAssetCount, 8)
-        XCTAssertEqual(store.catalogCoverage?.localCharacterAssetCount, 8)
-        XCTAssertEqual(store.catalogCoverage?.localImageAssetCount, 8)
+        XCTAssertEqual(store.catalogCoverage?.indexCoverageSummary, "目录\(expectedCount) · 字段\(expectedCount) · 图片\(expectedCount)")
+        XCTAssertEqual(store.catalogCoverage?.serviceDirectoryAssetCount, expectedCount)
+        XCTAssertEqual(store.catalogCoverage?.localCharacterAssetCount, expectedCount)
+        XCTAssertEqual(store.catalogCoverage?.localImageAssetCount, expectedCount)
         XCTAssertEqual(store.catalogCoverage?.hasExactStage1Coverage, true)
         XCTAssertEqual(store.directoryMasters.map(\.id), store.masters.map(\.id))
 
-        store.selectedDomainID = "discovery"
+        let firstDomainID = try XCTUnwrap(store.domains.first?.id)
+        store.selectedDomainID = firstDomainID
         store.resetDirectoryPagination()
-        XCTAssertEqual(store.directoryMasters.count, 4)
-        XCTAssertEqual(store.visibleDirectoryMasters.count, 4)
-        XCTAssertTrue(store.directoryMasters.allSatisfy { $0.domainID == "discovery" })
+        XCTAssertFalse(store.directoryMasters.isEmpty)
+        XCTAssertLessThanOrEqual(store.visibleDirectoryMasters.count, 8)
+        XCTAssertTrue(store.directoryMasters.allSatisfy { $0.domainID == firstDomainID })
     }
 
     @MainActor
@@ -170,15 +175,15 @@ final class MasterCatalogLoaderTests: XCTestCase {
 
         await store.refreshCatalog()
 
-        XCTAssertEqual(store.masters.count, 12)
+        XCTAssertEqual(store.masters.count, baseSnapshot.masters.count + 4)
         XCTAssertEqual(store.visibleDirectoryMasters.count, 8)
         XCTAssertTrue(store.hasMoreDirectoryMastersToLoad)
 
         let lastVisible = try XCTUnwrap(store.visibleDirectoryMasters.last)
         store.loadNextDirectoryBatchIfNeeded(after: lastVisible)
 
-        XCTAssertEqual(store.visibleDirectoryMasters.count, 12)
-        XCTAssertFalse(store.hasMoreDirectoryMastersToLoad)
+        XCTAssertEqual(store.visibleDirectoryMasters.count, min(16, store.masters.count))
+        XCTAssertEqual(store.hasMoreDirectoryMastersToLoad, store.visibleDirectoryMasters.count < store.masters.count)
     }
 
     @MainActor
@@ -187,8 +192,7 @@ final class MasterCatalogLoaderTests: XCTestCase {
 
         await store.refreshCatalog()
 
-        XCTAssertEqual(store.visibleDirectoryMasters.count, 8)
-        XCTAssertEqual(store.visibleDirectoryMasters.map(\.id), store.masters.map(\.id))
+        XCTAssertEqual(store.visibleDirectoryMasters.count, min(8, store.masters.count))
 
         for master in store.visibleDirectoryMasters {
             store.openConversation(for: master)
@@ -203,6 +207,31 @@ final class MasterCatalogLoaderTests: XCTestCase {
             XCTAssertNil(store.conversation)
         }
     }
+}
+
+private func currentMatchedLocalMasterIDs() -> [String] {
+    let fileManager = FileManager.default
+    let root = URL(fileURLWithPath: "/Users/wangweiyang/GitHub/spare-life-ios")
+    let charDirectory = root.appendingPathComponent("assets/char", isDirectory: true)
+    let imageDirectory = root.appendingPathComponent("assets/assets/char", isDirectory: true)
+
+    let jsonIDs = (try? fileManager.contentsOfDirectory(
+        at: charDirectory,
+        includingPropertiesForKeys: nil,
+        options: [.skipsHiddenFiles]
+    ))?.compactMap { url in
+        url.pathExtension == "json" ? url.deletingPathExtension().lastPathComponent : nil
+    } ?? []
+
+    let imageIDs = (try? fileManager.contentsOfDirectory(
+        at: imageDirectory,
+        includingPropertiesForKeys: [.isDirectoryKey],
+        options: [.skipsHiddenFiles]
+    ))?.compactMap { url in
+        ((try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true) ? url.lastPathComponent : nil
+    } ?? []
+
+    return Array(Set(jsonIDs).intersection(imageIDs)).sorted()
 }
 
 private func makeExpandedSnapshot(from snapshot: MasterCatalogSnapshot, extraCount: Int) -> MasterCatalogSnapshot {
@@ -253,6 +282,8 @@ private func cloneMasterProfile(_ source: MasterProfile, id: String, displayName
         portraitSymbol: source.portraitSymbol,
         palette: source.palette,
         promptPreview: source.promptPreview,
+        openingMessage: source.openingMessage,
+        conversationContextJSON: source.conversationContextJSON,
         imageSet: MasterImageSet(
             assetID: id,
             avatarPath: source.imageSet.avatarPath,

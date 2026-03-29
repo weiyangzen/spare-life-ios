@@ -2,97 +2,121 @@ import SwiftUI
 
 struct MasterConversationView: View {
     @ObservedObject var store: MasterExperienceStore
+    var onBack: () -> Void = {}
     @State private var draftText = ""
 
     var body: some View {
         Group {
             if let conversation = store.conversation,
                let profile = store.master(withID: conversation.masterID) {
-                VStack(spacing: 0) {
-                    ScrollViewReader { proxy in
-                        ScrollView(.vertical, showsIndicators: false) {
-                            VStack(alignment: .leading, spacing: Spacing.lg) {
-                                MasterConversationHeaderCard(profile: profile)
-                                MasterConversationStatusCard(status: conversation.serviceStatus)
-
-                                if let inlineError = conversation.inlineError {
-                                    ErrorStateView(message: inlineError, retry: nil)
-                                }
-
-                                ForEach(conversation.messages) { message in
-                                    MasterConversationBubble(
-                                        message: message,
-                                        assistantName: profile.displayName,
-                                        assistantAvatarURL: profile.avatarURL
-                                    )
-                                }
-
-                                if conversation.isReplying {
-                                    HStack(spacing: Spacing.sm) {
-                                        ProgressView()
-                                        Text("正在整理回复…")
-                                            .font(.spareCaption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .padding(Spacing.md)
-                                }
-
-                                Color.clear
-                                    .frame(height: 1)
-                                    .id("master-conversation-bottom")
-                            }
-                            .padding(.horizontal, Spacing.lg)
-                            .padding(.top, Spacing.lg)
-                            .padding(.bottom, Spacing.xxxl)
-                        }
-                        .background(Color(.systemGroupedBackground))
-                        .onAppear {
-                            if draftText.isEmpty {
-                                draftText = conversation.prefilledPrompt
-                            }
-                            scrollToBottom(using: proxy)
-                        }
-                        .onChange(of: conversation.messages.count) { _ in
-                            scrollToBottom(using: proxy)
-                        }
-                        .onChange(of: conversation.prefilledPrompt) { _ in
-                            if !conversation.prefilledPrompt.isEmpty {
-                                draftText = conversation.prefilledPrompt
-                            }
-                        }
-                    }
-
-                    composer(for: conversation)
-                }
-                .navigationTitle(profile.displayName)
-                .spareNavigationBarTitleDisplayMode(.inline)
+                conversationScreen(conversation: conversation, profile: profile)
             } else {
                 ErrorStateView(message: "当前会话不可用。", retry: nil)
             }
+        }
+        .spareNavigationBarHidden(true)
+    }
+
+    private func conversationScreen(
+        conversation: MasterConversationDraft,
+        profile: MasterProfile
+    ) -> some View {
+        ZStack {
+            MasterConversationBackgroundLayer(profile: profile)
+
+            VStack(spacing: 0) {
+                MasterConversationTopBar(
+                    profile: profile,
+                    status: conversation.serviceStatus,
+                    onBack: onBack
+                )
+
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: false) {
+                        LazyVStack(spacing: Spacing.md) {
+                            if let inlineError = conversation.inlineError,
+                               !inlineError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                MasterConversationInlineError(message: inlineError)
+                            }
+
+                            ForEach(conversation.messages) { message in
+                                MasterConversationBubble(
+                                    message: message,
+                                    assistantName: profile.displayName,
+                                    assistantAvatarURL: profile.avatarURL
+                                )
+                            }
+
+                            if conversation.isReplying {
+                                MasterConversationTypingRow(
+                                    assistantName: profile.displayName,
+                                    assistantAvatarURL: profile.avatarURL
+                                )
+                            }
+
+                            Color.clear
+                                .frame(height: 1)
+                                .id("master-conversation-bottom")
+                        }
+                        .padding(.horizontal, Spacing.md)
+                        .padding(.top, Spacing.md)
+                        .padding(.bottom, Spacing.xxl)
+                    }
+                    .onAppear {
+                        if draftText.isEmpty {
+                            draftText = conversation.prefilledPrompt
+                        }
+                        scrollToBottom(using: proxy)
+                    }
+                    .onChange(of: conversation.messages.count) { _ in
+                        scrollToBottom(using: proxy)
+                    }
+                    .onChange(of: conversation.prefilledPrompt) { _ in
+                        if !conversation.prefilledPrompt.isEmpty {
+                            draftText = conversation.prefilledPrompt
+                        }
+                    }
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            composer(for: conversation)
         }
     }
 
     private func composer(for conversation: MasterConversationDraft) -> some View {
         VStack(alignment: .leading, spacing: Spacing.sm) {
             if !conversation.prefilledPrompt.isEmpty {
-                Text("已带入问题模板，可继续修改后发送。")
+                Text("已带入问题模板，你可以直接改，也可以直接发。")
                     .font(.spareMicro)
                     .foregroundColor(.secondary)
             }
 
+            MasterSpeechInputActions(
+                store: store,
+                draftText: $draftText,
+                disabled: conversation.isReplying
+            )
+
             HStack(alignment: .bottom, spacing: Spacing.sm) {
-                TextField("输入你想继续问大师的问题", text: $draftText, axis: .vertical)
+                TextField("和大师继续聊下去", text: $draftText, axis: .vertical)
                     .lineLimit(2...6)
                     .font(.spareBody)
-                    .padding(Spacing.md)
-                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.sm)
+                    .background(
+                        RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                            .fill(Color.white.opacity(0.92))
+                    )
                     .overlay(
-                        RoundedRectangle(cornerRadius: CornerRadius.lg)
+                        RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
                             .stroke(Color.cardStroke, lineWidth: 1)
                     )
 
                 Button {
-                    let pending = draftText
+                    let pending = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !pending.isEmpty else { return }
+
                     Task {
                         await store.sendMessage(pending)
                         if store.conversation?.inlineError == nil {
@@ -100,26 +124,32 @@ struct MasterConversationView: View {
                         }
                     }
                 } label: {
-                    Image(systemName: conversation.isReplying ? "ellipsis.circle.fill" : "arrow.up.circle.fill")
-                        .font(.system(size: 34))
-                        .foregroundColor(sendButtonColor(isDisabled: isSendDisabled(conversation)))
+                    ZStack {
+                        Circle()
+                            .fill(isSendDisabled(conversation) ? Color.white.opacity(0.65) : Color.spareYellow)
+                            .frame(width: 42, height: 42)
+                        Image(systemName: conversation.isReplying ? "ellipsis" : "arrow.up")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(isSendDisabled(conversation) ? .secondary : .spareDark)
+                    }
                 }
                 .buttonStyle(.plain)
                 .disabled(isSendDisabled(conversation))
             }
         }
-        .padding(.horizontal, Spacing.lg)
+        .padding(.horizontal, Spacing.md)
         .padding(.top, Spacing.sm)
-        .padding(.bottom, Spacing.md)
+        .padding(.bottom, Spacing.sm)
         .background(.ultraThinMaterial)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.35))
+                .frame(height: 1)
+        }
     }
 
     private func isSendDisabled(_ conversation: MasterConversationDraft) -> Bool {
         draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || conversation.isReplying
-    }
-
-    private func sendButtonColor(isDisabled: Bool) -> Color {
-        isDisabled ? .secondary.opacity(0.6) : .spareYellow
     }
 
     private func scrollToBottom(using proxy: ScrollViewProxy) {
@@ -131,60 +161,137 @@ struct MasterConversationView: View {
     }
 }
 
-private struct MasterConversationHeaderCard: View {
+private struct MasterConversationBackgroundLayer: View {
     let profile: MasterProfile
 
     var body: some View {
-        HStack(spacing: Spacing.md) {
-            AvatarView(name: profile.displayName, size: 54, avatarURL: profile.avatarURL)
+        ZStack {
+            MasterConversationAssetImageView(path: profile.imageSet.backgroundPath)
+                .ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: Spacing.xs) {
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.30),
+                    Color.black.opacity(0.10),
+                    Color.white.opacity(0.82),
+                    Color.white.opacity(0.96)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        }
+    }
+}
+
+private struct MasterConversationTopBar: View {
+    let profile: MasterProfile
+    let status: MasterConversationServiceStatus
+    let onBack: () -> Void
+
+    var body: some View {
+        HStack(spacing: Spacing.md) {
+            Button(action: onBack) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.primary)
+                    .frame(width: 34, height: 34)
+                    .background(Color.white.opacity(0.72), in: Circle())
+            }
+            .buttonStyle(.plain)
+
+            AvatarView(
+                name: profile.displayName,
+                size: 42,
+                avatarURL: profile.avatarURL
+            )
+
+            VStack(alignment: .leading, spacing: 2) {
                 Text(profile.displayName)
-                    .font(.spareTitle3)
+                    .font(.spareBodySB)
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+
                 Text(profile.title)
-                    .font(.spareCaptionSB)
+                    .font(.spareMicro)
                     .foregroundColor(.secondary)
-                Text(profile.tagline)
-                    .font(.spareCaption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
+                    .lineLimit(1)
+
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(status.tone == .success ? Color.emotionPositive : Color.orange)
+                        .frame(width: 6, height: 6)
+                    Text(status.modelName ?? status.providerName)
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
             }
 
-            Spacer()
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, Spacing.md)
+        .padding(.top, Spacing.sm)
+        .padding(.bottom, Spacing.sm)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.white.opacity(0.35))
+                .frame(height: 1)
+        }
+    }
+}
+
+private struct MasterConversationInlineError: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: Spacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.emotionNegative)
+            Text(message)
+                .font(.spareCaption)
+                .foregroundColor(.primary)
+                .multilineTextAlignment(.leading)
+            Spacer(minLength: 0)
         }
         .padding(Spacing.md)
-        .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+        .background(
+            RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                .fill(Color.white.opacity(0.88))
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke(Color.cardStroke, lineWidth: 1)
+            RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                .stroke(Color.emotionNegative.opacity(0.24), lineWidth: 1)
         )
     }
 }
 
-private struct MasterConversationStatusCard: View {
-    let status: MasterConversationServiceStatus
+private struct MasterConversationTypingRow: View {
+    let assistantName: String
+    let assistantAvatarURL: URL?
 
     var body: some View {
-        HStack(alignment: .top, spacing: Spacing.sm) {
-            Image(systemName: status.isLiveRemote ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
-                .foregroundColor(status.isLiveRemote ? .emotionPositive : .emotionSplit)
+        HStack(alignment: .bottom, spacing: Spacing.sm) {
+            AvatarView(name: assistantName, size: 30, avatarURL: assistantAvatarURL)
 
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text(status.title)
-                    .font(.spareCaptionSB)
-                Text(status.detail)
-                    .font(.spareCaption)
-                    .foregroundColor(.secondary)
+            HStack(spacing: 6) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Circle()
+                        .fill(Color.secondary.opacity(0.7))
+                        .frame(width: 6, height: 6)
+                }
             }
+            .padding(.horizontal, Spacing.md)
+            .padding(.vertical, Spacing.sm)
+            .background(
+                RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                    .fill(Color.white.opacity(0.88))
+            )
 
-            Spacer()
+            Spacer(minLength: 48)
         }
-        .padding(Spacing.md)
-        .background(Color.white.opacity(0.88), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                .stroke(Color.cardStroke, lineWidth: 1)
-        )
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -197,45 +304,93 @@ private struct MasterConversationBubble: View {
         message.role == .user
     }
 
-    private var alignment: HorizontalAlignment {
-        isUser ? .trailing : .leading
-    }
-
     var body: some View {
-        VStack(alignment: alignment, spacing: Spacing.xs) {
-            HStack {
-                if isUser { Spacer() }
-                if !isUser {
-                    AvatarView(name: assistantName, size: 28, avatarURL: assistantAvatarURL)
+        HStack(alignment: .bottom, spacing: Spacing.sm) {
+            if isUser {
+                Spacer(minLength: 48)
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(message.text)
+                        .font(.spareBody)
+                        .foregroundColor(.spareDark)
+                        .padding(.horizontal, Spacing.md)
+                        .padding(.vertical, Spacing.sm)
+                        .background(
+                            RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                                .fill(Color.spareYellow)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                                .stroke(Color.spareYellow.opacity(0.9), lineWidth: 1)
+                        )
+                    Text(message.timestamp)
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
                 }
-                VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
-                    Text(message.role == .assistant ? assistantName : "我")
+            } else {
+                AvatarView(name: assistantName, size: 30, avatarURL: assistantAvatarURL)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(assistantName)
                         .font(.spareMicro)
                         .foregroundColor(.secondary)
 
                     Text(message.text)
                         .font(.spareBody)
-                        .foregroundColor(isUser ? .white : .primary)
+                        .foregroundColor(.primary)
                         .padding(.horizontal, Spacing.md)
                         .padding(.vertical, Spacing.sm)
                         .background(
-                            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                                .fill(isUser ? Color.spareYellow : Color.white)
+                            RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                                .fill(Color.white.opacity(0.90))
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: CornerRadius.lg)
-                                .stroke(isUser ? Color.spareYellow : Color.cardStroke, lineWidth: 1)
+                            RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                                .stroke(Color.cardStroke, lineWidth: 1)
                         )
 
                     Text(message.timestamp)
                         .font(.spareMicro)
                         .foregroundColor(.secondary)
                 }
-                if isUser { }
-                if !isUser {
-                    Spacer()
-                }
+
+                Spacer(minLength: 48)
             }
         }
+        .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+    }
+}
+
+private struct MasterConversationAssetImageView: View {
+    let path: String
+
+    var body: some View {
+        Group {
+            if let image = MasterConversationAssetImageLoader.image(at: path) {
+                image
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                LinearGradient(
+                    colors: [Color.spareYellowLight, Color.white],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        }
+    }
+}
+
+private enum MasterConversationAssetImageLoader {
+    static func image(at path: String) -> Image? {
+        #if canImport(UIKit)
+        guard let image = UIImage(contentsOfFile: path) else { return nil }
+        return Image(uiImage: image)
+        #elseif canImport(AppKit) && !canImport(UIKit)
+        guard let image = NSImage(contentsOfFile: path) else { return nil }
+        return Image(nsImage: image)
+        #else
+        return nil
+        #endif
     }
 }

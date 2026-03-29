@@ -4,6 +4,9 @@
 // Design: yellow (#FFCF12) + white, light mode only
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Tab Identity
 
@@ -55,8 +58,27 @@ enum MainTab: String, CaseIterable, Identifiable {
 struct MainTabView: View {
     @State private var selectedTab: MainTab = .xianxia
     @StateObject private var badgeStore = TabBadgeStore()
+    @StateObject private var router = ConversationRouter()
 
     var body: some View {
+        ZStack {
+            // Layer 1: Tab interface — always rendered, never changes
+            tabLayer
+
+            // Layer 2: Conversation detail overlay — covers everything including tab bar
+            if router.isShowingDetail {
+                detailOverlay
+                    .transition(.move(edge: .trailing))
+                    .zIndex(1)
+            }
+        }
+        .animation(.spareSpring, value: router.isShowingDetail)
+        .environmentObject(router)
+    }
+
+    // MARK: - Tab Layer
+
+    private var tabLayer: some View {
         TabView(selection: $selectedTab) {
             XianxiaHomeView()
                 .tag(MainTab.xianxia)
@@ -75,31 +97,62 @@ struct MainTabView: View {
                 .tabItem { Label("我的", systemImage: "person.crop.circle") }
         }
         .spareHideSystemTabBar()
-        .safeAreaInset(edge: .bottom) {
-            Color.clear
-                .frame(height: tabBarReservedHeight)
-                .allowsHitTesting(false)
-        }
-        .overlay(alignment: .bottom) {
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             SpareTabBar(
                 selectedTab: $selectedTab,
                 badges: badgeStore.badges
             )
             .padding(.horizontal, Spacing.md)
-            .padding(.bottom, bottomSafeArea > 0 ? bottomSafeArea - 8 : Spacing.sm)
+            .padding(.top, Spacing.xs)
+            .padding(.bottom, bottomSafeArea > 0 ? Spacing.xs : Spacing.sm)
+            .background(Color.clear)
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .animation(.spareSpring, value: selectedTab)
     }
 
+    // MARK: - Detail Overlay
+
+    @ViewBuilder
+    private var detailOverlay: some View {
+        if let thread = router.activeChatThread {
+            NavigationStack {
+                ChatThreadView(thread: thread)
+                    .toolbar {
+                        ToolbarItem(placement: .spareNavigationLeading) {
+                            Button {
+                                router.dismissDetail()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "chevron.left")
+                                        .font(.system(size: 16, weight: .semibold))
+                                    Text("返回")
+                                        .font(.system(size: 16))
+                                }
+                                .foregroundColor(.spareYellow)
+                            }
+                        }
+                    }
+            }
+            .gesture(edgeSwipeDismissGesture)
+        } else if router.isMasterChatActive, let store = router.activeMasterStore {
+            MasterConversationView(store: store, onBack: { router.dismissDetail() })
+                .gesture(edgeSwipeDismissGesture)
+        }
+    }
+
+    private var edgeSwipeDismissGesture: some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onEnded { value in
+                if value.startLocation.x < 44 && value.translation.width > 80 {
+                    router.dismissDetail()
+                }
+            }
+    }
+
     private var bottomSafeArea: CGFloat {
         spareBottomSafeAreaInset()
     }
-
-    private var tabBarReservedHeight: CGFloat {
-        82 + max(bottomSafeArea, 8)
-    }
-
 }
 
 // MARK: - Glass-Style Tab Bar
@@ -234,9 +287,16 @@ private extension View {
     func spareHideSystemTabBar() -> some View {
         #if os(iOS)
         if #available(iOS 16.0, *) {
-            self.toolbar(.hidden, for: .tabBar)
+            self
+                .toolbar(.hidden, for: .tabBar)
+                .onAppear {
+                    UITabBar.appearance().isHidden = true
+                }
         } else {
             self
+                .onAppear {
+                    UITabBar.appearance().isHidden = true
+                }
         }
         #else
         self

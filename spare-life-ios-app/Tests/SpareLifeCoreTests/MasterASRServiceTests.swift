@@ -14,12 +14,14 @@ final class MasterASRServiceTests: XCTestCase {
 
         let status = MasterASRConfiguration.currentStatus(environment: [:], userDefaults: defaults)
 
-        XCTAssertEqual(status.tone, .warning)
-        XCTAssertEqual(status.title, "ASR 仍在探测路由")
-        XCTAssertTrue(status.detail.contains("POST http://100.82.60.69:17880/v1/audio/transcriptions"))
+        XCTAssertEqual(status.tone, .ready)
+        XCTAssertEqual(status.title, "ClawDB ASR 已接通")
+        XCTAssertTrue(status.detail.contains("POST http://100.82.60.69:8020/v1/asr/transcribe"))
+        XCTAssertTrue(status.detail.contains("audio_base64"))
+        XCTAssertTrue(status.detail.contains("callcenter_cn_realtime"))
         XCTAssertTrue(status.detail.contains("MASTER_ASR_URL / MASTER_ASR_BASE_URL / MASTER_ASR_PATH / MASTER_ASR_METHOD"))
         XCTAssertTrue(status.detail.contains("masters.asr.url / masters.asr.baseURL / masters.asr.path / masters.asr.method"))
-        XCTAssertTrue(status.detail.contains("endpoint=内建 probe 默认值"))
+        XCTAssertTrue(status.detail.contains("endpoint=内建默认值"))
         XCTAssertTrue(status.detail.contains("auth=未注入"))
     }
 
@@ -39,11 +41,11 @@ final class MasterASRServiceTests: XCTestCase {
 
         let status = MasterASRConfiguration.currentStatus(environment: [:], userDefaults: defaults)
 
-        XCTAssertEqual(status.tone, .warning)
-        XCTAssertEqual(status.title, "ASR 鉴权尚未补齐")
+        XCTAssertEqual(status.tone, .ready)
+        XCTAssertEqual(status.title, "ASR live 已接通")
         XCTAssertTrue(status.detail.contains("PUT https://asr.example.com/live/speech/transcribe"))
-        XCTAssertTrue(status.detail.contains("MASTER_ASR_AUTH_HEADER / MASTER_ASR_AUTH_SCHEME / MASTER_ASR_API_KEY / MASTER_ASR_AUTH_TOKEN"))
-        XCTAssertTrue(status.detail.contains("masters.asr.authHeader / masters.asr.authScheme / masters.asr.apiKey / masters.asr.authToken"))
+        XCTAssertTrue(status.detail.contains("multipart 音频上传"))
+        XCTAssertTrue(status.detail.contains("未配置额外鉴权头"))
         XCTAssertTrue(status.detail.contains("baseURL=defaults(masters.asr.baseURL)"))
         XCTAssertTrue(status.detail.contains("path=defaults(masters.asr.path)"))
         XCTAssertTrue(status.detail.contains("method=defaults(masters.asr.method)"))
@@ -72,7 +74,7 @@ final class MasterASRServiceTests: XCTestCase {
         )
 
         XCTAssertEqual(status.tone, .ready)
-        XCTAssertEqual(status.title, "ASR live 候选配置已注入")
+        XCTAssertEqual(status.title, "ASR live 已接通")
         XCTAssertTrue(status.detail.contains("POST https://asr.example.com/live/speech/transcribe"))
         XCTAssertTrue(status.detail.contains("X-ClawDB-Token"))
         XCTAssertTrue(status.detail.contains("Token"))
@@ -110,6 +112,7 @@ final class MasterASRServiceTests: XCTestCase {
         XCTAssertEqual(configuration.authHeaderName, "X-ClawDB-Token")
         XCTAssertEqual(configuration.authScheme, "Token")
         XCTAssertEqual(configuration.apiKey, "env-secret")
+        XCTAssertNil(configuration.routingProfile)
     }
 
     func testMasterASRConfigurationBuildsURLAndAuthFromUserDefaults() throws {
@@ -130,6 +133,7 @@ final class MasterASRServiceTests: XCTestCase {
         defaults.set("asr-v1", forKey: "masters.asr.model")
         defaults.set("zh", forKey: "masters.asr.language")
         defaults.set("verbose_json", forKey: "masters.asr.responseFormat")
+        defaults.set("meeting_cn", forKey: "masters.asr.routingProfile")
 
         let configuration = try MasterASRConfiguration.current(environment: [:], userDefaults: defaults)
 
@@ -141,22 +145,24 @@ final class MasterASRServiceTests: XCTestCase {
         XCTAssertEqual(configuration.model, "asr-v1")
         XCTAssertEqual(configuration.language, "zh")
         XCTAssertEqual(configuration.responseFormat, "verbose_json")
+        XCTAssertEqual(configuration.routingProfile, "meeting_cn")
     }
 
-    func testClawDBMasterASRServiceBuildsMultipartRequestAndDecodesTranscript() async throws {
-        let fileURL = try makeAudioFixture(named: "multipart-request", contents: "test-audio")
+    func testClawDBMasterASRServiceBuildsClawDBJSONRequestAndDecodesTranscript() async throws {
+        let fileURL = try makeAudioFixture(named: "clawdb-json-request", contents: "test-audio")
         defer { try? FileManager.default.removeItem(at: fileURL) }
 
         let capture = RequestCapture()
         let configuration = MasterASRConfiguration(
-            url: URL(string: "https://example.com/v1/audio/transcriptions")!,
+            url: URL(string: "https://example.com/v1/asr/transcribe")!,
             method: "POST",
             authHeaderName: "Authorization",
             authScheme: "Bearer",
             apiKey: "secret-token",
-            model: "whisper-1",
+            model: nil,
             language: "zh",
-            responseFormat: nil
+            responseFormat: nil,
+            routingProfile: "callcenter_cn_realtime"
         )
 
         let service = ClawDBMasterASRService(configuration: configuration) { request in
@@ -176,15 +182,13 @@ final class MasterASRServiceTests: XCTestCase {
         XCTAssertEqual(transcript, "你好，世界")
         XCTAssertEqual(request?.httpMethod, "POST")
         XCTAssertEqual(request?.value(forHTTPHeaderField: "Authorization"), "Bearer secret-token")
-        XCTAssertTrue(request?.value(forHTTPHeaderField: "content-type")?.contains("multipart/form-data") == true)
+        XCTAssertEqual(request?.value(forHTTPHeaderField: "content-type"), "application/json")
 
         let body = try XCTUnwrap(request?.httpBody)
-        let bodyText = try XCTUnwrap(String(data: body, encoding: .utf8))
-        XCTAssertTrue(bodyText.contains("name=\"file\"; filename=\"multipart-request.m4a\""))
-        XCTAssertTrue(bodyText.contains("name=\"model\""))
-        XCTAssertTrue(bodyText.contains("whisper-1"))
-        XCTAssertTrue(bodyText.contains("name=\"language\""))
-        XCTAssertTrue(bodyText.contains("zh"))
+        let bodyJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(bodyJSON["language"] as? String, "zh")
+        XCTAssertEqual(bodyJSON["routing_profile"] as? String, "callcenter_cn_realtime")
+        XCTAssertNotNil(bodyJSON["audio_base64"] as? String)
     }
 
     func testClawDBMasterASRServiceUsesConfiguredCustomAuthHeader() async throws {
@@ -200,7 +204,8 @@ final class MasterASRServiceTests: XCTestCase {
             apiKey: "raw-secret",
             model: "whisper-1",
             language: nil,
-            responseFormat: nil
+            responseFormat: nil,
+            routingProfile: nil
         )
 
         let service = ClawDBMasterASRService(configuration: configuration) { request in
@@ -233,7 +238,8 @@ final class MasterASRServiceTests: XCTestCase {
             apiKey: nil,
             model: "whisper-1",
             language: nil,
-            responseFormat: nil
+            responseFormat: nil,
+            routingProfile: nil
         )
 
         let service = ClawDBMasterASRService(configuration: configuration) { request in

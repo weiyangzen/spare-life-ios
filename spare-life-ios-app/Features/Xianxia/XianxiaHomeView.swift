@@ -5,18 +5,24 @@ import SwiftUI
 
 struct XianxiaHomeView: View {
     @StateObject private var vm = XianxiaHomeViewModel()
-    @StateObject private var scrollState = WaterfallScrollState()
-
-    private static let feedTopAnchor = "xianxia_topic_feed_top"
+    private let compactSpacing: CGFloat = 8
 
     var body: some View {
         NavigationStack {
             ZStack {
-                Color(.systemGroupedBackground).ignoresSafeArea()
+                LinearGradient(
+                    colors: [
+                        Color.spareYellow.opacity(0.12),
+                        Color.white,
+                        Color.white
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     topBar
-                    Divider()
                     feedBody
                 }
             }
@@ -36,44 +42,24 @@ struct XianxiaHomeView: View {
     }
 
     private var topBar: some View {
-        VStack(alignment: .leading, spacing: Spacing.sm) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text("闲虾")
-                        .font(.spareTitle1)
-                        .foregroundColor(.primary)
+        HStack {
+            Spacer()
 
-                    Text("Stage 1 首页只保留 topic feed。")
-                        .font(.spareCaption)
-                        .foregroundColor(.secondary)
-                }
+            HStack(alignment: .lastTextBaseline, spacing: Spacing.sm) {
+                Text("闲虾")
+                    .font(.spareTitle2)
+                    .foregroundColor(.primary)
 
-                Spacer()
-
-                Button {
-                    vm.refresh()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary)
-                        .frame(width: 40, height: 40)
-                        .background(Color(.secondarySystemGroupedBackground), in: Circle())
-                }
-                .accessibilityLabel("刷新话题流")
-                .accessibilityIdentifier("xianxia.feed.refresh")
-            }
-
-            HStack(spacing: Spacing.sm) {
-                Image(systemName: "tray.full")
-                    .foregroundColor(.secondary)
-                Text("统一 topic 数据源 · 双列瀑布流 · 本地缓存回退")
+                Text("\(max(vm.totalTopicsCount, vm.topics.count))个话题")
                     .font(.spareCaption)
                     .foregroundColor(.secondary)
             }
+
+            Spacer()
         }
-        .padding(.horizontal, Spacing.lg)
-        .padding(.top, Spacing.lg)
-        .padding(.bottom, Spacing.md)
+        .padding(.horizontal, compactSpacing)
+        .padding(.top, Spacing.md)
+        .padding(.bottom, compactSpacing)
     }
 
     @ViewBuilder
@@ -106,118 +92,44 @@ struct XianxiaHomeView: View {
             }
 
         case .loadedFromCache, .loaded:
-            feedList(showCacheBanner: vm.feedState == .loadedFromCache)
+            feedList()
         }
     }
 
-    private func feedList(showCacheBanner: Bool) -> some View {
-        ScrollViewReader { proxy in
-            ZStack(alignment: .bottomTrailing) {
-                ScrollView(.vertical, showsIndicators: false) {
-                    LazyVStack(spacing: 0) {
-                        GeometryReader { geometry in
-                            Color.clear.preference(
-                                key: XianxiaScrollOffsetKey.self,
-                                value: geometry.frame(in: .named("xianxiaTopicFeed")).minY
-                            )
+    private func feedList() -> some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            GeometryReader { geometry in
+                WaterfallLayout(
+                    columns: WaterfallColumns.count(for: geometry.size.width),
+                    spacing: compactSpacing
+                ) {
+                    ForEach(vm.topics) { topic in
+                        TopicFeedCardView(topic: topic) {
+                            vm.open(topic)
                         }
-                        .frame(height: 0)
-                        .id(Self.feedTopAnchor)
-
-                        if showCacheBanner {
-                            TopicFeedCacheBanner(
-                                text: "已复用本地 topics 缓存，网络恢复后会自动刷新。"
-                            )
-                            .padding(.horizontal, Spacing.lg)
-                            .padding(.top, Spacing.sm)
-                        }
-
-                        FeedSectionHeader(
-                            title: "Topic Feed",
-                            subtitle: "\(vm.topics.count) 个话题",
-                            trailingLabel: vm.nextCursor == nil ? "已到底部" : "持续分页"
-                        )
-                        .padding(.top, Spacing.md)
-                        .padding(.bottom, Spacing.xs)
-
-                        GeometryReader { geometry in
-                            WaterfallLayout(
-                                columns: WaterfallColumns.count(for: geometry.size.width),
-                                spacing: Spacing.md
-                            ) {
-                                ForEach(vm.topics) { topic in
-                                    TopicFeedCardView(topic: topic) {
-                                        vm.open(topic)
-                                    }
-                                    .onAppear {
-                                        vm.loadMoreIfNeeded(after: topic)
-                                    }
-                                }
-                            }
-                            .padding(.horizontal, Spacing.lg)
-                            .padding(.top, Spacing.md)
-                        }
-                        .frame(minHeight: CGFloat(max(vm.topics.count / 2 + 1, 1)) * 216)
-
-                        if vm.isLoadingMore {
-                            ProgressView("加载更多 topics…")
-                                .font(.spareCaption)
-                                .padding(.vertical, Spacing.xl)
-                        }
-
-                        Color.clear
-                            .frame(height: 96)
-                    }
-                }
-                .accessibilityIdentifier("xianxia.feed.scrollView")
-                .coordinateSpace(name: "xianxiaTopicFeed")
-                .onPreferenceChange(XianxiaScrollOffsetKey.self) { offset in
-                    scrollState.offsetY = offset
-                    scrollState.isAtTop = offset > -40
-                }
-                .refreshable {
-                    await vm.refreshFromPullToRefresh()
-                }
-
-                if !scrollState.isAtTop {
-                    ScrollToTopButton(isVisible: true) {
-                        withAnimation(.spareSpring) {
-                            proxy.scrollTo(Self.feedTopAnchor, anchor: .top)
+                        .onAppear {
+                            vm.loadMoreIfNeeded(after: topic)
                         }
                     }
-                    .padding(.trailing, Spacing.lg)
-                    .padding(.bottom, Spacing.xl)
-                    .transition(.scale.combined(with: .opacity))
                 }
+                .padding(.horizontal, compactSpacing)
+                .padding(.top, compactSpacing)
             }
-            .animation(.spareSpring, value: scrollState.isAtTop)
+            .frame(minHeight: CGFloat(max(vm.topics.count / 2 + 1, 1)) * 160)
+
+            if vm.isLoadingMore {
+                ProgressView("加载更多内容…")
+                    .font(.spareCaption)
+                    .padding(.vertical, Spacing.md)
+            }
+
+            Color.clear
+                .frame(height: 32)
         }
-    }
-}
-
-private struct TopicFeedCacheBanner: View {
-    let text: String
-
-    var body: some View {
-        HStack(spacing: Spacing.sm) {
-            Image(systemName: "externaldrive.badge.checkmark")
-                .foregroundColor(.emotionNeutral)
-            Text(text)
-                .font(.spareCaption)
-                .foregroundColor(.secondary)
-            Spacer()
+        .accessibilityIdentifier("xianxia.feed.scrollView")
+        .refreshable {
+            await vm.refreshFromPullToRefresh()
         }
-        .padding(Spacing.md)
-        .background(Color(.systemYellow).opacity(0.10), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
-        .accessibilityIdentifier("xianxia.feed.cacheBanner")
-    }
-}
-
-private struct XianxiaScrollOffsetKey: PreferenceKey {
-    nonisolated(unsafe) static var defaultValue: CGFloat = 0
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
     }
 }
 
@@ -226,6 +138,7 @@ final class XianxiaHomeViewModel: ObservableObject {
     @Published private(set) var feedState: XianxiaTopicFeedState = .idle
     @Published private(set) var topics: [XianxiaTopic] = []
     @Published private(set) var isLoadingMore = false
+    @Published private(set) var totalTopicsCount = 0
     @Published var activeTopic: XianxiaTopic? = nil
 
     let repository: XianxiaTopicRepository
@@ -264,6 +177,7 @@ final class XianxiaHomeViewModel: ObservableObject {
         do {
             let batch = try await repository.fetchTopics(cursor: nil)
             topics = batch.items
+            totalTopicsCount = batch.total
             nextCursor = batch.nextCursor
             feedState = batch.items.isEmpty ? .empty : .loaded
         } catch {
@@ -302,6 +216,7 @@ final class XianxiaHomeViewModel: ObservableObject {
         do {
             let batch = try await repository.fetchTopics(cursor: nextCursor)
             topics = batch.items
+            totalTopicsCount = batch.total
             self.nextCursor = batch.nextCursor
             feedState = batch.items.isEmpty ? .empty : .loaded
         } catch {
@@ -329,6 +244,7 @@ final class XianxiaHomeViewModel: ObservableObject {
             }
 
             topics = snapshot.items
+            totalTopicsCount = snapshot.total ?? snapshot.items.count
             nextCursor = snapshot.nextCursor
             feedState = .loadedFromCache
         } catch {

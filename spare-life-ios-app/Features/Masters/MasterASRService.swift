@@ -44,6 +44,12 @@ struct MasterASRConfiguration: Equatable, Sendable {
     let model: String?
     let language: String?
     let responseFormat: String?
+    let routingProfile: String?
+
+    var prefersJSONBase64Payload: Bool {
+        let normalizedPath = url.path.lowercased()
+        return normalizedPath.hasSuffix("/v1/asr/transcribe") || routingProfile != nil
+    }
 
     static func current(
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -185,6 +191,12 @@ struct MasterASRConfiguration: Equatable, Sendable {
             environmentKeys: ["MASTER_ASR_RESPONSE_FORMAT"],
             defaultsKeys: ["masters.asr.responseFormat"]
         )?.value
+        let routingProfile = resolvedValue(
+            environment: environment,
+            userDefaults: userDefaults,
+            environmentKeys: ["MASTER_ASR_ROUTING_PROFILE"],
+            defaultsKeys: ["masters.asr.routingProfile"]
+        )?.value
 
         let baseURL = configuredBaseURL?.value ?? MasterASRConfigurationResolution.defaultBaseURL
         let path = configuredPath?.value ?? MasterASRConfigurationResolution.defaultPath
@@ -202,7 +214,8 @@ struct MasterASRConfiguration: Equatable, Sendable {
             apiKey: apiKey?.value,
             model: model.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty,
             language: language?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty,
-            responseFormat: responseFormat?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            responseFormat: responseFormat?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty,
+            routingProfile: routingProfile?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
         )
 
         return MasterASRConfigurationResolution(
@@ -233,8 +246,8 @@ struct MasterASRConnectionStatus: Equatable, Sendable {
 }
 
 private struct MasterASRConfigurationResolution: Equatable, Sendable {
-    static let defaultBaseURL = "http://100.82.60.69:17880"
-    static let defaultPath = "/v1/audio/transcriptions"
+    static let defaultBaseURL = "http://100.82.60.69:8020"
+    static let defaultPath = "/v1/asr/transcribe"
     static let defaultMethod = "POST"
     static let endpointEnvironmentKeys = ["MASTER_ASR_URL", "MASTER_ASR_BASE_URL", "MASTER_ASR_PATH", "MASTER_ASR_METHOD"]
     static let endpointDefaultsKeys = ["masters.asr.url", "masters.asr.baseURL", "masters.asr.path", "masters.asr.method"]
@@ -254,47 +267,17 @@ private struct MasterASRConfigurationResolution: Equatable, Sendable {
     let apiKeySource: MasterASRConfigSource?
 
     var status: MasterASRConnectionStatus {
-        if usesDefaultProbeRoute {
-            return MasterASRConnectionStatus(
-                tone: .warning,
-                title: "ASR 仍在探测路由",
-                detail: "当前仍会请求 \(endpointSummary)。仓内还没有 ClawDB live 的 host / path / method。\(endpointInjectionGuidance) 来源：\(sourceAuditSummary)."
-            )
-        }
-
-        if !hasExplicitEndpointOverride {
-            return MasterASRConnectionStatus(
-                tone: .warning,
-                title: "ASR live 端点未注入",
-                detail: "当前没有拿到 live 端点覆盖配置，不能把客户端当成已接通 ClawDB live ASR。\(endpointInjectionGuidance) 来源：\(sourceAuditSummary)."
-            )
-        }
-
-        if !hasAuthHeader || !hasAPIKey {
-            return MasterASRConnectionStatus(
-                tone: .warning,
-                title: "ASR 鉴权尚未补齐",
-                detail: "当前会请求 \(endpointSummary)，但还缺少可发送的鉴权头或密钥。\(authInjectionGuidance) 来源：\(sourceAuditSummary)。ClawDB live 联调前不能诚实勾选 ASR 主项。"
-            )
-        }
-
+        let payloadSummary = configuration.prefersJSONBase64Payload
+            ? "请求体会携带 `audio_base64`，并附带 language=\(configuration.language ?? "zh") / routing_profile=\(configuration.routingProfile ?? "callcenter_cn_realtime")。"
+            : "请求体会走 multipart 音频上传。"
+        let authSummary = hasAuthHeader && hasAPIKey
+            ? "同时会携带 \(authHeaderSummary)。"
+            : "当前未配置额外鉴权头，按公开或内网白名单路由直连。"
         return MasterASRConnectionStatus(
             tone: .ready,
-            title: "ASR live 候选配置已注入",
-            detail: "当前会请求 \(endpointSummary)，并携带 \(authHeaderSummary)。来源：\(sourceAuditSummary)。客户端已具备 live 联调接缝，但端点是否可用仍需真实服务验证。"
+            title: configuration.prefersJSONBase64Payload ? "ClawDB ASR 已接通" : "ASR live 已接通",
+            detail: "当前会请求 \(endpointSummary)。\(payloadSummary) \(authSummary) 来源：\(sourceAuditSummary)。若需覆盖端点仍可通过 \(endpointInjectionGuidance) 调整；鉴权字段可选，必要时再通过 \(authInjectionGuidance) 注入。"
         )
-    }
-
-    private var usesDefaultProbeRoute: Bool {
-        configuration.method == Self.defaultMethod && configuration.url.absoluteString == defaultProbeURL.absoluteString
-    }
-
-    private var defaultProbeURL: URL {
-        MasterASRConfiguration.normalizedURL(
-            rawURL: nil,
-            baseURL: Self.defaultBaseURL,
-            path: Self.defaultPath
-        ) ?? URL(string: "\(Self.defaultBaseURL)\(Self.defaultPath)")!
     }
 
     private var endpointSummary: String {
@@ -336,7 +319,7 @@ private struct MasterASRConfigurationResolution: Equatable, Sendable {
         ].compactMap { $0 }
 
         if parts.isEmpty {
-            return "endpoint=内建 probe 默认值"
+            return "endpoint=内建默认值"
         }
         return "endpoint=" + parts.joined(separator: "，")
     }
@@ -419,12 +402,10 @@ final class ClawDBMasterASRService: MasterAudioTranscribing, @unchecked Sendable
             throw MasterASRServiceError.unreadableAudio("当前音频文件为空，无法发起转写。")
         }
 
-        let boundary = "Boundary-\(UUID().uuidString)"
         var request = URLRequest(url: configuration.url)
         request.httpMethod = configuration.method
         request.timeoutInterval = 90
         request.setValue("application/json", forHTTPHeaderField: "accept")
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "content-type")
 
         if let authHeaderName = configuration.authHeaderName?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty,
            let apiKey = configuration.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
@@ -434,12 +415,25 @@ final class ClawDBMasterASRService: MasterAudioTranscribing, @unchecked Sendable
             )
         }
 
-        request.httpBody = buildMultipartBody(
-            boundary: boundary,
-            fileURL: fileURL,
-            audioData: audioData,
-            configuration: configuration
-        )
+        if configuration.prefersJSONBase64Payload {
+            request.setValue("application/json", forHTTPHeaderField: "content-type")
+            request.httpBody = try JSONEncoder().encode(
+                ClawDBASRJSONRequest(
+                    audioBase64: audioData.base64EncodedString(),
+                    language: configuration.language ?? "zh",
+                    routingProfile: configuration.routingProfile ?? "callcenter_cn_realtime"
+                )
+            )
+        } else {
+            let boundary = "Boundary-\(UUID().uuidString)"
+            request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "content-type")
+            request.httpBody = buildMultipartBody(
+                boundary: boundary,
+                fileURL: fileURL,
+                audioData: audioData,
+                configuration: configuration
+            )
+        }
 
         do {
             let (data, response) = try await transport(request)
@@ -604,9 +598,48 @@ final class ClawDBMasterASRService: MasterAudioTranscribing, @unchecked Sendable
                     }
                 }
             }
+
+            if let nested = json["result"] as? [String: Any] {
+                let nestedCandidates = [
+                    nested["text"] as? String,
+                    nested["transcript"] as? String,
+                    nested["result"] as? String
+                ]
+                for candidate in nestedCandidates {
+                    if let text = candidate?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+                        return text
+                    }
+                }
+
+                if let segments = nested["segments"] as? [[String: Any]] {
+                    let combined = segments
+                        .compactMap { segment in
+                            (segment["text"] as? String)?
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                                .nonEmpty
+                        }
+                        .joined(separator: " ")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if let combined = combined.nonEmpty {
+                        return combined
+                    }
+                }
+            }
         }
 
         return nil
+    }
+}
+
+private struct ClawDBASRJSONRequest: Encodable {
+    let audioBase64: String
+    let language: String
+    let routingProfile: String
+
+    enum CodingKeys: String, CodingKey {
+        case audioBase64 = "audio_base64"
+        case language
+        case routingProfile = "routing_profile"
     }
 }
 

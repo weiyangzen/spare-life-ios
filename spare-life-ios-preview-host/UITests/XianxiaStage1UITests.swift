@@ -32,10 +32,9 @@ final class XianxiaStage1UITests: XCTestCase {
 
         let detailScrollView = app.scrollViews["xianxia.topicDetail.scrollView"]
         XCTAssertTrue(detailScrollView.waitForExistence(timeout: 20))
-        waitForStaticTextCount(
-            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Shard #")),
+        waitForElementCount(
+            app.otherElements.matching(identifier: "xianxia.topicShardCard"),
             atLeast: 2,
-            in: detailScrollView,
             timeout: 20
         )
 
@@ -52,10 +51,9 @@ final class XianxiaStage1UITests: XCTestCase {
         cachedTopicCard.tap()
 
         XCTAssertTrue(app.scrollViews["xianxia.topicDetail.scrollView"].waitForExistence(timeout: 20))
-        waitForStaticTextCount(
-            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Shard #")),
+        waitForElementCount(
+            app.otherElements.matching(identifier: "xianxia.topicShardCard"),
             atLeast: 2,
-            in: app.scrollViews["xianxia.topicDetail.scrollView"],
             timeout: 20
         )
     }
@@ -140,30 +138,4 @@ final class XianxiaStage1UITests: XCTestCase {
         )
     }
 
-    private func waitForStaticTextCount(
-        _ query: XCUIElementQuery,
-        atLeast expectedCount: Int,
-        in scrollView: XCUIElement,
-        timeout: TimeInterval,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if query.count >= expectedCount {
-                return
-            }
-
-            if scrollView.exists {
-                scrollView.swipeUp()
-            }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.4))
-        }
-
-        XCTFail(
-            "Expected at least \(expectedCount) shard labels, found \(query.count)",
-            file: file,
-            line: line
-        )
-    }
 }

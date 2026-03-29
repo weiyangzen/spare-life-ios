@@ -11,6 +11,7 @@ import UIKit
 
 struct ConversationHubView: View {
     @StateObject private var store = ConversationHubStore()
+    @EnvironmentObject private var router: ConversationRouter
     @State private var sortMode: ConversationSortMode = .byTime
 
     var body: some View {
@@ -34,7 +35,7 @@ struct ConversationHubView: View {
                 }
             }
             .navigationTitle(navTitle)
-            .spareNavigationBarTitleDisplayMode(.large)
+            .spareNavigationBarTitleDisplayMode(.inline)
             .spareNavigationSearchable(text: $store.searchQuery, prompt: "搜索联系人或消息")
             .toolbar { toolbarContent }
             .task { store.load() }
@@ -55,7 +56,7 @@ struct ConversationHubView: View {
     }
 
     private var navTitle: String {
-        store.totalUnread > 0 ? "消息（\(store.totalUnread)）" : "消息"
+        store.totalUnread > 0 ? "消息(\(store.totalUnread))" : "消息"
     }
 
     private var sortedThreads: [ConversationThread] {
@@ -82,16 +83,6 @@ struct ConversationHubView: View {
             return sortedThreads.filter { !$0.isPinned }
         }
         return sortedThreads
-    }
-
-    private var currentFilterLabel: String {
-        switch store.selectedKind {
-        case nil: return "全部会话"
-        case .human: return "熟人"
-        case .quadRole: return "四人场"
-        case .group: return "群聊"
-        case .agentDirect: return "分身"
-        }
     }
 
     // MARK: - Toolbar
@@ -209,28 +200,17 @@ struct ConversationHubView: View {
     private var loadedBody: some View {
         List {
             if !pinnedThreads.isEmpty {
-                Section {
-                    ForEach(pinnedThreads) { thread in
-                        threadRow(thread)
-                    }
-                } header: {
-                    sectionHeader(title: "置顶", subtitle: "优先关注")
+                ForEach(pinnedThreads) { thread in
+                    threadRow(thread)
                 }
             }
 
-            Section {
-                if listThreads.isEmpty {
-                    noSearchResultRow
-                } else {
-                    ForEach(listThreads) { thread in
-                        threadRow(thread)
-                    }
+            if listThreads.isEmpty {
+                noSearchResultRow
+            } else {
+                ForEach(listThreads) { thread in
+                    threadRow(thread)
                 }
-            } header: {
-                sectionHeader(
-                    title: store.searchQuery.isEmpty ? currentFilterLabel : "搜索结果",
-                    subtitle: store.searchQuery.isEmpty ? sortMode.label : "联系人与消息内容匹配"
-                )
             }
         }
         .listStyle(.plain)
@@ -240,52 +220,21 @@ struct ConversationHubView: View {
         .animation(.spareEase, value: store.searchQuery)
     }
 
-    private func sectionHeader(title: String, subtitle: String) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.spareCaptionSB)
-                    .foregroundColor(.primary)
-                Text(subtitle)
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
-            if title != "置顶" {
-                Text(store.totalUnread > 0 ? "\(store.totalUnread) 未读" : "全部已读")
-                    .font(.spareMicro)
-                    .foregroundColor(store.totalUnread > 0 ? .emotionNegative : .secondary)
-            }
-        }
-        .textCase(nil)
-    }
-
     private func threadRow(_ thread: ConversationThread) -> some View {
-        NavigationLink {
-            ChatThreadView(thread: thread)
+        Button {
+            router.openChat(thread)
         } label: {
-            HStack(spacing: Spacing.md) {
+            HStack(spacing: 10) {
                 ZStack(alignment: .bottomTrailing) {
-                    AvatarView(name: thread.contactName, size: 52)
+                    AvatarView(name: thread.contactName, size: 48)
                     listKindBadge(thread.kind)
                 }
 
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    HStack(spacing: Spacing.xs) {
-                        Text(thread.contactName)
-                            .font(thread.unreadCount > 0 ? .spareBodySB : .spareBody)
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
-
-                        if thread.isPinned {
-                            Text("置顶")
-                                .font(.spareMicro)
-                                .foregroundColor(.spareYellow)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.spareYellow.opacity(0.12), in: Capsule())
-                        }
-                    }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(thread.contactName)
+                        .font(thread.unreadCount > 0 ? .spareBodySB : .spareBody)
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
 
                     Text(threadPreview(thread))
                         .font(.spareCaption)
@@ -295,7 +244,7 @@ struct ConversationHubView: View {
 
                 Spacer(minLength: Spacing.sm)
 
-                VStack(alignment: .trailing, spacing: Spacing.sm) {
+                VStack(alignment: .trailing, spacing: 6) {
                     Text(thread.lastTimestamp, style: .relative)
                         .font(.spareMicro)
                         .foregroundColor(.secondary)
@@ -305,11 +254,11 @@ struct ConversationHubView: View {
                     }
                 }
             }
-            .padding(.vertical, Spacing.sm)
+            .padding(.vertical, 6)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .listRowBackground(Color.white)
+        .listRowBackground(thread.isPinned ? Color.spareYellow.opacity(0.08) : Color.white)
         .listRowSeparatorTint(Color.spareYellow.opacity(0.14))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button { store.pin(threadID: thread.id) } label: {

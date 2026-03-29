@@ -12,6 +12,33 @@ import pandas as pd
 
 
 SHARD_ID_RE = re.compile(r"::shard:(?P<ordinal>\d+)$")
+TEXT_FIELD_CANDIDATES = (
+    "raw_text",
+    "rawText",
+    "message_text",
+    "messageText",
+    "text",
+    "content",
+    "body",
+    "vector_text",
+    "summary",
+)
+SENDER_FIELD_CANDIDATES = (
+    "sender_id",
+    "senderId",
+    "author_id",
+    "authorId",
+    "user_id",
+    "userId",
+    "sender_name",
+    "senderName",
+    "author_name",
+    "authorName",
+    "display_name",
+    "displayName",
+    "sender",
+    "author",
+)
 
 
 @dataclass
@@ -50,6 +77,51 @@ def _normalize_ts(value: Any) -> Optional[str]:
     if iso.endswith("+00:00"):
         return iso[:-6] + "Z"
     return iso
+
+
+def _normalize_public_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        parts = [_normalize_public_text(item) for item in value]
+        return "\n".join(part for part in parts if part)
+    if isinstance(value, dict):
+        for key in ("raw_text", "rawText", "message_text", "messageText", "text", "content", "body"):
+            normalized = _normalize_public_text(value.get(key))
+            if normalized:
+                return normalized
+        return ""
+    text = str(value).strip()
+    if not text or text.lower() == "nan":
+        return ""
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _first_non_empty(row: pd.Series, candidates: tuple[str, ...]) -> str:
+    for key in candidates:
+        if key not in row:
+            continue
+        normalized = _normalize_public_text(row.get(key))
+        if normalized:
+            return normalized
+    return ""
+
+
+def _sender_tail(value: Any, fallback: str) -> str:
+    normalized = _normalize_public_text(value) or _normalize_public_text(fallback)
+    compact = re.sub(r"[^0-9A-Za-z\u4e00-\u9fff]+", "", normalized)
+    if compact:
+        return compact[-6:]
+    return normalized[-6:] if normalized else "未知"
+
+
+def _public_text_payload(row: pd.Series, fallback_sender: str) -> Dict[str, str]:
+    sender_value = _first_non_empty(row, SENDER_FIELD_CANDIDATES)
+    raw_text = _first_non_empty(row, TEXT_FIELD_CANDIDATES)
+    return {
+        "senderTail": _sender_tail(sender_value, fallback_sender),
+        "rawText": raw_text,
+    }
 
 
 def _load_topics_frame(ctx: QueryContext) -> pd.DataFrame:
@@ -167,6 +239,7 @@ def list_topics(payload: Dict[str, Any]) -> Dict[str, Any]:
     items: List[Dict[str, Any]] = []
     for _, row in window.iterrows():
         canonical_topic_id = str(row.get("canonical_topic_id") or row.get("topic_id") or "default")
+        public_payload = _public_text_payload(row, canonical_topic_id)
         items.append(
             {
                 "topicId": canonical_topic_id,
@@ -174,6 +247,8 @@ def list_topics(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "status": str(row.get("status") or "active"),
                 "messageCount": int(row.get("message_count") or 0),
                 "summary": str(row.get("summary") or ""),
+                "senderTail": public_payload["senderTail"],
+                "rawText": public_payload["rawText"],
                 "updatedAt": _normalize_ts(row.get("updated_at")),
                 "shardCount": int(shard_counts.get(canonical_topic_id, 0)),
             }
@@ -223,6 +298,7 @@ def list_shards(payload: Dict[str, Any]) -> Dict[str, Any]:
             }
         canonical_row = canonical_row.sort_values(["updated_at"], ascending=[False], kind="stable").head(1)
         row = canonical_row.iloc[0]
+        public_payload = _public_text_payload(row, topic_id)
         items = [
             {
                 "topicId": str(row.get("topic_id") or topic_id),
@@ -231,6 +307,8 @@ def list_shards(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "status": str(row.get("status") or "active"),
                 "messageCount": int(row.get("message_count") or 0),
                 "summary": str(row.get("summary") or ""),
+                "senderTail": public_payload["senderTail"],
+                "rawText": public_payload["rawText"],
                 "updatedAt": _normalize_ts(row.get("updated_at")),
                 "shardOrdinal": 0,
                 "isCanonical": True,
@@ -267,6 +345,7 @@ def list_shards(payload: Dict[str, Any]) -> Dict[str, Any]:
     window = shard_rows.iloc[cursor : cursor + batch_size].copy()
     items: List[Dict[str, Any]] = []
     for _, row in window.iterrows():
+        public_payload = _public_text_payload(row, str(row.get("topic_id") or topic_id))
         items.append(
             {
                 "topicId": str(row.get("topic_id") or ""),
@@ -275,6 +354,8 @@ def list_shards(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "status": str(row.get("status") or "active"),
                 "messageCount": int(row.get("message_count") or 0),
                 "summary": str(row.get("summary") or ""),
+                "senderTail": public_payload["senderTail"],
+                "rawText": public_payload["rawText"],
                 "updatedAt": _normalize_ts(row.get("updated_at")),
                 "shardOrdinal": int(row.get("_ordinal") or 0),
                 "isCanonical": False,
@@ -325,6 +406,7 @@ def get_topic(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     topic_row_id = str(row.get("topic_id") or topic_id)
     canonical_topic_id = str(row.get("canonical_topic_id") or topic_row_id)
+    public_payload = _public_text_payload(row, topic_row_id)
     return {
         "topicId": topic_row_id,
         "canonicalTopicId": canonical_topic_id,
@@ -333,6 +415,8 @@ def get_topic(payload: Dict[str, Any]) -> Dict[str, Any]:
         "messageCount": int(row.get("message_count") or 0),
         "summary": str(row.get("summary") or ""),
         "vectorText": str(row.get("vector_text") or row.get("summary") or ""),
+        "senderTail": public_payload["senderTail"],
+        "rawText": public_payload["rawText"],
         "updatedAt": _normalize_ts(row.get("updated_at")),
         "isShard": topic_row_id != canonical_topic_id,
         "shardOrdinal": _shard_ordinal(topic_row_id),

@@ -5,21 +5,21 @@ final class MasterSpeechTranscriptionFlowTests: XCTestCase {
     func testAvailabilityBlocksTranscriptionUntilASRIsReady() {
         let status = MasterASRConnectionStatus(
             tone: .warning,
-            title: "ASR 仍在探测路由",
-            detail: "当前仍会请求 POST http://100.82.60.69:17880/v1/audio/transcriptions。"
+            title: "ASR 地址无效",
+            detail: "当前 ASR 地址无法解析。"
         )
 
         XCTAssertEqual(
             MasterSpeechTranscriptionAvailability.blockingMessage(for: status),
-            "语音识别暂不可用：ASR 仍在探测路由。当前仍会请求 POST http://100.82.60.69:17880/v1/audio/transcriptions。"
+            "语音识别暂不可用：ASR 地址无效。当前 ASR 地址无法解析。"
         )
     }
 
     func testAvailabilityAllowsTranscriptionWhenASRIsReady() {
         let status = MasterASRConnectionStatus(
             tone: .ready,
-            title: "ASR live 候选配置已注入",
-            detail: "当前会请求 POST https://asr.example.com/v1/audio/transcriptions。"
+            title: "ClawDB ASR 已接通",
+            detail: "当前会请求 POST http://100.82.60.69:8020/v1/asr/transcribe。"
         )
 
         XCTAssertNil(MasterSpeechTranscriptionAvailability.blockingMessage(for: status))
@@ -54,7 +54,7 @@ final class MasterSpeechTranscriptionFlowTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path))
 
         let flow = MasterSpeechTranscriptionFlow { _ in
-            throw MasterASRServiceError.methodNotAllowed("POST http://100.82.60.69:17880/v1/audio/transcriptions")
+            throw MasterASRServiceError.methodNotAllowed("POST http://100.82.60.69:8020/v1/asr/transcribe")
         }
 
         let resolution = await flow.resolve(
@@ -66,7 +66,7 @@ final class MasterSpeechTranscriptionFlowTests: XCTestCase {
         XCTAssertEqual(resolution.draft, "我先把背景讲完整")
         XCTAssertEqual(
             resolution.errorMessage,
-            "语音识别失败：当前 ASR 路由返回 405，尚不能确认真实写入入口。 POST http://100.82.60.69:17880/v1/audio/transcriptions"
+            "语音识别失败：当前 ASR 路由返回 405，尚不能确认真实写入入口。 POST http://100.82.60.69:8020/v1/asr/transcribe"
         )
         XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
     }

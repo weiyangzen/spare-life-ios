@@ -78,6 +78,7 @@ struct MasterSpeechInputActions: View {
 
     @State private var showingAudioImporter = false
     @State private var isTranscribing = false
+    @State private var transcriptionStatusText = "正在识别语音…"
     #if os(iOS)
     @State private var showingRecorderSheet = false
     #endif
@@ -104,11 +105,11 @@ struct MasterSpeechInputActions: View {
                 if isTranscribing {
                     ProgressView()
                         .controlSize(.small)
-                    Text("正在识别语音…")
+                    Text(transcriptionStatusText)
                         .font(.spareMicro)
                         .foregroundColor(.secondary)
                 } else {
-                    Text("音频会先走 ASR，再回填到当前输入框。")
+                    Text("导入音频会先回填草稿，录音会转写后直接发给当前大师。")
                         .font(.spareMicro)
                         .foregroundColor(.secondary)
                 }
@@ -125,7 +126,11 @@ struct MasterSpeechInputActions: View {
         #if os(iOS)
         .sheet(isPresented: $showingRecorderSheet) {
             MasterAudioRecorderSheet { url in
-                startTranscription(from: url, cleanupAfterTranscription: true)
+                startTranscription(
+                    from: url,
+                    cleanupAfterTranscription: true,
+                    sendAfterTranscription: true
+                )
             }
         }
         #endif
@@ -154,7 +159,11 @@ struct MasterSpeechInputActions: View {
         case .success(let sourceURL):
             do {
                 let workingURL = try makeWorkingCopy(from: sourceURL)
-                startTranscription(from: workingURL, cleanupAfterTranscription: true)
+                startTranscription(
+                    from: workingURL,
+                    cleanupAfterTranscription: true,
+                    sendAfterTranscription: false
+                )
             } catch {
                 Task { @MainActor in
                     store.setConversationInlineError("读取导入音频失败：\(error.localizedDescription)")
@@ -167,7 +176,11 @@ struct MasterSpeechInputActions: View {
         }
     }
 
-    private func startTranscription(from fileURL: URL, cleanupAfterTranscription: Bool) {
+    private func startTranscription(
+        from fileURL: URL,
+        cleanupAfterTranscription: Bool,
+        sendAfterTranscription: Bool
+    ) {
         if let blocker = MasterSpeechTranscriptionAvailability.blockingMessage(for: store.asrConnectionStatus) {
             if cleanupAfterTranscription {
                 try? FileManager.default.removeItem(at: fileURL)
@@ -181,6 +194,7 @@ struct MasterSpeechInputActions: View {
         Task {
             await MainActor.run {
                 isTranscribing = true
+                transcriptionStatusText = sendAfterTranscription ? "正在识别并发送…" : "正在识别语音…"
                 store.setConversationInlineError(nil)
             }
 
@@ -194,9 +208,47 @@ struct MasterSpeechInputActions: View {
                 cleanupAfterTranscription: cleanupAfterTranscription
             )
 
+            if let errorMessage = resolution.errorMessage {
+                await MainActor.run {
+                    draftText = resolution.draft
+                    store.setConversationInlineError(errorMessage)
+                    transcriptionStatusText = "正在识别语音…"
+                    isTranscribing = false
+                }
+                return
+            }
+
+            if sendAfterTranscription {
+                let outgoingText = resolution.draft.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !outgoingText.isEmpty else {
+                    await MainActor.run {
+                        draftText = resolution.draft
+                        store.setConversationInlineError("语音转写结果为空，未发送。")
+                        transcriptionStatusText = "正在识别语音…"
+                        isTranscribing = false
+                    }
+                    return
+                }
+
+                await MainActor.run {
+                    draftText = outgoingText
+                    transcriptionStatusText = "正在发送给大师…"
+                }
+                await store.sendMessage(outgoingText)
+                await MainActor.run {
+                    if store.conversation?.inlineError == nil {
+                        draftText = ""
+                    }
+                    transcriptionStatusText = "正在识别语音…"
+                    isTranscribing = false
+                }
+                return
+            }
+
             await MainActor.run {
                 draftText = resolution.draft
-                store.setConversationInlineError(resolution.errorMessage)
+                store.setConversationInlineError(nil)
+                transcriptionStatusText = "正在识别语音…"
                 isTranscribing = false
             }
         }

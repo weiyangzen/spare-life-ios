@@ -9,6 +9,7 @@ struct SceneTopicView: View {
 
     @StateObject private var vm: SceneTopicViewModel
     @Environment(\.dismiss) private var dismiss
+    private let compactSpacing: CGFloat = 8
 
     init(topic: XianxiaTopic, repository: XianxiaTopicRepository = XianxiaTopicRepository()) {
         self.topic = topic
@@ -33,54 +34,34 @@ struct SceneTopicView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack(alignment: .top, spacing: Spacing.md) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(.primary)
-                        .frame(width: 36, height: 36)
-                        .background(Color(.secondarySystemGroupedBackground), in: Circle())
-                }
-                .accessibilityLabel("返回")
-                .accessibilityIdentifier("xianxia.topicDetail.back")
-
-                VStack(alignment: .leading, spacing: Spacing.xs) {
-                    Text(topic.title)
-                        .font(.spareTitle2)
-                        .foregroundColor(.primary)
-
-                    Text(topic.topicPath)
-                        .font(.spareMicro)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer()
-            }
-
-            VStack(alignment: .leading, spacing: Spacing.sm) {
-                Text(topic.summaryText)
-                    .font(.spareBody)
+        HStack(alignment: .center, spacing: Spacing.md) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(spacing: Spacing.sm) {
-                    PillTag(label: "\(topic.messageCount) 条消息", color: .secondary)
-                    PillTag(label: topic.shardCount > 0 ? "\(topic.shardCount) 个 shards" : "单页话题", color: .secondary)
-                    if let updatedAt = topic.updatedAt {
-                        PillTag(label: XianxiaRelativeTime.string(for: updatedAt), color: .secondary)
-                    }
-                }
+                    .frame(width: 36, height: 36)
+                    .background(Color(.secondarySystemGroupedBackground), in: Circle())
             }
-            .padding(Spacing.md)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: CornerRadius.md))
+            .accessibilityLabel("返回")
+            .accessibilityIdentifier("xianxia.topicDetail.back")
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("话题内容")
+                    .font(.spareTitle2)
+                    .foregroundColor(.primary)
+
+                Text("仅保留正文内容")
+                    .font(.spareMicro)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
         }
-        .padding(.horizontal, Spacing.lg)
-        .padding(.top, Spacing.lg)
-        .padding(.bottom, Spacing.md)
+        .padding(.horizontal, Spacing.md)
+        .padding(.top, Spacing.md)
+        .padding(.bottom, compactSpacing)
     }
 
     @ViewBuilder
@@ -89,16 +70,16 @@ struct SceneTopicView: View {
         case .idle, .loading:
             ScrollView {
                 TopicShardSkeleton()
-                    .padding(.horizontal, Spacing.lg)
-                    .padding(.top, Spacing.lg)
+                    .padding(.horizontal, compactSpacing)
+                    .padding(.top, compactSpacing)
             }
 
         case .empty:
             ScrollView {
                 EmptyStateView(
                     icon: "text.bubble",
-                    title: "这个 topic 还没有 shards",
-                    message: "当前数据源没有返回 shard 内容，稍后下拉刷新再试。",
+                    title: "这个话题暂时没有内容",
+                    message: "当前数据源没有返回可展示的原始文字。",
                     actionLabel: "重新拉取",
                     action: { vm.refresh() }
                 )
@@ -117,13 +98,7 @@ struct SceneTopicView: View {
 
         case .loadedFromCache, .loaded:
             ScrollView(.vertical, showsIndicators: false) {
-                LazyVStack(alignment: .leading, spacing: Spacing.md) {
-                    if vm.loadState == .loadedFromCache {
-                        TopicShardCacheBanner(
-                            text: "已显示本地 shard 缓存，网络恢复后会自动刷新。"
-                        )
-                    }
-
+                LazyVStack(alignment: .leading, spacing: compactSpacing) {
                     ForEach(vm.shards) { shard in
                         TopicShardCardView(shard: shard)
                             .onAppear {
@@ -132,17 +107,17 @@ struct SceneTopicView: View {
                     }
 
                     if vm.isLoadingMore {
-                        ProgressView("加载更多 shards…")
+                        ProgressView("加载更多内容…")
                             .font(.spareCaption)
                             .frame(maxWidth: .infinity, alignment: .center)
-                            .padding(.vertical, Spacing.lg)
+                            .padding(.vertical, Spacing.md)
                     }
 
                     Color.clear
-                        .frame(height: 48)
+                        .frame(height: 32)
                 }
-                .padding(.horizontal, Spacing.lg)
-                .padding(.top, Spacing.lg)
+                .padding(.horizontal, compactSpacing)
+                .padding(.top, compactSpacing)
             }
             .refreshable {
                 await vm.refreshFromPullToRefresh()
@@ -152,31 +127,13 @@ struct SceneTopicView: View {
     }
 }
 
-private struct TopicShardCacheBanner: View {
-    let text: String
-
-    var body: some View {
-        HStack(spacing: Spacing.sm) {
-            Image(systemName: "externaldrive.badge.checkmark")
-                .foregroundColor(.emotionNeutral)
-            Text(text)
-                .font(.spareCaption)
-                .foregroundColor(.secondary)
-            Spacer()
-        }
-        .padding(Spacing.md)
-        .background(Color(.systemYellow).opacity(0.10), in: RoundedRectangle(cornerRadius: CornerRadius.sm))
-        .accessibilityIdentifier("xianxia.topicDetail.cacheBanner")
-    }
-}
-
 private struct TopicShardSkeleton: View {
     var body: some View {
-        VStack(spacing: Spacing.md) {
+        VStack(spacing: 8) {
             ForEach(0..<4, id: \.self) { _ in
                 RoundedRectangle(cornerRadius: CornerRadius.md)
-                    .fill(Color(.secondarySystemGroupedBackground))
-                    .frame(height: 164)
+                    .fill(Color.white)
+                    .frame(height: 96)
                     .shimmer()
             }
         }
@@ -306,6 +263,8 @@ struct XianxiaTopic: Identifiable, Codable, Equatable, Hashable {
     let status: String
     let messageCount: Int
     let summary: String
+    var senderTail: String? = nil
+    var rawText: String? = nil
     let updatedAt: Date?
     let shardCount: Int
 
@@ -340,7 +299,15 @@ struct XianxiaTopic: Identifiable, Codable, Equatable, Hashable {
 
     var summaryText: String {
         let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "这个话题暂时还没有摘要。" : trimmed
+        return trimmed.isEmpty ? "这个话题暂时还没有内容。" : trimmed
+    }
+
+    var senderTailDisplay: String {
+        XianxiaSenderMask.tail6(senderTail, fallback: topicId)
+    }
+
+    var rawTextDisplay: String {
+        XianxiaFeishuTextExtractor.displayText(primary: rawText, fallback: summaryText)
     }
 }
 
@@ -351,6 +318,8 @@ struct XianxiaTopicShard: Identifiable, Codable, Equatable, Hashable {
     let status: String
     let messageCount: Int
     let summary: String
+    var senderTail: String? = nil
+    var rawText: String? = nil
     let updatedAt: Date?
     let shardOrdinal: Int
     let isCanonical: Bool
@@ -359,14 +328,15 @@ struct XianxiaTopicShard: Identifiable, Codable, Equatable, Hashable {
 
     var summaryText: String {
         let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "这个 shard 暂时还没有摘要。" : trimmed
+        return trimmed.isEmpty ? "这个话题暂时还没有内容。" : trimmed
     }
 
-    var ordinalLabel: String {
-        if isCanonical {
-            return "主话题"
-        }
-        return "Shard #\(shardOrdinal)"
+    var senderTailDisplay: String {
+        XianxiaSenderMask.tail6(senderTail, fallback: topicId)
+    }
+
+    var rawTextDisplay: String {
+        XianxiaFeishuTextExtractor.displayText(primary: rawText, fallback: summaryText)
     }
 }
 
@@ -408,6 +378,7 @@ struct XianxiaTopicShardBatch: Codable, Equatable {
 struct XianxiaTopicPageSnapshot: Codable, Equatable {
     let items: [XianxiaTopic]
     let nextCursor: String?
+    let total: Int?
     let updatedAt: Date
 }
 
@@ -595,6 +566,7 @@ actor XianxiaTopicRepository {
         let snapshot = XianxiaTopicPageSnapshot(
             items: merged,
             nextCursor: batch.nextCursor,
+            total: batch.total,
             updatedAt: Date()
         )
         try write(snapshot, to: topicsCacheURL())
@@ -835,6 +807,77 @@ private enum StableCacheDigest {
             hash &*= 0x100000001b3
         }
         return String(format: "%016llx", hash)
+    }
+}
+
+private enum XianxiaSenderMask {
+    static func tail6(_ candidate: String?, fallback: String) -> String {
+        let primary = (candidate?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? candidate!
+            : fallback)
+        let cleaned = primary
+            .replacingOccurrences(of: "[^0-9A-Za-z\\u4e00-\\u9fff]+", with: "", options: .regularExpression)
+        let source = cleaned.isEmpty ? primary : cleaned
+        return String(source.suffix(6))
+    }
+}
+
+private enum XianxiaFeishuTextExtractor {
+    static func displayText(primary: String?, fallback: String) -> String {
+        let primaryExtracted = extract(from: primary)
+        if !primaryExtracted.isEmpty {
+            return primaryExtracted
+        }
+
+        let fallbackExtracted = extract(from: fallback)
+        if !fallbackExtracted.isEmpty {
+            return fallbackExtracted
+        }
+
+        let trimmedFallback = fallback.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedFallback.isEmpty ? "这个话题暂时还没有内容。" : trimmedFallback
+    }
+
+    private static func extract(from rawValue: String?) -> String {
+        guard let rawValue else { return "" }
+        let normalized = rawValue.replacingOccurrences(of: "\r\n", with: "\n")
+        let lines = normalized
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        var foundSplitMarker = false
+        var extracted: [String] = []
+
+        for line in lines {
+            guard !line.isEmpty else { continue }
+            if line.contains("split=-") {
+                foundSplitMarker = true
+                continue
+            }
+
+            if let content = textContent(in: line), !content.isEmpty {
+                if foundSplitMarker {
+                    extracted.append(content)
+                } else {
+                    extracted.append(content)
+                }
+            }
+        }
+
+        let cleaned = extracted
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !cleaned.isEmpty else { return "" }
+        return cleaned.joined(separator: "\n")
+    }
+
+    private static func textContent(in line: String) -> String? {
+        if let range = line.range(of: #"text\s*\|\s*"#, options: .regularExpression) {
+            let content = String(line[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            return content.isEmpty ? nil : content
+        }
+        return nil
     }
 }
 

@@ -787,6 +787,8 @@ final class K2P5MasterConversationService: MasterConversationReplying {
 
     private func buildSystemPrompt(for request: MasterConversationRequest) -> String {
         let profile = request.profile
+        let characterContextJSON = profile.conversationContextJSON
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         let memorySummary = request.authorizedMemories.isEmpty
             ? "当前没有可用的长期记忆授权，只根据本轮对话和最近消息继续。"
             : request.authorizedMemories
@@ -799,12 +801,17 @@ final class K2P5MasterConversationService: MasterConversationReplying {
                 return "- \(story.title)：\(story.summary)\n  关键片段：\(beats)"
             }
             .joined(separator: "\n")
+        let explicitTags = profile.expertiseTags.isEmpty ? "未额外派生" : profile.expertiseTags.joined(separator: "、")
+        let explicitFocus = profile.focusTags.isEmpty ? "未额外派生" : profile.focusTags.joined(separator: "、")
+        let explicitBoundaries = profile.boundaries.isEmpty ? "无额外边界字段" : profile.boundaries.joined(separator: "；")
+        let openingMessage = profile.openingMessage.trimmingCharacters(in: .whitespacesAndNewlines)
 
         return """
         你是 Spare Life iOS 里的大师分身，不要暴露自己是模型、系统提示或服务配置。
         你必须稳定扮演这位大师，只能使用已导入的人设、故事和用户授权记忆，不得捏造未导入的生平。
+        角色原始 JSON 是第一优先级上下文；如果派生字段与 JSON 原文存在冲突，永远以 JSON 原文为准。
 
-        大师档案：
+        派生档案：
         - 姓名：\(profile.displayName)
         - 头衔：\(profile.title)
         - 领域：\(profile.domainTitle)
@@ -813,9 +820,10 @@ final class K2P5MasterConversationService: MasterConversationReplying {
         - 建议风格：\(profile.adviceStyle)
         - 决策风格：\(profile.decisionStyle)
         - 风险偏好：\(profile.riskAppetite)
-        - 擅长：\(profile.expertiseTags.joined(separator: "、"))
-        - 聚焦：\(profile.focusTags.joined(separator: "、"))
-        - 边界：\(profile.boundaries.joined(separator: "；"))
+        - 擅长：\(explicitTags)
+        - 聚焦：\(explicitFocus)
+        - 边界：\(explicitBoundaries)
+        - 开场白：\(openingMessage.isEmpty ? "无固定开场白" : openingMessage)
 
         会话模式：
         \(modeInstruction(for: request.mode))
@@ -830,10 +838,14 @@ final class K2P5MasterConversationService: MasterConversationReplying {
         本轮最相关的人生故事证据：
         \(storySummary)
 
+        角色原始 JSON 上下文（metadata + Simplified Chinese）：
+        \(characterContextJSON.isEmpty ? "未提供角色 JSON 原文。" : characterContextJSON)
+
         回复要求：
         - 用简体中文回复，把这轮输出写成小说场景里这位角色当面对用户说出的台词，默认保持 2-4 句连贯对白。
         - 先承接用户这轮问题和最近上下文，再给判断或陪伴，不要忽略连续性。
         - 如果合适，可以自然提到相关故事，但不要像数据库检索结果。
+        - 优先模仿角色 JSON 里的语气、背景、表达限制和互动钩子，让人一看就像这位角色在说话。
         - 如果用户问题超出你的边界，要直接收敛并说明原因，不要装懂。
         - 尽量给出一个当下可执行的下一步，或一个能推进澄清的追问。
         - 禁止出现“作为 AI / 模型 / 助手”“建议如下”“首先 / 其次 / 最后”“1. 2. 3.” 这类通用助手口吻。

@@ -68,7 +68,7 @@ enum MasterCatalogAccessPolicy: String, Equatable {
     var detail: String {
         switch self {
         case .browseAndChatOnly:
-            return "Stage 1 只允许浏览目录并进入一对一对话。字段固定来自 ./assets/char，图片固定来自 ./assets/assets；不能在端侧新建、删除或编辑大师资产。"
+            return "当前只允许浏览目录并进入一对一对话。字段固定来自 ./assets/char，图片固定来自 ./assets/assets；不能在端侧新建、删除或编辑大师资产。"
         }
     }
 
@@ -248,6 +248,8 @@ struct MasterProfile: Identifiable {
     let portraitSymbol: String
     let palette: [Color]
     let promptPreview: String
+    let openingMessage: String
+    let conversationContextJSON: String
     let imageSet: MasterImageSet
 
     var avatarURL: URL? {
@@ -512,7 +514,7 @@ final class MasterExperienceStore: ObservableObject {
     }
 
     var resourceMappingSummary: String {
-        catalogCoverage?.mappingSummary ?? "\(masters.count)/8 已匹配"
+        catalogCoverage?.mappingSummary ?? "\(masters.count)/\(masters.count) 已匹配"
     }
 
     var automationResultFileURL: URL {
@@ -1026,11 +1028,14 @@ final class MasterExperienceStore: ObservableObject {
     }
 
     private func seedMessages(for profile: MasterProfile) -> [MasterMessage] {
-        [
+        let opening = profile.openingMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        return [
             MasterMessage(
                 id: "opening-\(profile.id)",
                 role: .assistant,
-                text: "\(profile.displayName)在这里。你可以直接问问题，也可以先挑一个问题模板，我会沿用你授权的长期记忆，但不会跨大师乱共享。",
+                text: opening.isEmpty
+                    ? "\(profile.displayName)在这里。你可以直接问问题，也可以先挑一个问题模板，我会沿用你授权的长期记忆，但不会跨大师乱共享。"
+                    : opening,
                 timestamp: "刚刚",
                 referencedStoryTitles: [],
                 referencedMemoryLabels: [],
@@ -1314,148 +1319,138 @@ private struct MasterDirectoryIndexCoverage {
     let serviceDirectoryAssetIDs: [String]
     let localCharacterAssetIDs: [String]
     let localImageAssetIDs: [String]
+    let matchedAssetIDs: [String]
 }
 
 enum MasterCatalogLoader {
-    private static let stage1MasterAssetIDs: Set<String> = [
-        "001546",
-        "001550",
-        "001560",
-        "001565",
-        "001567",
-        "001570",
-        "001572",
-        "001580"
-    ]
     private static let requiredImageFiles = ["avatar.png", "image.png", "background.jpg"]
+    private static let masterDomain = MasterDomain(
+        id: "masters",
+        title: "大师",
+        description: "基于本地人物资产的闲聊目录。",
+        symbol: "person.text.rectangle"
+    )
 
     static func load() throws -> MasterCatalogSnapshot {
         let roots = try resolveAssetRoots()
-        let serviceDirectory = try MasterServiceDirectory.load()
-        let domainLookup = Dictionary(uniqueKeysWithValues: serviceDirectory.domains.map { ($0.id, $0) })
         let decoder = JSONDecoder()
-        let indexCoverage = try validateStage1AssetCoverage(serviceDirectory: serviceDirectory, roots: roots)
+        let indexCoverage = try validateAssetCoverage(roots: roots)
+        let directoryManifestPath = resolvedDirectoryManifestPath()
 
-        let masters = try serviceDirectory.entries
-            .sorted { $0.sortOrder < $1.sortOrder }
-            .map { entry -> MasterProfile in
-                guard let domain = domainLookup[entry.domainID] else {
-                    throw MasterCatalogLoadError.directory("未知的大师领域：\(entry.domainID)")
-                }
+        var masters: [MasterProfile] = []
+        for (sortOrder, assetID) in indexCoverage.matchedAssetIDs.enumerated() {
+            let characterURL = roots.charDirectory.appendingPathComponent("\(assetID).json")
+            guard FileManager.default.fileExists(atPath: characterURL.path) else {
+                throw MasterCatalogLoadError.missingCharacter(assetID)
+            }
 
-                let characterURL = roots.charDirectory.appendingPathComponent("\(entry.assetID).json")
-                guard FileManager.default.fileExists(atPath: characterURL.path) else {
-                    throw MasterCatalogLoadError.missingCharacter(entry.assetID)
-                }
+            let imageDirectory = roots.imageDirectory.appendingPathComponent(assetID, isDirectory: true)
+            try validateImageDirectory(at: imageDirectory, assetID: assetID)
+            let avatarPath = imageDirectory.appendingPathComponent(requiredImageFiles[0]).path
+            let portraitPath = imageDirectory.appendingPathComponent(requiredImageFiles[1]).path
+            let backgroundPath = imageDirectory.appendingPathComponent(requiredImageFiles[2]).path
 
-                let imageDirectory = roots.imageDirectory.appendingPathComponent(entry.assetID, isDirectory: true)
-                try validateImageDirectory(at: imageDirectory, assetID: entry.assetID)
-                let avatarPath = imageDirectory.appendingPathComponent(requiredImageFiles[0]).path
-                let portraitPath = imageDirectory.appendingPathComponent(requiredImageFiles[1]).path
-                let backgroundPath = imageDirectory.appendingPathComponent(requiredImageFiles[2]).path
+            let data = try Data(contentsOf: characterURL)
+            let document: MasterCharacterResourceDocument
+            do {
+                document = try decoder.decode(MasterCharacterResourceDocument.self, from: data)
+            } catch {
+                throw MasterCatalogLoadError.invalidCharacter(assetID, error.localizedDescription)
+            }
+            let conversationContextJSON = conversationContextJSON(from: data)
 
-                let data = try Data(contentsOf: characterURL)
-                let document: MasterCharacterResourceDocument
-                do {
-                    document = try decoder.decode(MasterCharacterResourceDocument.self, from: data)
-                } catch {
-                    throw MasterCatalogLoadError.invalidCharacter(entry.assetID, error.localizedDescription)
-                }
+            let internalAssetID = String(format: "%06d", document.metadata.id)
+            guard internalAssetID == assetID else {
+                throw MasterCatalogLoadError.mismatchedCharacterIdentifier(
+                    expected: assetID,
+                    actual: internalAssetID
+                )
+            }
 
-                let internalAssetID = String(format: "%06d", document.metadata.id)
-                guard internalAssetID == entry.assetID else {
-                    throw MasterCatalogLoadError.mismatchedCharacterIdentifier(
-                        expected: entry.assetID,
-                        actual: internalAssetID
-                    )
-                }
+            let domain = masterDomain
+            let entry = derivedEntry(
+                assetID: assetID,
+                domain: domain,
+                document: document,
+                sortOrder: sortOrder
+            )
 
-                return makeProfile(
+            masters.append(
+                makeProfile(
                     entry: entry,
                     domain: domain,
                     document: document,
                     characterURL: characterURL,
                     imageDirectory: imageDirectory,
-                    directoryManifestPath: serviceDirectory.sourceURL.path,
+                    directoryManifestPath: directoryManifestPath,
+                    conversationContextJSON: conversationContextJSON,
                     imageSet: MasterImageSet(
-                        assetID: entry.assetID,
+                        assetID: assetID,
                         avatarPath: avatarPath,
                         portraitPath: portraitPath,
                         backgroundPath: backgroundPath
                     )
                 )
-            }
+            )
+        }
 
+        let domains = [masterDomain]
+        let domainLookup = Dictionary(uniqueKeysWithValues: domains.map { ($0.id, $0) })
         let masterIndex = Dictionary(uniqueKeysWithValues: masters.enumerated().map { ($1.id, $0) })
         return MasterCatalogSnapshot(
-            domains: serviceDirectory.domains,
+            domains: domains,
             domainIndex: domainLookup,
             masters: masters,
             masterIndex: masterIndex,
             catalogCoverage: MasterCatalogCoverage(
-                directoryManifestPath: serviceDirectory.sourceURL.path,
+                directoryManifestPath: directoryManifestPath,
                 characterRootPath: roots.charDirectory.path,
                 imageRootPath: roots.imageDirectory.path,
                 serviceDirectoryAssetIDs: indexCoverage.serviceDirectoryAssetIDs,
                 localCharacterAssetIDs: indexCoverage.localCharacterAssetIDs,
                 localImageAssetIDs: indexCoverage.localImageAssetIDs,
-                matchedAssetIDs: masters.map(\.id).sorted(),
+                matchedAssetIDs: indexCoverage.matchedAssetIDs,
                 mappedImageFiles: requiredImageFiles
             ),
             sessions: []
         )
     }
 
-    private static func validateStage1AssetCoverage(
-        serviceDirectory: MasterServiceDirectory.DirectorySnapshot,
-        roots: MasterAssetRoots
-    ) throws -> MasterDirectoryIndexCoverage {
-        let directoryAssetIDs = serviceDirectory.entries.map(\.assetID).sorted()
-        let directoryAssetIDSet = Set(directoryAssetIDs)
-        guard directoryAssetIDSet == stage1MasterAssetIDs else {
-            throw MasterCatalogLoadError.directory(
-                mismatchMessage(
-                    title: "大师目录索引必须固定命中 Stage 1 的 8 位大师",
-                    expected: stage1MasterAssetIDs,
-                    actual: directoryAssetIDSet
-                )
-            )
-        }
-
+    private static func validateAssetCoverage(roots: MasterAssetRoots) throws -> MasterDirectoryIndexCoverage {
         let localCharacterAssetIDs = Array(try resourceFileIDs(in: roots.charDirectory, pathExtension: "json")).sorted()
-        let localCharacterAssetIDSet = Set(localCharacterAssetIDs)
-        guard localCharacterAssetIDSet == stage1MasterAssetIDs else {
-            throw MasterCatalogLoadError.directory(
-                mismatchMessage(
-                    title: "./assets/char 与 Stage 1 大师目录不一致",
-                    expected: stage1MasterAssetIDs,
-                    actual: localCharacterAssetIDSet
-                )
-            )
-        }
-
         let localImageAssetIDs = Array(try resourceDirectoryIDs(in: roots.imageDirectory)).sorted()
-        let localImageAssetIDSet = Set(localImageAssetIDs)
-        guard localImageAssetIDSet == stage1MasterAssetIDs else {
-            throw MasterCatalogLoadError.directory(
-                mismatchMessage(
-                    title: "./assets/assets/char 与 Stage 1 大师目录不一致",
-                    expected: stage1MasterAssetIDs,
-                    actual: localImageAssetIDSet
-                )
-            )
+        let matchedAssetIDs = Array(Set(localCharacterAssetIDs).intersection(localImageAssetIDs)).sorted()
+
+        guard !matchedAssetIDs.isEmpty else {
+            throw MasterCatalogLoadError.directory("未找到同时具备字段和图片资源的大师资产。")
         }
 
-        for assetID in stage1MasterAssetIDs {
+        for assetID in matchedAssetIDs {
             let imageDirectory = roots.imageDirectory.appendingPathComponent(assetID, isDirectory: true)
             try validateImageDirectory(at: imageDirectory, assetID: assetID)
         }
 
         return MasterDirectoryIndexCoverage(
-            serviceDirectoryAssetIDs: directoryAssetIDs,
+            serviceDirectoryAssetIDs: matchedAssetIDs,
             localCharacterAssetIDs: localCharacterAssetIDs,
-            localImageAssetIDs: localImageAssetIDs
+            localImageAssetIDs: localImageAssetIDs,
+            matchedAssetIDs: matchedAssetIDs
         )
+    }
+
+    private static func resolvedDirectoryManifestPath() -> String {
+        let manifestURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("Support/master_service_directory.json")
+
+        if FileManager.default.fileExists(atPath: manifestURL.path) {
+            return manifestURL.path
+        }
+
+        return URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .path
     }
 
     private static func resolveAssetRoots() throws -> MasterAssetRoots {
@@ -1550,10 +1545,136 @@ enum MasterCatalogLoader {
         }
     }
 
-    private static func mismatchMessage(title: String, expected: Set<String>, actual: Set<String>) -> String {
-        let expectedList = expected.sorted().joined(separator: ", ")
-        let actualList = actual.sorted().joined(separator: ", ")
-        return "\(title)。expected=[\(expectedList)] actual=[\(actualList)]"
+    private static func derivedEntry(
+        assetID: String,
+        domain: MasterDomain,
+        document: MasterCharacterResourceDocument,
+        sortOrder: Int
+    ) -> MasterServiceDirectory.Entry {
+        let corpus = classificationCorpus(for: document)
+        let decisionStyle: String
+        if ["战争", "改革", "实验", "工程", "创业", "投资"].contains(where: corpus.contains) {
+            decisionStyle = "act_then_reflect"
+        } else if ["市场", "资本", "商业", "企业", "收益"].contains(where: corpus.contains) {
+            decisionStyle = "small_bets_profit"
+        } else if ["情绪", "人格", "教育", "修行", "伦理", "心理"].contains(where: corpus.contains) {
+            decisionStyle = "resilient_expression"
+        } else {
+            decisionStyle = "principled_reasoning"
+        }
+
+        let riskAppetite: String
+        if ["战争", "革命", "改革", "实验", "创业"].contains(where: corpus.contains) {
+            riskAppetite = "高"
+        } else if ["伦理", "修行", "教育", "哲学"].contains(where: corpus.contains) {
+            riskAppetite = "低"
+        } else {
+            riskAppetite = "中"
+        }
+
+        let portraitSymbol: String
+        switch domain.id {
+        case "science_tech":
+            portraitSymbol = "function"
+        case "philosophy_thought":
+            portraitSymbol = "brain"
+        case "politics_strategy":
+            portraitSymbol = "shield"
+        case "literature_arts":
+            portraitSymbol = "paintbrush"
+        case "business_management":
+            portraitSymbol = "briefcase"
+        case "religion_cultivation":
+            portraitSymbol = "leaf"
+        case "education_psychology":
+            portraitSymbol = "book"
+        default:
+            portraitSymbol = "sparkles"
+        }
+
+        let paletteHex: [String]
+        switch domain.id {
+        case "science_tech":
+            paletteHex = ["1E88E5", "90CAF9"]
+        case "philosophy_thought":
+            paletteHex = ["6D4C41", "D7CCC8"]
+        case "politics_strategy":
+            paletteHex = ["37474F", "B0BEC5"]
+        case "literature_arts":
+            paletteHex = ["8E24AA", "E1BEE7"]
+        case "business_management":
+            paletteHex = ["2E7D32", "A5D6A7"]
+        case "religion_cultivation":
+            paletteHex = ["00897B", "B2DFDB"]
+        case "education_psychology":
+            paletteHex = ["F57C00", "FFE0B2"]
+        default:
+            paletteHex = ["546E7A", "CFD8DC"]
+        }
+
+        return MasterServiceDirectory.Entry(
+            assetID: assetID,
+            domainID: domain.id,
+            sortOrder: sortOrder,
+            decisionStyle: decisionStyle,
+            riskAppetite: riskAppetite,
+            portraitSymbol: portraitSymbol,
+            palette: paletteHex.compactMap(colorFromHex)
+        )
+    }
+
+    private static func classificationCorpus(for document: MasterCharacterResourceDocument) -> String {
+        [
+            cleanText(document.metadata.description),
+            cleanText(document.metadata.importantPast),
+            cleanText(document.metadata.personalityTraits),
+            cleanText(document.metadata.speechStyle),
+            cleanText(document.chinese.background),
+            cleanText(document.chinese.personality),
+            cleanText(document.chinese.worldSettings),
+            document.metadata.tags.joined(separator: " ")
+        ]
+        .joined(separator: " ")
+    }
+
+    private static func colorFromHex(_ hex: String) -> Color? {
+        let normalized = hex
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "#", with: "")
+        guard normalized.count == 6, let value = Int(normalized, radix: 16) else {
+            return nil
+        }
+
+        let red = Double((value >> 16) & 0xFF) / 255.0
+        let green = Double((value >> 8) & 0xFF) / 255.0
+        let blue = Double(value & 0xFF) / 255.0
+        return Color(red: red, green: green, blue: blue)
+    }
+
+    private static func conversationContextJSON(from rawData: Data) -> String {
+        guard let object = try? JSONSerialization.jsonObject(with: rawData) as? [String: Any] else {
+            return ""
+        }
+
+        var context: [String: Any] = [:]
+        if let chinese = object["Simplified Chinese"] {
+            context["Simplified Chinese"] = chinese
+        }
+        if let metadata = object["metadata"] {
+            context["metadata"] = metadata
+        }
+
+        guard !context.isEmpty,
+              JSONSerialization.isValidJSONObject(context),
+              let data = try? JSONSerialization.data(
+                  withJSONObject: context,
+                  options: [.prettyPrinted, .sortedKeys]
+              ),
+              let text = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func makeProfile(
@@ -1563,13 +1684,14 @@ enum MasterCatalogLoader {
         characterURL: URL,
         imageDirectory: URL,
         directoryManifestPath: String,
+        conversationContextJSON: String,
         imageSet: MasterImageSet
     ) -> MasterProfile {
         let description = cleanText(document.metadata.description)
-        let expertiseTags = Array(uniqueStrings(document.metadata.tags).prefix(4))
-        let focusTags = Array(uniqueStrings([domain.title] + Array(document.metadata.tags.dropFirst(2).prefix(2))).prefix(3))
-        let templates = makeTemplates(for: entry, name: document.chinese.name.fullName, domainTitle: domain.title, tags: expertiseTags)
-        let stories = makeStories(document: document, entry: entry, expertiseTags: expertiseTags, domain: domain)
+        let expertiseTags: [String] = []
+        let focusTags: [String] = []
+        let templates = makeTemplates(for: entry, name: document.chinese.name.fullName, domainTitle: "大师", tags: [])
+        let stories = makeStories(document: document, entry: entry, expertiseTags: [], domain: domain)
         let promptPreview = clip(
             firstNonEmpty(
                 document.metadata.openingMessage,
@@ -1637,7 +1759,7 @@ enum MasterCatalogLoader {
                     "Simplified Chinese.world_settings"
                 ],
                 manifestFields: ["asset_id", "domain_id", "sort_order", "decision_style", "risk_appetite"],
-                importNote: "Stage 1 目录索引固定指向 ./assets/char 与 ./assets/assets 的 8 套匹配资源，端侧只读消费。",
+                importNote: "目录从 ./assets/char 与 ./assets/assets/char 全量扫描生成，端侧只读消费，并自动补充分组与派生 tags。",
                 isOfficial: true,
                 characterAssetPath: characterURL.path,
                 imageDirectoryPath: imageDirectory.path,
@@ -1646,6 +1768,12 @@ enum MasterCatalogLoader {
             portraitSymbol: entry.portraitSymbol,
             palette: entry.palette,
             promptPreview: promptPreview,
+            openingMessage: firstNonEmpty(
+                document.metadata.openingMessage,
+                document.chinese.greetingMessage,
+                document.metadata.description
+            ),
+            conversationContextJSON: conversationContextJSON,
             imageSet: imageSet
         )
     }
@@ -2065,7 +2193,7 @@ private struct MasterServiceDirectoryDocument: Decodable {
             }
         }
 
-        private static func color(fromHex hex: String) throws -> Color {
+        static func color(fromHex hex: String) throws -> Color {
             let normalized = hex
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: "#", with: "")

@@ -24,17 +24,30 @@ struct AwakeningModel {
     }
 }
 
-struct PersonalityDNA {
-    var traits: [Trait]
+struct MBTIProfile {
+    let typeCode: String
+    let archetypeName: String
+    let summary: String
+    let dimensions: [Dimension]
+    let strengths: [String]
+    let guideItems: [GuideItem]
 
-    struct Trait: Identifiable {
+    struct Dimension: Identifiable {
         let id: String
-        let name: String
-        let leftPole: String
-        let rightPole: String
-        /// -1.0 (full left) ... +1.0 (full right)
-        var value: Double
+        let title: String
+        let pair: String
+        let preferredLetter: String
+        let preferredLabel: String
+        let score: Int
+        let detail: String
         let color: Color
+    }
+
+    struct GuideItem: Identifiable {
+        let id: String
+        let icon: String
+        let title: String
+        let detail: String
     }
 }
 
@@ -57,7 +70,7 @@ enum AwakeningLoadState {
 final class AwakeningPersonalityStore: ObservableObject {
     @Published var loadState: AwakeningLoadState = .idle
     @Published var awakening: AwakeningModel? = nil
-    @Published var dna: PersonalityDNA? = nil
+    @Published var mbtiProfile: MBTIProfile? = nil
     @Published var masks: [PersonaMask] = []
     @Published var selectedTab: Tab = .awakening
     @Published var editingMask: PersonaMask? = nil
@@ -65,7 +78,7 @@ final class AwakeningPersonalityStore: ObservableObject {
 
     enum Tab: String, CaseIterable {
         case awakening  = "觉醒度"
-        case dna        = "人格 DNA"
+        case dna        = "MBTI"
         case masks      = "面具"
     }
 
@@ -82,13 +95,80 @@ final class AwakeningPersonalityStore: ObservableObject {
                 description: "分身已掌握你的基础语言风格与常见价值偏好，可以应对日常陌生社交场景。",
                 unlockedFeatures: ["基础代理回复", "语言风格匹配", "简单情绪感知", "陌生社交破冰"]
             )
-            dna = PersonalityDNA(traits: [
-                .init(id: "ei", name: "内外倾向", leftPole: "内向",   rightPole: "外向",   value:  0.3, color: .spareYellowInk),
-                .init(id: "ns", name: "思维方式", leftPole: "感性",   rightPole: "理性",   value:  0.1, color: .spareYellowInk),
-                .init(id: "tf", name: "判断倾向", leftPole: "情感优先", rightPole: "逻辑优先", value: -0.2, color: .spareYellowInk),
-                .init(id: "jp", name: "行为风格", leftPole: "灵活",   rightPole: "计划",   value:  0.4, color: .spareYellowInk),
-                .init(id: "op", name: "开放程度", leftPole: "保守",   rightPole: "开放",   value:  0.6, color: .spareYellowInk),
-            ])
+            mbtiProfile = MBTIProfile(
+                typeCode: "INTP",
+                archetypeName: "逻辑学家",
+                summary: "先理解原理，再决定是否行动。比起热闹和即时表态，更偏好独立思考、抽象建模和在脑中推演多个可能性。",
+                dimensions: [
+                    .init(
+                        id: "ei",
+                        title: "能量来源",
+                        pair: "E / I",
+                        preferredLetter: "I",
+                        preferredLabel: "独处充电",
+                        score: 72,
+                        detail: "长时间社交会快速掉电，更适合先独立思考，再进入对话。",
+                        color: .spareYellow
+                    ),
+                    .init(
+                        id: "sn",
+                        title: "信息偏好",
+                        pair: "S / N",
+                        preferredLetter: "N",
+                        preferredLabel: "抽象模式",
+                        score: 68,
+                        detail: "会自然去寻找原理、结构和长期趋势，而不是只停留在事实表层。",
+                        color: .spareYellowInk
+                    ),
+                    .init(
+                        id: "tf",
+                        title: "决策方式",
+                        pair: "T / F",
+                        preferredLetter: "T",
+                        preferredLabel: "逻辑优先",
+                        score: 64,
+                        detail: "先判断结论是否自洽、有没有漏洞，再考虑关系和感受层的表达。",
+                        color: .spareOrange
+                    ),
+                    .init(
+                        id: "jp",
+                        title: "生活节奏",
+                        pair: "J / P",
+                        preferredLetter: "P",
+                        preferredLabel: "保留弹性",
+                        score: 70,
+                        detail: "不喜欢被过早锁死方案，更倾向先探索，再逐步收束行动。",
+                        color: .spareYellow
+                    )
+                ],
+                strengths: ["独立思考", "抽象推理", "系统建模", "长期兴趣驱动"],
+                guideItems: [
+                    .init(
+                        id: "guide-comm",
+                        icon: "message.badge.fill",
+                        title: "沟通方式",
+                        detail: "先给问题背景和讨论目标，再进入交流。比起纯寒暄，更适合从一个明确主题切入。"
+                    ),
+                    .init(
+                        id: "guide-collab",
+                        icon: "square.and.pencil",
+                        title: "协作建议",
+                        detail: "把目标、边界和截止时间说清楚，减少临时打断，INTP 的输出质量会明显更稳。"
+                    ),
+                    .init(
+                        id: "guide-social",
+                        icon: "person.2.fill",
+                        title: "社交提醒",
+                        detail: "高密度社交后需要独处恢复；如果持续被迫在线，表达会明显变钝。"
+                    ),
+                    .init(
+                        id: "guide-growth",
+                        icon: "arrow.triangle.branch",
+                        title: "成长方向",
+                        detail: "少等 100 分答案，多把 60 分原型拿出来验证。INTP 最容易卡在脑内过度迭代。"
+                    )
+                ]
+            )
             masks = [
                 .init(id: "m1", name: "职场模式",   description: "对同事和职业联系人展示更正式、专注效率的一面。", isActive: true,  traits: ["专业", "简洁", "目标导向"], createdAt: Date().addingTimeInterval(-86400 * 10)),
                 .init(id: "m2", name: "闺蜜/死党", description: "对亲密朋友展示放松、幽默、可以说废话的模式。",  isActive: false, traits: ["幽默", "直白", "温暖"],   createdAt: Date().addingTimeInterval(-86400 * 5)),
@@ -112,7 +192,7 @@ struct AwakeningPersonalityView: View {
                 Color(.systemGroupedBackground).ignoresSafeArea()
                 contentBody
             }
-            .navigationTitle("觉醒度与人格")
+            .navigationTitle("觉醒度与 MBTI")
             .spareNavigationBarTitleDisplayMode(.large)
         }
         .task { store.load() }
@@ -195,8 +275,9 @@ private struct AwakeningScrollView: View {
                 FeaturesUnlockedCard(features: awakening.unlockedFeatures)
             }
         case .dna:
-            if let dna = store.dna {
-                PersonalityDNACard(dna: dna)
+            if let mbtiProfile = store.mbtiProfile {
+                MBTIProfileCard(profile: mbtiProfile)
+                MBTIGuideCard(profile: mbtiProfile)
             }
         case .masks:
             MasksSection(store: store)
@@ -340,29 +421,46 @@ private struct FeaturesUnlockedCard: View {
     }
 }
 
-// MARK: - Personality DNA Card
+// MARK: - MBTI Card
 
-private struct PersonalityDNACard: View {
-    let dna: PersonalityDNA
+private struct MBTIProfileCard: View {
+    let profile: MBTIProfile
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.md) {
-            HStack {
-                Image(systemName: "dna")
-                    .foregroundColor(.spareYellowInk)
-                Text("人格 DNA")
-                    .font(.spareBodySB)
-                Spacer()
-                Button("调整") {
-                    // In production: present edit sheet
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    HStack(spacing: Spacing.sm) {
+                        Text(profile.typeCode)
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundColor(.primary)
+
+                        PillTag(label: profile.archetypeName, color: .spareYellowInk, filled: true)
+                    }
+
+                    Text("MBTI 人格")
+                        .font(.spareCaptionSB)
+                        .foregroundColor(.secondary)
                 }
-                .font(.spareCaption)
-                .foregroundColor(.spareYellow)
+
+                Spacer()
+
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundColor(.spareYellowInk)
+                    .frame(width: 44, height: 44)
+                    .background(Color.spareYellow.opacity(0.16), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
+            Text(profile.summary)
+                .font(.spareCaption)
+                .foregroundColor(.secondary)
+
+            FlowTagsView(tags: profile.strengths)
+
             VStack(spacing: Spacing.md) {
-                ForEach(dna.traits) { trait in
-                    TraitSlider(trait: trait)
+                ForEach(profile.dimensions) { dimension in
+                    MBTIAxisRow(dimension: dimension)
                 }
             }
         }
@@ -372,49 +470,88 @@ private struct PersonalityDNACard: View {
     }
 }
 
-private struct TraitSlider: View {
-    let trait: PersonalityDNA.Trait
-
-    private var normalized: Double { (trait.value + 1) / 2 }
+private struct MBTIAxisRow: View {
+    let dimension: MBTIProfile.Dimension
 
     var body: some View {
-        VStack(spacing: Spacing.xs) {
-            HStack {
-                Text(trait.name)
-                    .font(.spareCaptionSB)
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            HStack(alignment: .lastTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(dimension.title)
+                        .font(.spareCaptionSB)
+                    Text(dimension.pair)
+                        .font(.spareMicro)
+                        .foregroundColor(.secondary)
+                }
+
                 Spacer()
+
+                Text("\(dimension.preferredLetter) \(dimension.score)%")
+                    .font(.spareCaptionSB)
+                    .foregroundColor(dimension.color)
             }
+
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    // Track
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color(.systemGray5))
-                        .frame(height: 6)
+                        .frame(height: 8)
 
-                    // Filled portion
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(trait.color)
-                        .frame(width: normalized * geo.size.width, height: 6)
-
-                    // Thumb
-                    Circle()
-                        .fill(trait.color)
-                        .frame(width: 14, height: 14)
-                        .offset(x: max(0, normalized * geo.size.width - 7))
+                        .fill(dimension.color)
+                        .frame(width: geo.size.width * CGFloat(dimension.score) / 100, height: 8)
                 }
             }
-            .frame(height: 14)
+            .frame(height: 8)
 
+            Text("\(dimension.preferredLabel)：\(dimension.detail)")
+                .font(.spareMicro)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+private struct MBTIGuideCard: View {
+    let profile: MBTIProfile
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.md) {
             HStack {
-                Text(trait.leftPole)
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
+                Image(systemName: "text.book.closed.fill")
+                    .foregroundColor(.spareYellowInk)
+                Text("\(profile.typeCode) 人格指南")
+                    .font(.spareBodySB)
                 Spacer()
-                Text(trait.rightPole)
-                    .font(.spareMicro)
-                    .foregroundColor(.secondary)
+            }
+
+            VStack(spacing: Spacing.sm) {
+                ForEach(profile.guideItems) { item in
+                    HStack(alignment: .top, spacing: Spacing.md) {
+                        Image(systemName: item.icon)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.spareYellowInk)
+                            .frame(width: 28, height: 28)
+                            .background(Color.spareYellow.opacity(0.14), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.title)
+                                .font(.spareCaptionSB)
+                            Text(item.detail)
+                                .font(.spareCaption)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(Spacing.sm)
+                    .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: CornerRadius.md))
+                }
             }
         }
+        .padding(Spacing.lg)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: CornerRadius.lg))
+        .cardShadow()
     }
 }
 

@@ -1,0 +1,35 @@
+{
+  "name": "spare-life-openclaw-plugin",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./sdk": "./src/sdk/clawdbTopicsClient.mjs"
+  },
+  "openclaw": {
+    "extensions": [
+      "./src/channel/openclawPlugin.mjs"
+    ]
+  },
+  "scripts": {
+    "scene-flow-demo": "node ./src/demo/scene-flow-demo.mjs",
+    "master-flow-demo": "node ./src/demo/master-flow-demo.mjs",
+    "companion-chat-flow-demo": "node ./src/demo/companion-chat-flow-demo.mjs",
+    "my-dashboard-flow-demo": "node ./src/demo/my-dashboard-flow-demo.mjs",
+    "foundation-bottom-demo": "node ./src/demo/foundation-bottom-layer-demo.mjs",
+    "test:master-flow": "node --test ./tests/master-flow.test.mjs",
+    "clawdb-topics-sdk-demo": "node ./src/demo/clawdb-topics-sdk-demo.mjs",
+    "install-openclaw-channel": "bash ./scripts/install_openclaw_channel.sh"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.4.2"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  }
+}

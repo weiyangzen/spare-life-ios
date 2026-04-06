@@ -61,8 +61,19 @@ struct MainTabView: View {
     @StateObject private var router = ConversationRouter()
 
     var body: some View {
-        presentedRoot
+        tabLayer
             .environmentObject(router)
+            .onChange(of: router.handoffSerial) { _ in
+                guard router.lastRequestedRoute != .home else { return }
+                guard selectedTab != .messages else { return }
+                withAnimation(.spareSpring) {
+                    selectedTab = .messages
+                }
+            }
+    }
+
+    private var bottomSafeArea: CGFloat {
+        spareBottomSafeAreaInset()
     }
 
     // MARK: - Tab Layer
@@ -78,7 +89,7 @@ struct MainTabView: View {
             EarnSocialHomeView()
                 .tag(MainTab.earnSocial)
                 .tabItem { Label("赚闲能", systemImage: "bolt.circle.fill") }
-            ConversationHubView()
+            MessagesFeatureRootView()
                 .tag(MainTab.messages)
                 .tabItem { Label("消息", systemImage: "message") }
             MyProfileView()
@@ -98,39 +109,6 @@ struct MainTabView: View {
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .animation(.spareSpring, value: selectedTab)
-    }
-
-    @ViewBuilder
-    private var presentedRoot: some View {
-        #if os(iOS)
-        tabLayer
-            .fullScreenCover(item: $router.activeChatThread) { thread in
-                NavigationStack {
-                    ChatThreadView(thread: thread)
-                        .toolbar {
-                            ToolbarItem(placement: .spareNavigationLeading) {
-                                Button {
-                                    router.activeChatThread = nil
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "chevron.left")
-                                            .font(.system(size: 16, weight: .semibold))
-                                        Text("返回")
-                                            .font(.system(size: 16))
-                                    }
-                                    .foregroundColor(.spareYellow)
-                                }
-                            }
-                        }
-                }
-            }
-        #else
-        tabLayer
-        #endif
-    }
-
-    private var bottomSafeArea: CGFloat {
-        spareBottomSafeAreaInset()
     }
 }
 

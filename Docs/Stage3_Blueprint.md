@@ -64,9 +64,9 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 
 ### 6.3 iOS 现有主路径收口
 
-- [ ] S3-020 把 `messages` 页从当前局部 `NavigationStack` + 根层 `fullScreenCover` 双宿主，收口为单一 feature root。
-- [ ] S3-021 把 `ConversationRouter` 从“消息线程 modal 状态”升级成 typed route / handoff coordinator。
-- [ ] S3-022 冻结 `MessagesRoute`，至少覆盖 `home / thread / mask / relationship / memory / quadRole / groupPlay / groupVote / composeDraft`。
+- [x] S3-020 把 `messages` 页从当前局部 `NavigationStack` + 根层 `fullScreenCover` 双宿主，收口为单一 feature root。
+- [x] S3-021 把 `ConversationRouter` 从“消息线程 modal 状态”升级成 typed route / handoff coordinator。
+- [x] S3-022 冻结 `MessagesRoute`，至少覆盖 `home / thread / mask / relationship / memory / quadRole / groupPlay / groupVote / composeDraft`。
 - [ ] S3-023 把 `ChatThreadView` 当前本地 `showContactMask / showRelationship / showQuadRole / showGroupPlay / showCrossSessionMemory` 迁移成 typed navigation action。
 - [ ] S3-024 按 `S4-03` 边界，把 `CompanionChatStore.swift` 最少拆成 `hub / thread / mask / relationship / memory / group play / shared`。
 - [ ] S3-025 让 `EarnSocialHomeView` 与 `EarnSocialExperienceStore` 收口成单一 runtime truth，不再继续双路径并存。

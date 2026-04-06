@@ -15,34 +15,29 @@ struct ConversationHubView: View {
     @State private var sortMode: ConversationSortMode = .byTime
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                backgroundLayer
+        ZStack {
+            backgroundLayer
 
-                Group {
-                    switch store.loadState {
-                    case .idle, .loading:
-                        loadingBody
-                    case .loaded:
-                        if store.filteredThreads.isEmpty && store.searchQuery.isEmpty {
-                            emptyBody
-                        } else {
-                            loadedBody
-                        }
-                    case .error(let msg):
-                        ErrorStateView(message: msg, retry: store.retry)
+            Group {
+                switch store.loadState {
+                case .idle, .loading:
+                    loadingBody
+                case .loaded:
+                    if store.filteredThreads.isEmpty && store.searchQuery.isEmpty {
+                        emptyBody
+                    } else {
+                        loadedBody
                     }
+                case .error(let msg):
+                    ErrorStateView(message: msg, retry: store.retry)
                 }
             }
-            .navigationTitle(navTitle)
-            .spareNavigationBarTitleDisplayMode(.inline)
-            .spareNavigationSearchable(text: $store.searchQuery, prompt: "搜索联系人或消息")
-            .toolbar { toolbarContent }
-            .task { store.load() }
-            .navigationDestination(for: ConversationThread.self) { thread in
-                ChatThreadView(thread: thread)
-            }
         }
+        .navigationTitle(navTitle)
+        .spareNavigationBarTitleDisplayMode(.inline)
+        .spareNavigationSearchable(text: $store.searchQuery, prompt: "搜索联系人或消息")
+        .toolbar { toolbarContent }
+        .task { store.load() }
     }
 
     private var backgroundLayer: some View {
@@ -224,7 +219,9 @@ struct ConversationHubView: View {
     }
 
     private func threadRow(_ thread: ConversationThread) -> some View {
-        NavigationLink(value: thread) {
+        Button {
+            router.openChat(thread)
+        } label: {
             HStack(spacing: 10) {
                 ZStack(alignment: .bottomTrailing) {
                     AvatarView(name: thread.contactName, size: 48)
@@ -258,6 +255,7 @@ struct ConversationHubView: View {
             .padding(.vertical, 6)
             .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .listRowBackground(thread.isPinned ? Color.spareYellow.opacity(0.08) : Color.white)
         .listRowSeparatorTint(Color.spareYellow.opacity(0.14))
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {

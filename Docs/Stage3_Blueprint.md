@@ -94,7 +94,7 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 
 ### 6.5 macOS UIUX 复刻与 Desktop Optimization 主线
 
-- [ ] S3-050 明确 Stage 3 的 `macOS app` 目标是：以 `iOS / iPad 横屏` 为 UIUX 基底，一步到位完成视觉复刻、信息架构复刻和桌面交互优化。
+- [x] S3-050 明确 Stage 3 的 `macOS app` 目标是：以 `iOS / iPad 横屏` 为 UIUX 基底，一步到位完成视觉复刻、信息架构复刻和桌面交互优化；`app/macos` 已通过 `Stage3MacOSTargetContract` 冻结基底、复刻范围与 desktop shell 边界。
 - [ ] S3-051 建立真正的 `macOS app` 宿主，而不是只保留 `app/macos` 占位目录。
 - [ ] S3-052 复用现有 SwiftUI 共享层，让 `MainTabView`、shared design system、shared feed / card 组件优先直接跑在 macOS。
 - [ ] S3-053 让 `xianxia / masters / earnSocial / messages / myProfile` 五个主页面在 macOS 上全部可打开，并保持与 iOS / iPad 横屏一致的模块顺序、页面 chrome、卡片语言和主内容结构。

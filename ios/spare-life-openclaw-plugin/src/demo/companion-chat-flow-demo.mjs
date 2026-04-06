@@ -30,6 +30,12 @@ try {
     userId,
     limit: 8
   });
+  const initialLocatorOpen = runtime.openConversation({
+    userId,
+    locator: initialHome.recentChats[0]?.locator,
+    markRead: false,
+    limit: 12
+  });
 
   const directTurn = runtime.sendDirectMessage({
     userId,
@@ -194,6 +200,11 @@ try {
         validation: {
           dbPath,
           initialRecentTop: initialHome.recentChats[0]?.title ?? null,
+          initialRecentCardID: initialHome.recentChats[0]?.canonicalCardID ?? null,
+          initialRecentLocatorKind: initialHome.recentChats[0]?.locator?.kind ?? null,
+          initialHomeHandoffTarget: initialHome.handoff?.targetSurface ?? null,
+          initialHomeHandoffRouteKind: initialHome.handoff?.route?.kind ?? null,
+          locatorOpenConversationID: initialLocatorOpen.conversation.id,
           topAfterDirect: homeAfterDirect.recentChats[0]?.title ?? null,
           searchHitCount: searchHits.hits.length,
           unreadAfterDirectReply: directTurn.conversation.unreadCount,
@@ -217,6 +228,7 @@ try {
           totalRituals: state.counts.rituals
         },
         initialHome,
+        initialLocatorOpen,
         directTurn,
         homeAfterDirect,
         searchHits,

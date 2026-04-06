@@ -62,6 +62,12 @@ IMCardEnvelope
 
 ## 面向本仓库的具体建议
 
+补充一个基于当前代码现状的落地约束：
+
+1. 现在的 support runtime 并没有上游回传独立 `channel_id` 字段，因此本仓库 companion lane 先把 unified channel 的 `routeKey = companion` 冻结成当前 `sourceChannelID / channelID`。
+2. direct message fallback 里的 `dm_peer_id` 在当前仓库里对应现有 `contactId`，直到上游真的回传单独 `dm_peer_id` 再替换。
+3. 这不是把 support runtime 误写成 Swift 已接线事实，而是给当前 Node/SQLite/OpenClaw companion lane 一套不再继续漂移的主键约束。
+
 ### 建议的 canonical locator
 
 ```text
@@ -148,6 +154,20 @@ dm:<channel_id>:<peer_id>
 3. 然后对齐 `MessagesRoute`，让 route payload 优先接受 canonical locator，而不是 ad-hoc query 字段。
 4. 接着为最新版 OpenClaw action 面补 capability matrix，明确哪些逻辑已经可调、哪些还只是 contract。
 5. 最后再补 smoke：DM、group、vote、summary、inspect 至少各有一条可重复验证路径。
+
+## 当前实现回写
+
+1. `ios/spare-life-ios-app/Domain/Models/companionContracts.mjs` 已冻结三件事：
+   - `COMPANION_CHANNEL_ID = companion`
+   - `buildCanonicalIMCardID(...)`
+   - `buildIMConversationLocator(...)`
+2. `messages home` 与 `conversation detail` 当前 support runtime 都会带出：
+   - `canonicalCardID`
+   - `locator`
+   - `sourceChannelID`
+   - `handoff`
+3. `openConversation` 的 inbound normalize 与 use case 现在都接受 canonical locator，不再只认单一 `conversationId`。
+4. 兼容字段 `route` 仍保留给旧 surface 使用，但它已退化成 legacy 兼容字段，不再是 canonical identity。
 
 ## 风险
 

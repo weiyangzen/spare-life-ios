@@ -1,3 +1,5 @@
+import { normalizeIMConversationLocator } from '../../../spare-life-ios-app/Domain/Models/companionContracts.mjs';
+
 function requireString(value, fieldName) {
   const normalized = `${value ?? ''}`.trim();
   if (!normalized) {
@@ -12,17 +14,33 @@ function sanitizeArray(values = []) {
     : [];
 }
 
+function normalizeConversationLocatorInput(input) {
+  if (input.locator && typeof input.locator === 'object') {
+    return normalizeIMConversationLocator(input.locator);
+  }
+
+  return normalizeIMConversationLocator({
+    conversationId: `${input.conversationId ?? input.conversation_id ?? ''}`.trim(),
+    channelId: `${input.channelId ?? input.channel_id ?? ''}`.trim(),
+    groupId: `${input.groupId ?? input.group_id ?? ''}`.trim(),
+    peerId: `${input.peerId ?? input.peer_id ?? input.dmPeerId ?? input.dm_peer_id ?? input.contactId ?? input.contact_id ?? ''}`.trim()
+  });
+}
+
 export function normalizeMessagesHomeInput(input) {
   return {
     userId: requireString(input.userId, 'userId'),
-    limit: Number(input.limit ?? 12)
+    limit: Number(input.limit ?? 12),
+    sourceSurface: `${input.sourceSurface ?? input.source_surface ?? ''}`.trim() || 'messages'
   };
 }
 
 export function normalizeConversationOpenInput(input) {
   return {
     userId: requireString(input.userId, 'userId'),
-    conversationId: requireString(input.conversationId, 'conversationId'),
+    conversationId: `${input.conversationId ?? input.conversation_id ?? ''}`.trim() || null,
+    locator: normalizeConversationLocatorInput(input),
+    sourceSurface: `${input.sourceSurface ?? input.source_surface ?? ''}`.trim() || 'messages',
     markRead: input.markRead !== false,
     limit: Number(input.limit ?? 40)
   };

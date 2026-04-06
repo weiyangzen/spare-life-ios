@@ -76,8 +76,8 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 
 ### 6.4 OpenClaw IM 对齐与消息卡片唯一标识
 
-- [ ] S3-030 为消息卡片定义 canonical `IMCardID`：优先 `conversation_id`，缺失时 fallback 到 `channel_id + group_id` 或 `channel_id + dm_peer_id`。
-- [ ] S3-031 冻结 `IMConversationLocator`：`conversation(conversationID)` / `group(channelID, groupID)` / `dm(channelID, peerID)`。
+- [x] S3-030 为消息卡片定义 canonical `IMCardID`：优先 `conversation_id`，缺失时 fallback 到 `channel_id + group_id` 或 `channel_id + dm_peer_id`。
+- [x] S3-031 冻结 `IMConversationLocator`：`conversation(conversationID)` / `group(channelID, groupID)` / `dm(channelID, peerID)`。
 - [ ] S3-032 为首页卡片、中间态 handoff、详情页打开动作统一一层 `IMCardEnvelope`。
 - [ ] S3-033 为 group 与 dm 统一 `IMRenderFields` 字段袋，让两者真正走同字段、同渲染、不同 capability 的模式。
 - [ ] S3-034 把 OpenClaw 最新能力面完整映射成 Stage 3 capability checklist，而不是只停留在 handler 已存在。
@@ -124,7 +124,7 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 ### 6.7 路由、handoff 与跨端一致性
 
 - [ ] S3-080 把 `messages` 内部 route、跨 tab handoff、OpenClaw IM locator 对齐成同一套主键体系。
-- [ ] S3-081 冻结 `CrossTabHandoff` 的 canonical payload，不再继续扩散 ad-hoc URI。
+- [x] S3-081 冻结 `CrossTabHandoff` 的 canonical payload，不再继续扩散 ad-hoc URI。
 - [ ] S3-082 为 `messages/self?draft=...`、`thread?lane=...&counterpart=...`、`thread?bond_id=...&icebreak_session_id=...` 建立 legacy normalizer。
 - [ ] S3-083 让 `masters -> messages`、`masters -> profile`、`earn social -> messages` 在 iOS 与 macOS 上共享同一 handoff 解释逻辑。
 - [ ] S3-084 当目标 surface 尚未 ready 时，为 iOS 和 macOS 同时提供 pending handoff，而不是直接丢 payload。

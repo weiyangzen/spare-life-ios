@@ -5,6 +5,11 @@ import {
   stableId,
   uniqueStrings
 } from './sceneContracts.mjs';
+import {
+  buildCrossTabHandoff,
+  buildMessagesHomeRoutePayload,
+  buildMessagesThreadRoutePayload
+} from './crossTabHandoffContracts.mjs';
 
 export const COMPANION_CONVERSATION_KINDS = new Set(['direct', 'group']);
 export const COMPANION_PARTICIPANT_ROLES = new Set([
@@ -27,6 +32,7 @@ export const COMPANION_MEMORY_LAYERS = new Set([
   'relationship_summary'
 ]);
 export const COMPANION_GROUP_VOTE_STATUSES = new Set(['open', 'closed']);
+export const COMPANION_CHANNEL_ID = 'companion';
 
 export const COMPANION_CONTACT_SEEDS = [
   {
@@ -119,16 +125,191 @@ export function buildMessagesHomeRoute(tab = 'recent') {
   return `sparelife://messages/home?${params.toString()}`;
 }
 
-export function buildConversationRoute({ conversationId, kind = 'direct', contactId = null, groupId = null }) {
-  const params = new URLSearchParams({
-    conversation_id: sanitizeText(conversationId),
-    kind: resolveConversationKind(kind)
-  });
-  if (sanitizeText(contactId)) {
-    params.set('contact_id', sanitizeText(contactId));
+export function normalizeIMConversationLocator(locator) {
+  if (!locator || typeof locator !== 'object' || Array.isArray(locator)) {
+    throw new Error('IM conversation locator is required.');
   }
-  if (sanitizeText(groupId)) {
-    params.set('group_id', sanitizeText(groupId));
+
+  const kind = sanitizeText(locator.kind);
+  if (kind === 'conversation') {
+    const conversationID = sanitizeText(locator.conversationID ?? locator.conversationId);
+    if (!conversationID) {
+      throw new Error('conversation locator requires conversationID.');
+    }
+    return {
+      kind: 'conversation',
+      conversationID
+    };
+  }
+  if (kind === 'group') {
+    const channelID = sanitizeText(locator.channelID ?? locator.channelId) || COMPANION_CHANNEL_ID;
+    const groupID = sanitizeText(locator.groupID ?? locator.groupId);
+    if (!groupID) {
+      throw new Error('group locator requires groupID.');
+    }
+    return {
+      kind: 'group',
+      channelID,
+      groupID
+    };
+  }
+  if (kind === 'dm') {
+    const channelID = sanitizeText(locator.channelID ?? locator.channelId) || COMPANION_CHANNEL_ID;
+    const peerID =
+      sanitizeText(locator.peerID ?? locator.peerId) ||
+      sanitizeText(locator.dmPeerID ?? locator.dmPeerId) ||
+      sanitizeText(locator.contactId);
+    if (!peerID) {
+      throw new Error('dm locator requires peerID.');
+    }
+    return {
+      kind: 'dm',
+      channelID,
+      peerID
+    };
+  }
+
+  const conversationID = sanitizeText(locator.conversationID ?? locator.conversationId);
+  if (conversationID) {
+    return {
+      kind: 'conversation',
+      conversationID
+    };
+  }
+
+  const channelID = sanitizeText(locator.channelID ?? locator.channelId) || COMPANION_CHANNEL_ID;
+  const groupID = sanitizeText(locator.groupID ?? locator.groupId);
+  if (groupID) {
+    return {
+      kind: 'group',
+      channelID,
+      groupID
+    };
+  }
+
+  const peerID =
+    sanitizeText(locator.peerID ?? locator.peerId) ||
+    sanitizeText(locator.dmPeerID ?? locator.dmPeerId) ||
+    sanitizeText(locator.contactId);
+  if (peerID) {
+    return {
+      kind: 'dm',
+      channelID,
+      peerID
+    };
+  }
+
+  throw new Error('IM conversation locator requires conversationID, groupID, or peerID.');
+}
+
+export function buildIMConversationLocator({
+  conversationId = null,
+  channelId = COMPANION_CHANNEL_ID,
+  groupId = null,
+  peerId = null,
+  contactId = null
+}) {
+  return normalizeIMConversationLocator({
+    conversationId,
+    channelId,
+    groupId,
+    peerId: peerId ?? contactId
+  });
+}
+
+export function buildCanonicalIMCardID({
+  conversationId = null,
+  channelId = COMPANION_CHANNEL_ID,
+  groupId = null,
+  peerId = null,
+  contactId = null
+}) {
+  const locator = buildIMConversationLocator({
+    conversationId,
+    channelId,
+    groupId,
+    peerId,
+    contactId
+  });
+
+  switch (locator.kind) {
+    case 'conversation':
+      return `conversation:${locator.conversationID}`;
+    case 'group':
+      return `group:${locator.channelID}:${locator.groupID}`;
+    case 'dm':
+      return `dm:${locator.channelID}:${locator.peerID}`;
+    default:
+      throw new Error(`Unsupported IM locator kind: ${locator.kind}`);
+  }
+}
+
+export function buildMessagesHomeHandoff({ sourceSurface = 'messages', tab = 'recent' } = {}) {
+  return buildCrossTabHandoff({
+    sourceSurface,
+    targetSurface: 'messages',
+    route: buildMessagesHomeRoutePayload({
+      tab
+    })
+  });
+}
+
+export function buildMessagesThreadHandoff({
+  sourceSurface = 'messages',
+  conversationId = null,
+  channelId = COMPANION_CHANNEL_ID,
+  groupId = null,
+  peerId = null,
+  contactId = null,
+  hint = {}
+}) {
+  const locator = buildIMConversationLocator({
+    conversationId,
+    channelId,
+    groupId,
+    peerId,
+    contactId
+  });
+  return buildCrossTabHandoff({
+    sourceSurface,
+    targetSurface: 'messages',
+    route: buildMessagesThreadRoutePayload({
+      locator,
+      sourceSurface,
+      hint
+    })
+  });
+}
+
+export function buildConversationRoute({
+  conversationId = null,
+  kind = 'direct',
+  contactId = null,
+  groupId = null,
+  channelId = COMPANION_CHANNEL_ID,
+  peerId = null
+}) {
+  const locator = buildIMConversationLocator({
+    conversationId,
+    channelId,
+    groupId,
+    peerId,
+    contactId
+  });
+
+  const params = new URLSearchParams();
+  if (locator.kind === 'conversation') {
+    params.set('conversation_id', locator.conversationID);
+  } else if (locator.kind === 'group') {
+    params.set('channel_id', locator.channelID);
+    params.set('group_id', locator.groupID);
+  } else {
+    params.set('channel_id', locator.channelID);
+    params.set('dm_peer_id', locator.peerID);
+  }
+
+  if (!conversationId) {
+    params.set('kind', resolveConversationKind(kind));
   }
   return `sparelife://messages/thread?${params.toString()}`;
 }

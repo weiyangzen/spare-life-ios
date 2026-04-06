@@ -446,6 +446,20 @@ export class CompanionChatRepository {
     );
   }
 
+  findConversationByLocator(ownerUserId, locator) {
+    const kind = sanitizeText(locator?.kind);
+    switch (kind) {
+      case 'conversation':
+        return this.findConversation(locator.conversationID);
+      case 'group':
+        return this.findConversationByGroup(ownerUserId, locator.groupID);
+      case 'dm':
+        return this.findConversationByContact(ownerUserId, locator.peerID);
+      default:
+        throw new Error(`Unsupported conversation locator kind: ${kind || 'unknown'}`);
+    }
+  }
+
   listRecentConversations(ownerUserId, limit = 12) {
     return this.db
       .prepare(

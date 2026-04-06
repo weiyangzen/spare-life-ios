@@ -214,3 +214,16 @@ enum MyProfileRoute: Equatable, Hashable {
 3. `earn social` 当前 active runtime 不是 `EarnSocialExperienceStore`，如果忽略这点，很容易把 off-path route data 当成已接线入口来设计。
 4. 如果不为“目标 tab 尚未 ready”设计 pending handoff 状态，handoff payload 会在 root 切 tab 之后直接丢失，导致用户只看到目标首页，却没有进入目标上下文。
 5. 如果继续用 display string 做 locator，例如 `counterpartName`，一旦文案改名、去重或本地化，历史 handoff 将不可稳定恢复。
+
+## 当前实现回写
+
+1. `ios/spare-life-ios-app/Domain/Models/crossTabHandoffContracts.mjs` 现在提供了当前仓库的 canonical `CrossTabHandoff` builder，payload 统一带：
+   - `id`
+   - `sourceSurface`
+   - `targetSurface`
+   - `createdAt`
+   - `payloadVersion`
+   - `route`
+2. companion lane 当前已把这个 canonical payload 接到 `messages home` 和 `conversation detail` 输出里，字段名为 `handoff`。
+3. legacy `route` string 仍保留在输出里，但它已退化成 compatibility field，不再代表 canonical handoff contract。
+4. 本次实现只冻结 payload，不提前把 Section 6.7 的 legacy normalizer 范围一起做掉，因此 `S3-082` 仍应作为独立后续项推进。

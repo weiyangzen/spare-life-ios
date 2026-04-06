@@ -2,18 +2,23 @@ import {
   clipText
 } from '../../Domain/Models/masterContracts.mjs';
 import {
+  buildCanonicalIMCardID,
   buildConversationRoute,
   buildCounterpartParticipantKey,
   buildDefaultDirectParticipants,
   buildDefaultGroupParticipants,
   buildGroupParticipantKey,
   buildGroupVoteRoute,
+  buildIMConversationLocator,
+  buildMessagesHomeHandoff,
+  buildMessagesThreadHandoff,
   buildMaskRoute,
   buildMessagesHomeRoute,
   buildRelationshipRoute,
   buildRitualTitle,
   buildSelfParticipantKey,
   collectMaskTerms,
+  COMPANION_CHANNEL_ID,
   COMPANION_CONTACT_SEEDS,
   COMPANION_GROUP_SEEDS,
   deriveRelationshipLevelFromWarmth
@@ -31,6 +36,30 @@ import {
 
 function minutesBefore(nowIso, minutes) {
   return new Date(new Date(nowIso).getTime() - minutes * 60_000).toISOString();
+}
+
+function buildConversationIdentityFields(conversation, sourceSurface = 'messages') {
+  const locator = buildIMConversationLocator({
+    conversationId: conversation.id,
+    groupId: conversation.groupId,
+    contactId: conversation.contactId
+  });
+  return {
+    cardId: buildCanonicalIMCardID({
+      conversationId: conversation.id,
+      groupId: conversation.groupId,
+      contactId: conversation.contactId
+    }),
+    locator,
+    sourceChannelID: COMPANION_CHANNEL_ID,
+    surfaceKind: conversation.kind === 'group' ? 'group' : 'dm',
+    handoff: buildMessagesThreadHandoff({
+      sourceSurface,
+      conversationId: conversation.id,
+      groupId: conversation.groupId,
+      contactId: conversation.contactId
+    })
+  };
 }
 
 export function buildCompanionWorkspaceSeed({ userId, nowIso = isoNow() }) {
@@ -423,15 +452,21 @@ export function buildRecentChatCards({
   contactsById,
   groupsById,
   relationshipsByContactId,
-  memoriesByConversationId
+  memoriesByConversationId,
+  sourceSurface = 'messages'
 }) {
   return (conversations ?? []).map((conversation) => {
     const contact = conversation.contactId ? contactsById.get(conversation.contactId) : null;
     const group = conversation.groupId ? groupsById.get(conversation.groupId) : null;
     const relationship = contact ? relationshipsByContactId.get(contact.id) : null;
     const memoryCards = collapseMemoryLayers(memoriesByConversationId.get(conversation.id) ?? []);
+    const identity = buildConversationIdentityFields(conversation, sourceSurface);
     return {
+      canonicalCardID: identity.cardId,
       conversationId: conversation.id,
+      locator: identity.locator,
+      sourceChannelID: identity.sourceChannelID,
+      surfaceKind: identity.surfaceKind,
       title: contact?.displayName ?? group?.title ?? conversation.title,
       kind: conversation.kind,
       subtitle:
@@ -442,6 +477,7 @@ export function buildRecentChatCards({
       unreadCount: conversation.unreadCount,
       lastMessagePreview: conversation.lastMessagePreview,
       lastMessageAt: conversation.lastMessageAt,
+      handoff: identity.handoff,
       route: conversation.route,
       warmthScore: relationship?.warmthScore ?? null,
       relationshipLevel: relationship?.level ?? null,
@@ -458,8 +494,10 @@ export function buildConversationContext({
   mask = null,
   rituals = [],
   memories = [],
-  messages = []
+  messages = [],
+  sourceSurface = 'messages'
 }) {
+  const identity = buildConversationIdentityFields(conversation, sourceSurface);
   const recentAssistantMessage = [...messages]
     .reverse()
     .find((message) => ['self_agent', 'counterpart_agent', 'tool_agent'].includes(message.actorRole));
@@ -472,7 +510,14 @@ export function buildConversationContext({
       '这段关系的上下文还在继续积累。';
 
   return {
-    conversation,
+    conversation: {
+      ...conversation,
+      canonicalCardID: identity.cardId,
+      locator: identity.locator,
+      sourceChannelID: identity.sourceChannelID,
+      surfaceKind: identity.surfaceKind,
+      handoff: identity.handoff
+    },
     contextCards: [
       contact
         ? {
@@ -516,6 +561,9 @@ export function buildConversationContext({
           }
         : null
     ].filter(Boolean),
-    homeRoute: buildMessagesHomeRoute()
+    homeRoute: buildMessagesHomeRoute(),
+    homeHandoff: buildMessagesHomeHandoff({
+      sourceSurface
+    })
   };
 }

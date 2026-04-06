@@ -1,5 +1,8 @@
 // PlatformCompat.swift
-// Spare Life – cross-platform shims for SwiftUI package indexing/building
+// Spare Life – cross-platform shims for SwiftUI package indexing/building.
+// Keep conditional compilation here or in explicit shell/container/interaction wrappers.
+// Shared feature/business views should consume these helpers instead of scattering #if os(...)
+// checks across runtime logic.
 
 import SwiftUI
 #if canImport(UIKit)

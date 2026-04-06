@@ -4,9 +4,6 @@
 // Design: yellow+white, light mode only
 
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 // MARK: - Responsive Column Count
 

@@ -95,9 +95,9 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 ### 6.5 macOS UIUX 复刻与 Desktop Optimization 主线
 
 - [x] S3-050 明确 Stage 3 的 `macOS app` 目标是：以 `iOS / iPad 横屏` 为 UIUX 基底，一步到位完成视觉复刻、信息架构复刻和桌面交互优化；`app/macos` 已通过 `Stage3MacOSTargetContract` 冻结基底、复刻范围与 desktop shell 边界。
-- [ ] S3-051 建立真正的 `macOS app` 宿主，而不是只保留 `app/macos` 占位目录。
-- [ ] S3-052 复用现有 SwiftUI 共享层，让 `MainTabView`、shared design system、shared feed / card 组件优先直接跑在 macOS。
-- [ ] S3-053 让 `xianxia / masters / earnSocial / messages / myProfile` 五个主页面在 macOS 上全部可打开，并保持与 iOS / iPad 横屏一致的模块顺序、页面 chrome、卡片语言和主内容结构。
+- [x] S3-051 建立真正的 `macOS app` 宿主，而不是只保留 `app/macos` 占位目录；当前已落地 `stage3-macos-app` 可执行宿主，并由 `Stage3MacOSSharedRootView` 实际承接窗口根视图。
+- [x] S3-052 复用现有 SwiftUI 共享层，让 `MainTabView`、shared design system、shared feed / card 组件优先直接跑在 macOS；当前 `Stage3MacOSRuntime` 直接编译 `ios/spare-life-ios-app` 的共享 `App / Features / Domain/Models` 源，并由宿主侧 wrapper 承接包边界。
+- [x] S3-053 让 `xianxia / masters / earnSocial / messages / myProfile` 五个主页面在 macOS 上全部可打开，并保持与 iOS / iPad 横屏一致的模块顺序、页面 chrome、卡片语言和主内容结构；当前已通过 `stage3-macos-surface-smoke` 真实构造 `MainTabView` 与五个主页面的 macOS hosting surface 并验证顺序一致。
 - [ ] S3-054 为 macOS 建立桌面壳层：允许用 sidebar / top toolbar / segmented control 等桌面容器替代底部栏，但模块信息架构、进入路径与功能语义必须与 iOS 一致。
 - [ ] S3-055 让 `xianxia` 在 macOS 上升级为桌面友好的 list-detail / multi-column 结构，同时保持 iOS 页面内容、筛选逻辑与详情信息密度一致。
 - [ ] S3-056 让 `messages` 在 macOS 上升级为桌面友好的 hub-thread-detail 工作区，可利用更宽屏幕做多栏承接，但消息卡片、线程语义、子页入口与 iOS 一致。

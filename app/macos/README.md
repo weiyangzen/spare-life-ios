@@ -1,6 +1,6 @@
 # macOS Desktop Lane
 
-Stage 3 Wave 0 uses this lane to freeze the macOS target contract before a real host app exists.
+Stage 3 Wave 1 turns this lane into the real macOS host while keeping the Stage 3 target contract executable.
 
 ## Stage 3 target
 
@@ -12,9 +12,17 @@ Stage 3 Wave 0 uses this lane to freeze the macOS target contract before a real 
 ## What lives here today
 
 - `Stage3MacOSTargetContract`: the executable contract for S3-050.
-- `stage3-macos-target-smoke`: a smoke entrypoint that validates the current `MainTabView` mirror against the frozen Stage 3 target.
+- `Stage3MacOSRuntime`: the macOS runtime wrapper that compiles the shared SwiftUI surface from `ios/spare-life-ios-app` inside this lane.
+- `stage3-macos-app`: the real macOS host entrypoint that boots the shared `MainTabView`.
+- `stage3-macos-target-smoke`: validates the current `MainTabView` mirror against the frozen Stage 3 target.
+- `stage3-macos-surface-smoke`: realizes the shared root plus `xianxia / masters / earnSocial / messages / myProfile` as real macOS hosting surfaces.
 
-## What does not live here yet
+## Shared source intake
 
-- A real macOS host app. That remains S3-051.
+- `Shared/SpareLifeCoreSource` is a symlink back to `ios/spare-life-ios-app`.
+- The runtime compiles the existing shared `App / Features / Domain/Models` sources directly, while keeping the package-only workaround local to `app/macos`.
+- No second macOS feature tree is duplicated here.
+
+## What still does not live here
+
 - A second feature tree, duplicated stores, or a macOS-only information architecture fork.

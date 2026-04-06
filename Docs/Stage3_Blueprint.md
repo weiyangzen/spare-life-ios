@@ -80,12 +80,12 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 - [x] S3-031 冻结 `IMConversationLocator`：`conversation(conversationID)` / `group(channelID, groupID)` / `dm(channelID, peerID)`。
 - [x] S3-032 为首页卡片、中间态 handoff、详情页打开动作统一一层 `IMCardEnvelope`。
 - [x] S3-033 为 group 与 dm 统一 `IMRenderFields` 字段袋，让两者真正走同字段、同渲染、不同 capability 的模式。
-- [ ] S3-034 把 OpenClaw 最新能力面完整映射成 Stage 3 capability checklist，而不是只停留在 handler 已存在。
+- [x] S3-034 把 OpenClaw 最新能力面完整映射成 Stage 3 capability checklist；当前已在 `companionContracts.mjs` 冻结 `buildOpenClawIMCapabilityChecklist(surfaceKind)`，逐项标注 `actionKey / stage3Item / surfaceScope / normalizeInput / handlerMethod / entrySurface / runtimeGate`，不再只以 handler 是否存在判断能力。
 - [x] S3-035 为 `messages home` 建立规范化输入输出模型，明确卡片 title、subtitle、preview、badge、locator、capability 的来源。
 - [x] S3-036 为 `conversation open` 建立规范化输入输出模型，明确 timeline、participant、message、stage、group 上下文的最小字段；当前已落地 `conversation_open_input/output`、`conversation_summary`、`conversation_timeline`、`conversation_stage_context`、`conversation_group_context`，并在 plugin response 中保留 raw fields 兼容层。
 - [x] S3-037 为 `conversation search` 定义 query、result item、定位主键与空结果语义；当前已落地 `conversation_search_input/output`、`conversation_search_query`、`conversation_search_result_item`、`conversation_search_empty_state`，并固定 `locationPrimaryKey(message_id + turnIndex)` 与 thread handoff hint。
-- [ ] S3-038 为 `direct message` 定义 direct-only capability gate，禁止 group surface 误入。
-- [ ] S3-039 为 `group conversation` 定义 group-only capability gate，禁止 direct surface 误入。
+- [x] S3-038 为 `direct message` 定义 direct-only capability gate；`normalizeDirectMessageInput(...)` 现可接 `cardEnvelope / locator / surfaceKind` 上下文，`companionChatHandler.sendDirectMessage(...)` 会拒绝 group surface 误入。
+- [x] S3-039 为 `group conversation` 定义 group-only capability gate；`normalizeGroupConversationInput(...)` 现可接 `cardEnvelope / locator / surfaceKind` 上下文，`companionChatHandler.openGroupConversation(...)` 会拒绝 direct surface 误入。
 - [ ] S3-040 为 `group vote launch / ballot / summary` 建 group-only UI 与 route gate，不再只靠 view 内临时 if 判断。
 - [ ] S3-041 为 `mask update`、`shared stage draft / access / message`、`ritual schedule / complete` 明确其卡片入口、线程入口与错误回退面。
 - [ ] S3-042 为 `companion inspect` 定义它在 client 侧的承接位置：诊断入口、内部工具入口或线程附属面，不再悬空。

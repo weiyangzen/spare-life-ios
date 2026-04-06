@@ -36,6 +36,190 @@ export const COMPANION_GROUP_VOTE_STATUSES = new Set(['open', 'closed']);
 export const COMPANION_CHANNEL_ID = 'companion';
 export const IM_CARD_SURFACE_KINDS = new Set(['dm', 'group']);
 export const IM_HOME_TABS = new Set(['recent']);
+export const OPENCLAW_IM_CAPABILITY_SURFACE_SCOPES = new Set([
+  'shared',
+  'direct_only',
+  'group_only'
+]);
+
+const OPENCLAW_IM_CAPABILITY_DEFINITIONS = Object.freeze([
+  Object.freeze({
+    actionKey: 'open_messages_home',
+    label: 'messages home',
+    stage3Item: 'S3-035',
+    flagKey: 'canOpenMessagesHome',
+    surfaceScope: 'shared',
+    normalizeInput: 'normalizeMessagesHomeInput',
+    handlerMethod: 'openMessagesHome',
+    entrySurface: 'messages_home',
+    runtimeGate: 'not_required'
+  }),
+  Object.freeze({
+    actionKey: 'open_conversation',
+    label: 'conversation open',
+    stage3Item: 'S3-036',
+    flagKey: 'canOpenConversation',
+    surfaceScope: 'shared',
+    normalizeInput: 'normalizeConversationOpenInput',
+    handlerMethod: 'openConversation',
+    entrySurface: 'messages_thread',
+    runtimeGate: 'not_required'
+  }),
+  Object.freeze({
+    actionKey: 'search_conversation',
+    label: 'conversation search',
+    stage3Item: 'S3-037',
+    flagKey: 'canSearchConversation',
+    surfaceScope: 'shared',
+    normalizeInput: 'normalizeConversationSearchInput',
+    handlerMethod: 'searchConversation',
+    entrySurface: 'messages_thread_search',
+    runtimeGate: 'not_required'
+  }),
+  Object.freeze({
+    actionKey: 'send_direct_message',
+    label: 'direct message',
+    stage3Item: 'S3-038',
+    flagKey: 'canSendDirectMessage',
+    surfaceScope: 'direct_only',
+    normalizeInput: 'normalizeDirectMessageInput',
+    handlerMethod: 'sendDirectMessage',
+    entrySurface: 'direct_thread',
+    runtimeGate: 'handler_surface_gate'
+  }),
+  Object.freeze({
+    actionKey: 'update_contact_mask',
+    label: 'mask update',
+    stage3Item: 'S3-041',
+    flagKey: 'canUpdateMask',
+    surfaceScope: 'direct_only',
+    normalizeInput: 'normalizeMaskUpdateInput',
+    handlerMethod: 'updateContactMask',
+    entrySurface: 'direct_thread_context',
+    runtimeGate: 'capability_flag_only'
+  }),
+  Object.freeze({
+    actionKey: 'draft_shared_stage',
+    label: 'shared stage draft',
+    stage3Item: 'S3-041',
+    flagKey: 'canDraftSharedStage',
+    surfaceScope: 'direct_only',
+    normalizeInput: 'normalizeSharedStageDraftInput',
+    handlerMethod: 'draftSharedStage',
+    entrySurface: 'direct_thread_context',
+    runtimeGate: 'capability_flag_only'
+  }),
+  Object.freeze({
+    actionKey: 'grant_stage_access',
+    label: 'stage access',
+    stage3Item: 'S3-041',
+    flagKey: 'canManageStageAccess',
+    surfaceScope: 'direct_only',
+    normalizeInput: 'normalizeStageAccessInput',
+    handlerMethod: 'grantStageAccess',
+    entrySurface: 'direct_thread_context',
+    runtimeGate: 'capability_flag_only'
+  }),
+  Object.freeze({
+    actionKey: 'post_stage_message',
+    label: 'stage message',
+    stage3Item: 'S3-041',
+    flagKey: 'canPostStageMessage',
+    surfaceScope: 'direct_only',
+    normalizeInput: 'normalizeStageMessageInput',
+    handlerMethod: 'postStageMessage',
+    entrySurface: 'direct_thread_context',
+    runtimeGate: 'capability_flag_only'
+  }),
+  Object.freeze({
+    actionKey: 'schedule_relationship_ritual',
+    label: 'ritual schedule',
+    stage3Item: 'S3-041',
+    flagKey: 'canScheduleRelationshipRitual',
+    surfaceScope: 'direct_only',
+    normalizeInput: 'normalizeRitualScheduleInput',
+    handlerMethod: 'scheduleRelationshipRitual',
+    entrySurface: 'direct_thread_context',
+    runtimeGate: 'capability_flag_only'
+  }),
+  Object.freeze({
+    actionKey: 'complete_relationship_ritual',
+    label: 'ritual completion',
+    stage3Item: 'S3-041',
+    flagKey: 'canCompleteRelationshipRitual',
+    surfaceScope: 'direct_only',
+    normalizeInput: 'normalizeRitualCompletionInput',
+    handlerMethod: 'completeRelationshipRitual',
+    entrySurface: 'direct_thread_context',
+    runtimeGate: 'capability_flag_only'
+  }),
+  Object.freeze({
+    actionKey: 'open_group_conversation',
+    label: 'group conversation',
+    stage3Item: 'S3-039',
+    flagKey: 'canOpenGroupConversation',
+    surfaceScope: 'group_only',
+    normalizeInput: 'normalizeGroupConversationInput',
+    handlerMethod: 'openGroupConversation',
+    entrySurface: 'group_thread',
+    runtimeGate: 'handler_surface_gate'
+  }),
+  Object.freeze({
+    actionKey: 'post_group_message',
+    label: 'group message',
+    stage3Item: 'S3-040',
+    flagKey: 'canPostGroupMessage',
+    surfaceScope: 'group_only',
+    normalizeInput: 'normalizeGroupMessageInput',
+    handlerMethod: 'postGroupMessage',
+    entrySurface: 'group_thread',
+    runtimeGate: 'capability_flag_only'
+  }),
+  Object.freeze({
+    actionKey: 'launch_group_vote',
+    label: 'group vote launch',
+    stage3Item: 'S3-040',
+    flagKey: 'canLaunchGroupVote',
+    surfaceScope: 'group_only',
+    normalizeInput: 'normalizeGroupVoteLaunchInput',
+    handlerMethod: 'launchGroupVote',
+    entrySurface: 'group_thread_vote_lane',
+    runtimeGate: 'capability_flag_only'
+  }),
+  Object.freeze({
+    actionKey: 'cast_group_vote',
+    label: 'group vote ballot',
+    stage3Item: 'S3-040',
+    flagKey: 'canCastGroupVote',
+    surfaceScope: 'group_only',
+    normalizeInput: 'normalizeGroupVoteBallotInput',
+    handlerMethod: 'castGroupVote',
+    entrySurface: 'group_thread_vote_lane',
+    runtimeGate: 'capability_flag_only'
+  }),
+  Object.freeze({
+    actionKey: 'summarize_group',
+    label: 'group summary',
+    stage3Item: 'S3-040',
+    flagKey: 'canSummarizeGroup',
+    surfaceScope: 'group_only',
+    normalizeInput: 'normalizeGroupSummaryInput',
+    handlerMethod: 'summarizeGroup',
+    entrySurface: 'group_thread_summary_lane',
+    runtimeGate: 'capability_flag_only'
+  }),
+  Object.freeze({
+    actionKey: 'inspect_companion',
+    label: 'companion inspect',
+    stage3Item: 'S3-042',
+    flagKey: 'canInspectCompanion',
+    surfaceScope: 'shared',
+    normalizeInput: 'normalizeCompanionInspectInput',
+    handlerMethod: 'inspectCompanionState',
+    entrySurface: 'diagnostics',
+    runtimeGate: 'not_required'
+  })
+]);
 
 export const COMPANION_CONTACT_SEEDS = [
   {
@@ -127,6 +311,126 @@ export function resolveIMCardSurfaceKind(value, fallback = 'dm') {
     throw new Error(`Unsupported IM card surface kind: ${normalized}`);
   }
   return normalized;
+}
+
+function getOpenClawIMCapabilityDefinition(actionKey) {
+  const normalizedActionKey = sanitizeText(actionKey);
+  const definition = OPENCLAW_IM_CAPABILITY_DEFINITIONS.find(
+    (candidate) => candidate.actionKey === normalizedActionKey
+  );
+  if (!definition) {
+    throw new Error(`Unsupported OpenClaw IM capability action: ${normalizedActionKey || 'unknown'}`);
+  }
+  return definition;
+}
+
+function capabilityAvailableOnSurface(definition, surfaceKind) {
+  if (definition.surfaceScope === 'shared') {
+    return true;
+  }
+  if (definition.surfaceScope === 'direct_only') {
+    return surfaceKind === 'dm';
+  }
+  return surfaceKind === 'group';
+}
+
+export function resolveIMCapabilitySurfaceKind(context = {}, fallback = 'dm') {
+  const normalizedFallback = sanitizeText(fallback) === 'group' ? 'group' : 'dm';
+  const explicitSurfaceKind = sanitizeText(
+    context.surfaceKind ??
+      context.envelope?.surfaceKind ??
+      context.cardEnvelope?.surfaceKind ??
+      context.conversation?.surfaceKind ??
+      context.conversation?.kind
+  );
+  if (explicitSurfaceKind === 'direct') {
+    return 'dm';
+  }
+  if (IM_CARD_SURFACE_KINDS.has(explicitSurfaceKind)) {
+    return resolveIMCardSurfaceKind(explicitSurfaceKind, normalizedFallback);
+  }
+
+  const rawLocator = context.locator ?? context.envelope?.locator ?? context.cardEnvelope?.locator ?? null;
+  if (rawLocator && typeof rawLocator === 'object' && !Array.isArray(rawLocator)) {
+    const normalizedLocator = normalizeIMConversationLocator(rawLocator);
+    return normalizedLocator.kind === 'group' ? 'group' : 'dm';
+  }
+
+  const groupID = sanitizeText(context.groupId ?? context.groupID ?? context.conversation?.groupId);
+  if (groupID) {
+    return 'group';
+  }
+
+  const peerID = sanitizeText(
+    context.peerId ??
+      context.peerID ??
+      context.contactId ??
+      context.contactID ??
+      context.conversation?.contactId
+  );
+  if (peerID) {
+    return 'dm';
+  }
+
+  return resolveIMCardSurfaceKind(normalizedFallback, 'dm');
+}
+
+export function buildOpenClawIMCapabilityChecklist(surfaceKind) {
+  const resolvedSurfaceKind = resolveIMCapabilitySurfaceKind({
+    surfaceKind
+  });
+  return OPENCLAW_IM_CAPABILITY_DEFINITIONS.map((definition) => ({
+    ...definition,
+    surfaceKind: resolvedSurfaceKind,
+    availableOnSurface: capabilityAvailableOnSurface(definition, resolvedSurfaceKind),
+    blockedBySurface: definition.surfaceScope === 'shared'
+      ? null
+      : definition.surfaceScope === 'direct_only'
+        ? 'group'
+        : 'dm'
+  }));
+}
+
+export function assertOpenClawIMCapabilityAllowed({
+  actionKey,
+  surfaceKind = null,
+  locator = null,
+  envelope = null,
+  groupId = null,
+  peerId = null,
+  contactId = null
+} = {}) {
+  const definition = getOpenClawIMCapabilityDefinition(actionKey);
+  const resolvedSurfaceKind = resolveIMCapabilitySurfaceKind(
+    {
+      surfaceKind,
+      locator,
+      envelope,
+      groupId,
+      peerId,
+      contactId
+    },
+    definition.surfaceScope === 'group_only' ? 'group' : 'dm'
+  );
+  if (capabilityAvailableOnSurface(definition, resolvedSurfaceKind)) {
+    return {
+      actionKey: definition.actionKey,
+      stage3Item: definition.stage3Item,
+      flagKey: definition.flagKey,
+      surfaceKind: resolvedSurfaceKind
+    };
+  }
+
+  const allowedSurfaceKind = definition.surfaceScope === 'group_only' ? 'group' : 'dm';
+  const error = new Error(
+    `OpenClaw IM action ${definition.actionKey} is ${definition.surfaceScope} and cannot run from ${resolvedSurfaceKind} surface.`
+  );
+  error.code = `${definition.surfaceScope}_capability_gate`;
+  error.actionKey = definition.actionKey;
+  error.stage3Item = definition.stage3Item;
+  error.surfaceKind = resolvedSurfaceKind;
+  error.allowedSurfaceKind = allowedSurfaceKind;
+  throw error;
 }
 
 export function resolveMessagesHomeTab(value, fallback = 'recent') {
@@ -264,25 +568,13 @@ export function buildCanonicalIMCardID({
 }
 
 export function buildIMCapabilityFlags(surfaceKind) {
-  const resolvedSurfaceKind = resolveIMCardSurfaceKind(surfaceKind);
-  const isGroup = resolvedSurfaceKind === 'group';
-  return {
-    canOpenConversation: true,
-    canSearchConversation: true,
-    canInspectCompanion: true,
-    canSendDirectMessage: !isGroup,
-    canUpdateMask: !isGroup,
-    canDraftSharedStage: !isGroup,
-    canManageStageAccess: !isGroup,
-    canPostStageMessage: !isGroup,
-    canScheduleRelationshipRitual: !isGroup,
-    canCompleteRelationshipRitual: !isGroup,
-    canOpenGroupConversation: isGroup,
-    canPostGroupMessage: isGroup,
-    canLaunchGroupVote: isGroup,
-    canCastGroupVote: isGroup,
-    canSummarizeGroup: isGroup
-  };
+  const checklist = buildOpenClawIMCapabilityChecklist(surfaceKind);
+  return checklist.reduce((flags, item) => {
+    if (item.flagKey) {
+      flags[item.flagKey] = item.availableOnSurface;
+    }
+    return flags;
+  }, {});
 }
 
 function normalizeIMBadge(badge, unreadCount) {
@@ -443,7 +735,8 @@ export function normalizeIMCardEnvelope(envelope) {
     conversationId,
     locator,
     surfaceKind,
-    sourceChannelID
+    sourceChannelID,
+    capabilityChecklist: buildOpenClawIMCapabilityChecklist(surfaceKind)
   };
 }
 
@@ -604,8 +897,9 @@ export function buildIMCardEnvelope({
       preview: sanitizeText(fieldSources.preview) || null,
       badge: sanitizeText(fieldSources.badge) || null,
       locator: sanitizeText(fieldSources.locator) || null,
-      capability: sanitizeText(fieldSources.capability) || 'surface_kind_capability_matrix'
+      capability: sanitizeText(fieldSources.capability) || 'openclaw_stage3_capability_checklist'
     },
+    capabilityChecklist: buildOpenClawIMCapabilityChecklist(normalizedSurfaceKind),
     capabilityFlags: normalizedRenderFields.capabilityFlags,
     title: normalizedRenderFields.primaryTitle,
     subtitle: normalizedRenderFields.secondaryTitle,
@@ -736,6 +1030,8 @@ export function buildConversationSummaryModel({
     lastMessageAt: normalizeIsoTimestamp(
       renderFields.lastMessageAt ?? cardEnvelope?.lastMessageAt ?? conversation.lastMessageAt
     ),
+    capabilityChecklist:
+      cardEnvelope?.capabilityChecklist ?? buildOpenClawIMCapabilityChecklist(normalizedSurfaceKind),
     capabilityFlags:
       renderFields.capabilityFlags ??
       cardEnvelope?.capabilityFlags ??

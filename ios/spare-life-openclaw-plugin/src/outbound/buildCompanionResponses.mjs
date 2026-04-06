@@ -5,11 +5,22 @@ import {
   buildConversationSearchInputModel,
   buildConversationSearchOutputModel,
   buildIMCardEnvelope,
+  buildIMCapabilityFlags,
   buildMessagesHomeHandoff,
   buildMessagesHomeInputModel,
   buildMessagesHomeOutputModel,
-  buildMessagesThreadHandoff
+  buildMessagesThreadHandoff,
+  buildOpenClawIMCapabilityChecklist
 } from '../../../spare-life-ios-app/Domain/Models/companionContracts.mjs';
+
+function decorateCapabilitySurface(result, surfaceKind) {
+  return {
+    ...result,
+    surfaceKind,
+    capabilityFlags: buildIMCapabilityFlags(surfaceKind),
+    capabilityChecklist: buildOpenClawIMCapabilityChecklist(surfaceKind)
+  };
+}
 
 function rewriteCardEnvelopeForSourceSurface(card, sourceSurface = 'messages') {
   if (!card || typeof card !== 'object' || Array.isArray(card)) {
@@ -133,6 +144,7 @@ export function buildConversationResponse(result, input = {}) {
           surfaceKind: normalizedConversationEnvelope.surfaceKind,
           renderFields: normalizedConversationEnvelope.renderFields,
           fieldSources: normalizedConversationEnvelope.fieldSources,
+          capabilityChecklist: normalizedConversationEnvelope.capabilityChecklist,
           capabilityFlags: normalizedConversationEnvelope.capabilityFlags,
           handoff: normalizedConversationEnvelope.handoff,
           openAction: normalizedConversationEnvelope.openAction
@@ -141,6 +153,9 @@ export function buildConversationResponse(result, input = {}) {
     input: inputModel,
     output: outputModel,
     conversationSummary: outputModel.conversation,
+    surfaceKind: outputModel.conversation.surfaceKind,
+    capabilityFlags: outputModel.conversation.capabilityFlags,
+    capabilityChecklist: outputModel.conversation.capabilityChecklist,
     participantModels: outputModel.participants,
     messageModels: outputModel.messages,
     timeline: outputModel.timeline,
@@ -181,35 +196,35 @@ export function buildConversationSearchResponse(result, input = {}, extras = {})
 }
 
 export function buildDirectMessageResponse(result) {
-  return result;
+  return decorateCapabilitySurface(result, 'dm');
 }
 
 export function buildMaskUpdateResponse(result) {
-  return result;
+  return decorateCapabilitySurface(result, 'dm');
 }
 
 export function buildSharedStageDraftResponse(result) {
-  return result;
+  return decorateCapabilitySurface(result, 'dm');
 }
 
 export function buildStageResponse(result) {
-  return result;
+  return decorateCapabilitySurface(result, 'dm');
 }
 
 export function buildRitualResponse(result) {
-  return result;
+  return decorateCapabilitySurface(result, 'dm');
 }
 
 export function buildGroupConversationResponse(result) {
-  return result;
+  return decorateCapabilitySurface(result, 'group');
 }
 
 export function buildGroupVoteResponse(result) {
-  return result;
+  return decorateCapabilitySurface(result, 'group');
 }
 
 export function buildGroupSummaryResponse(result) {
-  return result;
+  return decorateCapabilitySurface(result, 'group');
 }
 
 export function buildCompanionInspectionResponse(result) {

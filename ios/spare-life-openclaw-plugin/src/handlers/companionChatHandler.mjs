@@ -1,5 +1,6 @@
 import { CompanionChatExperienceUseCase } from '../../../spare-life-ios-app/Domain/UseCases/companionChatExperienceUseCase.mjs';
 import { CompanionChatRepository } from '../../../spare-life-ios-app/LocalBackend/SQLite/companionChatRepository.mjs';
+import { assertOpenClawIMCapabilityAllowed } from '../../../spare-life-ios-app/Domain/Models/companionContracts.mjs';
 import {
   normalizeCompanionInspectInput,
   normalizeConversationOpenInput,
@@ -88,6 +89,13 @@ export function createCompanionChatRuntime({ dbPath }) {
     },
     sendDirectMessage(payload) {
       const normalized = normalizeDirectMessageInput(payload);
+      assertOpenClawIMCapabilityAllowed({
+        actionKey: 'send_direct_message',
+        surfaceKind: normalized.surfaceKind,
+        locator: normalized.locator,
+        envelope: normalized.envelope,
+        contactId: normalized.contactId
+      });
       return buildDirectMessageResponse(useCase.sendDirectMessage(normalized));
     },
     updateContactMask(payload) {
@@ -116,6 +124,13 @@ export function createCompanionChatRuntime({ dbPath }) {
     },
     openGroupConversation(payload) {
       const normalized = normalizeGroupConversationInput(payload);
+      assertOpenClawIMCapabilityAllowed({
+        actionKey: 'open_group_conversation',
+        surfaceKind: normalized.surfaceKind,
+        locator: normalized.locator,
+        envelope: normalized.envelope,
+        groupId: normalized.groupId
+      });
       return buildGroupConversationResponse(useCase.openGroupConversation(normalized));
     },
     postGroupMessage(payload) {

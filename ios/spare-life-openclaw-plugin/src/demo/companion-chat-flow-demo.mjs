@@ -30,6 +30,53 @@ try {
     userId,
     limit: 8
   });
+  const directSurfaceCard = initialHome.recentChats.find((card) => card.surfaceKind === 'dm') ?? null;
+  const groupSurfaceCard = initialHome.recentChats.find((card) => card.surfaceKind === 'group') ?? null;
+  const directMessageCapability =
+    directSurfaceCard?.capabilityChecklist?.find((item) => item.actionKey === 'send_direct_message') ?? null;
+  const groupConversationCapability =
+    groupSurfaceCard?.capabilityChecklist?.find((item) => item.actionKey === 'open_group_conversation') ?? null;
+  let directOnlyGateError = null;
+  let groupOnlyGateError = null;
+
+  if (groupSurfaceCard) {
+    try {
+      runtime.sendDirectMessage({
+        userId,
+        cardEnvelope: groupSurfaceCard,
+        contactId: 'lin-zhou',
+        text: '这条消息应该被 direct-only gate 拦下。'
+      });
+    } catch (error) {
+      directOnlyGateError = {
+        code: error.code ?? null,
+        message: error.message,
+        actionKey: error.actionKey ?? null,
+        stage3Item: error.stage3Item ?? null,
+        surfaceKind: error.surfaceKind ?? null,
+        allowedSurfaceKind: error.allowedSurfaceKind ?? null
+      };
+    }
+  }
+  if (directSurfaceCard) {
+    try {
+      runtime.openGroupConversation({
+        userId,
+        cardEnvelope: directSurfaceCard,
+        groupId: 'weekend-makers',
+        limit: 8
+      });
+    } catch (error) {
+      groupOnlyGateError = {
+        code: error.code ?? null,
+        message: error.message,
+        actionKey: error.actionKey ?? null,
+        stage3Item: error.stage3Item ?? null,
+        surfaceKind: error.surfaceKind ?? null,
+        allowedSurfaceKind: error.allowedSurfaceKind ?? null
+      };
+    }
+  }
   const initialLocatorOpen = runtime.openConversation({
     userId,
     locator: initialHome.recentChats[0]?.locator,
@@ -202,6 +249,22 @@ try {
           initialRecentTop: initialHome.recentChats[0]?.title ?? null,
           initialRecentCardID: initialHome.recentChats[0]?.canonicalCardID ?? null,
           initialRecentLocatorKind: initialHome.recentChats[0]?.locator?.kind ?? null,
+          directMessageStage3Item: directMessageCapability?.stage3Item ?? null,
+          directMessageGateMode: directMessageCapability?.runtimeGate ?? null,
+          directMessageAvailableOnDirect: directMessageCapability?.availableOnSurface ?? null,
+          groupConversationStage3Item: groupConversationCapability?.stage3Item ?? null,
+          groupConversationGateMode: groupConversationCapability?.runtimeGate ?? null,
+          groupConversationAvailableOnGroup: groupConversationCapability?.availableOnSurface ?? null,
+          groupCardAllowsDirectMessage:
+            groupSurfaceCard?.capabilityChecklist?.find((item) => item.actionKey === 'send_direct_message')
+              ?.availableOnSurface ?? null,
+          directCardAllowsGroupConversation:
+            directSurfaceCard?.capabilityChecklist?.find((item) => item.actionKey === 'open_group_conversation')
+              ?.availableOnSurface ?? null,
+          directOnlyGateCode: directOnlyGateError?.code ?? null,
+          directOnlyGateSurface: directOnlyGateError?.surfaceKind ?? null,
+          groupOnlyGateCode: groupOnlyGateError?.code ?? null,
+          groupOnlyGateSurface: groupOnlyGateError?.surfaceKind ?? null,
           initialHomeHandoffTarget: initialHome.handoff?.targetSurface ?? null,
           initialHomeHandoffRouteKind: initialHome.handoff?.route?.kind ?? null,
           locatorOpenConversationID: initialLocatorOpen.conversation.id,
@@ -228,6 +291,10 @@ try {
           totalRituals: state.counts.rituals
         },
         initialHome,
+        directSurfaceCard,
+        groupSurfaceCard,
+        directOnlyGateError,
+        groupOnlyGateError,
         initialLocatorOpen,
         directTurn,
         homeAfterDirect,

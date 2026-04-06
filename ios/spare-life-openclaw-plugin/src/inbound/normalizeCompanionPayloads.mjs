@@ -2,6 +2,7 @@ import {
   buildMessagesHomeRoute,
   normalizeIMCardEnvelope,
   normalizeIMConversationLocator,
+  resolveIMCapabilitySurfaceKind,
   resolveMessagesHomeTab
 } from '../../../spare-life-ios-app/Domain/Models/companionContracts.mjs';
 
@@ -37,6 +38,39 @@ function normalizeCardEnvelopeInput(input) {
     return null;
   }
   return normalizeIMCardEnvelope(input);
+}
+
+function readCardEnvelopeInput(input) {
+  return input.envelope ?? input.cardEnvelope ?? input.card_envelope ?? input.openAction?.cardEnvelope ?? null;
+}
+
+function normalizeOptionalSurfaceContext(input, fallbackSurfaceKind) {
+  const envelope = normalizeCardEnvelopeInput(readCardEnvelopeInput(input));
+  const locator = input.openAction?.locator
+    ? normalizeIMConversationLocator(input.openAction.locator)
+    : input.locator && typeof input.locator === 'object'
+      ? normalizeIMConversationLocator(input.locator)
+      : envelope?.locator ?? null;
+  return {
+    envelope,
+    locator,
+    surfaceKind: resolveIMCapabilitySurfaceKind(
+      {
+        surfaceKind: input.surfaceKind ?? input.surface_kind ?? null,
+        locator,
+        envelope,
+        groupId: input.groupId ?? input.group_id ?? null,
+        contactId: input.contactId ?? input.contact_id ?? null,
+        peerId:
+          input.peerId ??
+          input.peer_id ??
+          input.dmPeerId ??
+          input.dm_peer_id ??
+          null
+      },
+      fallbackSurfaceKind
+    )
+  };
 }
 
 export function normalizeMessagesHomeInput(input) {
@@ -101,10 +135,17 @@ export function normalizeConversationSearchInput(input) {
 }
 
 export function normalizeDirectMessageInput(input) {
+  const surfaceContext = normalizeOptionalSurfaceContext(input, 'dm');
   return {
     userId: requireString(input.userId, 'userId'),
-    contactId: requireString(input.contactId, 'contactId'),
-    text: requireString(input.text, 'text')
+    contactId: requireString(
+      input.contactId ?? input.contact_id ?? surfaceContext.locator?.peerID,
+      'contactId'
+    ),
+    text: requireString(input.text, 'text'),
+    locator: surfaceContext.locator,
+    envelope: surfaceContext.envelope,
+    surfaceKind: surfaceContext.surfaceKind
   };
 }
 
@@ -167,10 +208,17 @@ export function normalizeRitualCompletionInput(input) {
 }
 
 export function normalizeGroupConversationInput(input) {
+  const surfaceContext = normalizeOptionalSurfaceContext(input, 'group');
   return {
     userId: requireString(input.userId, 'userId'),
-    groupId: requireString(input.groupId, 'groupId'),
-    limit: Number(input.limit ?? 40)
+    groupId: requireString(
+      input.groupId ?? input.group_id ?? surfaceContext.locator?.groupID,
+      'groupId'
+    ),
+    limit: Number(input.limit ?? 40),
+    locator: surfaceContext.locator,
+    envelope: surfaceContext.envelope,
+    surfaceKind: surfaceContext.surfaceKind
   };
 }
 

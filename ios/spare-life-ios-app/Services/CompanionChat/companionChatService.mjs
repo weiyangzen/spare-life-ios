@@ -129,7 +129,7 @@ function buildConversationCardEnvelope({
         : identity.locator.kind === 'group'
           ? 'conversation.groupId+channelId'
           : 'conversation.contactId+channelId',
-      capability: 'surfaceKind_capability_matrix'
+      capability: 'openclaw_stage3_capability_checklist'
     },
     handoff: identity.handoff,
     openAction: buildConversationOpenAction({
@@ -599,6 +599,7 @@ export function buildConversationContext({
       surfaceKind: cardEnvelope.surfaceKind,
       renderFields: cardEnvelope.renderFields,
       fieldSources: cardEnvelope.fieldSources,
+      capabilityChecklist: cardEnvelope.capabilityChecklist,
       capabilityFlags: cardEnvelope.capabilityFlags,
       handoff: cardEnvelope.handoff,
       openAction: cardEnvelope.openAction

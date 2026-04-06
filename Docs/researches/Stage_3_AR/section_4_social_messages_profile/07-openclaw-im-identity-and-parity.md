@@ -207,6 +207,14 @@ dm:<channel_id>:<peer_id>
    - 每条 result item 同时带 `handoff.route.kind = thread`，并把定位主键塞进 `hint`
    - 空结果统一返回 `conversation_search_empty_state(reason=no_match)`，而不是让上层靠 `hits.length === 0` 自行猜测
 8. 兼容字段 `route` 仍保留给旧 surface 使用，但它已退化成 legacy 兼容字段，不再是 canonical identity。
+9. `companionContracts.mjs` 现已把最新版 OpenClaw companion action 面显式收口成 `buildOpenClawIMCapabilityChecklist(surfaceKind)`：
+   - 每项固定带 `actionKey / label / stage3Item / flagKey / surfaceScope / normalizeInput / handlerMethod / entrySurface / runtimeGate`
+   - 这样 runtime truth 不再是“handler 存在即代表已接线”，而是明确区分 shared、direct-only、group-only 与当前 gate 形态
+10. `direct message` 与 `group conversation` 现已补到 handler 级 surface gate：
+   - `normalizeDirectMessageInput(...)` 与 `normalizeGroupConversationInput(...)` 可选接收 `cardEnvelope / locator / surfaceKind`
+   - `companionChatHandler.sendDirectMessage(...)` 会通过 `assertOpenClawIMCapabilityAllowed(...)` 拒绝 group surface 误入
+   - `companionChatHandler.openGroupConversation(...)` 会通过同一 gate 拒绝 direct surface 误入
+   - 当前其余 group-only / direct-only action 仍主要依赖 `capabilityFlags` 呈现，后续再由 `S3-040/S3-041/S3-043/S3-044` 继续补齐更细的 route/error gate
 
 ## 风险
 

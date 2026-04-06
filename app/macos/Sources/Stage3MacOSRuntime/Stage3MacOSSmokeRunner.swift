@@ -26,7 +26,7 @@ public enum Stage3MacOSSmokeRunner {
         results.append(
             try realizeSurface(
                 id: "root",
-                rootView: "MainTabView",
+                rootView: Stage3MacOSRuntime.rootViewName,
                 hostingView: Stage3MacOSRuntime.rootHostingView(size: size),
                 size: size
             )

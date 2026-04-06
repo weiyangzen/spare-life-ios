@@ -65,7 +65,7 @@ extension Stage3MacOSTarget {
             Stage3RuntimeTab(id: "xianxia", label: "闲虾", rootView: "XianxiaHomeView"),
             Stage3RuntimeTab(id: "master", label: "闲聊", rootView: "MasterChatHomeView"),
             Stage3RuntimeTab(id: "earnSocial", label: "赚闲能", rootView: "EarnSocialHomeView"),
-            Stage3RuntimeTab(id: "messages", label: "消息", rootView: "ConversationHubView"),
+            Stage3RuntimeTab(id: "messages", label: "消息", rootView: "MessagesFeatureRootView"),
             Stage3RuntimeTab(id: "myProfile", label: "我的", rootView: "MyProfileView")
         ]
     )

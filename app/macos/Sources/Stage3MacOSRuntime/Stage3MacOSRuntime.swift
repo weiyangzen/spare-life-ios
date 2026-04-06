@@ -18,7 +18,7 @@ public struct Stage3MacOSSharedRootView: View {
     public init() {}
 
     public var body: some View {
-        MainTabView()
+        Stage3MacOSDesktopShellView()
     }
 }
 
@@ -39,7 +39,7 @@ public struct Stage3MacOSMirroredPageView: View {
         case "earnSocial":
             EarnSocialHomeView()
         case "messages":
-            ConversationHubView()
+            MessagesFeatureRootView()
                 .environmentObject(ConversationRouter())
         case "myProfile":
             MyProfileView()
@@ -52,8 +52,30 @@ public struct Stage3MacOSMirroredPageView: View {
 
 @MainActor
 public enum Stage3MacOSRuntime {
+    public static let rootViewName = "Stage3MacOSDesktopShellView"
+    public static let shellContainerKinds = ["sidebar", "top toolbar", "segmented control"]
+    public static let messagesTabID = "messages"
+
     public static let mirroredPages: [Stage3MacOSMirroredPageDescriptor] = Stage3MacOSTarget.stage3.canonicalTabs.map {
         Stage3MacOSMirroredPageDescriptor(id: $0.id, label: $0.label, rootView: $0.rootView)
+    }
+
+    public static let defaultSelectedTabID = mirroredPages.first?.id ?? "xianxia"
+
+    public static func desktopShellSnapshot(
+        selectedTabID: String = defaultSelectedTabID
+    ) -> Stage3MacOSDesktopShellSnapshot {
+        let resolvedTabID = resolvedTabID(selectedTabID)
+        let moduleOrder = mirroredPages.map(\.id)
+
+        return Stage3MacOSDesktopShellSnapshot(
+            rootView: rootViewName,
+            containerKinds: shellContainerKinds,
+            sidebarModuleOrder: moduleOrder,
+            segmentedControlOrder: moduleOrder,
+            selectedTabID: resolvedTabID,
+            entryPath: ["root", resolvedTabID]
+        )
     }
 
     public static func rootHostingView(
@@ -71,6 +93,31 @@ public enum Stage3MacOSRuntime {
         }
 
         return makeHostingView(for: AnyView(Stage3MacOSMirroredPageView(tabID: tabID)), size: size)
+    }
+
+    public static func pageDescriptor(for tabID: String) -> Stage3MacOSMirroredPageDescriptor? {
+        mirroredPages.first(where: { $0.id == tabID })
+    }
+
+    public static func resolvedTabID(_ tabID: String) -> String {
+        pageDescriptor(for: tabID)?.id ?? defaultSelectedTabID
+    }
+
+    public static func shellSymbol(for tabID: String) -> String {
+        switch tabID {
+        case "xianxia":
+            return "rectangle.grid.1x2"
+        case "master":
+            return "graduationcap"
+        case "earnSocial":
+            return "bolt.circle.fill"
+        case "messages":
+            return "message"
+        case "myProfile":
+            return "person.crop.circle"
+        default:
+            return "square.grid.2x2"
+        }
     }
 
     static func makeHostingView(

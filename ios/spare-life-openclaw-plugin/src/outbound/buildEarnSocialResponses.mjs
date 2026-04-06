@@ -1,35 +1,37 @@
+import { attachLegacyMessagesRouteNormalization } from './attachLegacyMessagesRouteNormalization.mjs';
+
 export function buildEarnSocialHomeResponse(result) {
-  return result;
+  return attachLegacyMessagesRouteNormalization(result);
 }
 
 export function buildIntentMarketResponse(result) {
-  return result;
+  return attachLegacyMessagesRouteNormalization(result);
 }
 
 export function buildPersonaDeckResponse(result) {
-  return result;
+  return attachLegacyMessagesRouteNormalization(result);
 }
 
 export function buildPersonaFeedbackResponse(result) {
-  return result;
+  return attachLegacyMessagesRouteNormalization(result);
 }
 
 export function buildIcebreakResponse(result) {
-  return result;
+  return attachLegacyMessagesRouteNormalization(result);
 }
 
 export function buildTrendResponse(result) {
-  return result;
+  return attachLegacyMessagesRouteNormalization(result);
 }
 
 export function buildArenaResponse(result) {
-  return result;
+  return attachLegacyMessagesRouteNormalization(result);
 }
 
 export function buildBondResponse(result) {
-  return result;
+  return attachLegacyMessagesRouteNormalization(result);
 }
 
 export function buildLeadResponse(result) {
-  return result;
+  return attachLegacyMessagesRouteNormalization(result);
 }

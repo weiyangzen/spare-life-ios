@@ -7,6 +7,7 @@ import {
 } from './sceneContracts.mjs';
 import {
   buildCrossTabHandoff,
+  buildMessagesComposeDraftRoutePayload,
   buildMessagesHomeRoutePayload,
   buildMessagesThreadRoutePayload
 } from './crossTabHandoffContracts.mjs';
@@ -254,6 +255,22 @@ export function buildMessagesHomeHandoff({ sourceSurface = 'messages', tab = 're
   });
 }
 
+export function buildMessagesComposeDraftHandoff({
+  sourceSurface = 'messages',
+  draft = null,
+  context = {}
+} = {}) {
+  return buildCrossTabHandoff({
+    sourceSurface,
+    targetSurface: 'messages',
+    route: buildMessagesComposeDraftRoutePayload({
+      draft,
+      sourceSurface,
+      context
+    })
+  });
+}
+
 export function buildMessagesThreadHandoff({
   sourceSurface = 'messages',
   conversationId = null,
@@ -279,6 +296,125 @@ export function buildMessagesThreadHandoff({
       hint
     })
   });
+}
+
+function parseLegacyMessagesRoute(rawRoute) {
+  const trimmed = sanitizeText(rawRoute);
+  if (!trimmed) {
+    throw new Error('Legacy messages route is required.');
+  }
+
+  let url = null;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    throw new Error(`Invalid legacy messages route: ${trimmed}`);
+  }
+
+  if (url.protocol !== 'sparelife:' || sanitizeText(url.host) !== 'messages') {
+    return null;
+  }
+
+  return {
+    rawRoute: trimmed,
+    path: sanitizeText(url.pathname.replace(/^\/+/, '')),
+    searchParams: url.searchParams
+  };
+}
+
+export function normalizeLegacyMessagesRoute(rawRoute, { sourceSurface = null, homeTab = 'recent' } = {}) {
+  const parsed = parseLegacyMessagesRoute(rawRoute);
+  if (!parsed) {
+    return null;
+  }
+
+  const { rawRoute: normalizedRoute, path, searchParams } = parsed;
+
+  if (path === 'self') {
+    const draft = sanitizeText(searchParams.get('draft')) || null;
+    const sessionId = sanitizeText(searchParams.get('session_id')) || null;
+    if (!draft && !sessionId) {
+      return null;
+    }
+    const context = sessionId ? { session_id: sessionId } : {};
+    const handoff = buildMessagesComposeDraftHandoff({
+      sourceSurface: sourceSurface ?? 'masters',
+      draft,
+      context
+    });
+    return {
+      matchedKind: 'messages_self_draft',
+      rawRoute: normalizedRoute,
+      sourceSurface: handoff.sourceSurface,
+      targetSurface: handoff.targetSurface,
+      canonicalRoute: handoff.route,
+      handoff,
+      fallbackRoute: null,
+      pendingThread: null,
+      legacyContext: {
+        draft,
+        sessionId
+      }
+    };
+  }
+
+  if (path === 'thread') {
+    const bondId = sanitizeText(searchParams.get('bond_id')) || null;
+    if (bondId) {
+      const icebreakSessionId = sanitizeText(searchParams.get('icebreak_session_id')) || null;
+      const handoff = buildMessagesHomeHandoff({
+        sourceSurface: sourceSurface ?? 'earn_social',
+        tab: homeTab
+      });
+      return {
+        matchedKind: 'messages_thread_bond_bridge',
+        rawRoute: normalizedRoute,
+        sourceSurface: handoff.sourceSurface,
+        targetSurface: handoff.targetSurface,
+        canonicalRoute: handoff.route,
+        handoff,
+        fallbackRoute: buildMessagesHomeRoute(homeTab),
+        pendingThread: {
+          kind: 'bond_bridge',
+          bondId,
+          icebreakSessionId
+        },
+        legacyContext: {
+          bondId,
+          icebreakSessionId
+        }
+      };
+    }
+
+    const laneId = sanitizeText(searchParams.get('lane')) || null;
+    const counterpartName = sanitizeText(searchParams.get('counterpart')) || null;
+    if (laneId && counterpartName) {
+      const handoff = buildMessagesHomeHandoff({
+        sourceSurface: sourceSurface ?? 'earn_social',
+        tab: homeTab
+      });
+      return {
+        matchedKind: 'messages_thread_lane_counterpart',
+        rawRoute: normalizedRoute,
+        sourceSurface: handoff.sourceSurface,
+        targetSurface: handoff.targetSurface,
+        canonicalRoute: handoff.route,
+        handoff,
+        fallbackRoute: buildMessagesHomeRoute(homeTab),
+        pendingThread: {
+          kind: 'lane_counterpart',
+          laneId,
+          counterpartName
+        },
+        legacyContext: {
+          laneId,
+          counterpartName
+        }
+      };
+    }
+  }
+
+  return null;
 }
 
 export function buildConversationRoute({

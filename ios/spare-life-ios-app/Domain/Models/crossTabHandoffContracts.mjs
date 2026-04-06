@@ -113,6 +113,16 @@ export function normalizeCrossTabRoute(route, targetSurface) {
     };
   }
 
+  if (surface === 'messages' && kind === 'compose_draft') {
+    return {
+      surface,
+      kind,
+      draft: sanitizeText(route.draft) || null,
+      sourceSurface: resolveAppSurfaceID(route.sourceSurface, 'messages'),
+      context: sanitizeRouteParams(route.context)
+    };
+  }
+
   if (surface === 'messages' && kind === 'thread') {
     return {
       surface,
@@ -135,6 +145,20 @@ export function buildMessagesHomeRoutePayload({ tab = 'recent' } = {}) {
     surface: 'messages',
     kind: 'home',
     tab
+  }, 'messages');
+}
+
+export function buildMessagesComposeDraftRoutePayload({
+  draft = null,
+  sourceSurface = 'messages',
+  context = {}
+} = {}) {
+  return normalizeCrossTabRoute({
+    surface: 'messages',
+    kind: 'compose_draft',
+    draft,
+    sourceSurface,
+    context
   }, 'messages');
 }
 

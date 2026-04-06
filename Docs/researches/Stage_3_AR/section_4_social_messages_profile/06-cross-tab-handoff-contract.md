@@ -226,4 +226,8 @@ enum MyProfileRoute: Equatable, Hashable {
    - `route`
 2. companion lane 当前已把这个 canonical payload 接到 `messages home` 和 `conversation detail` 输出里，字段名为 `handoff`。
 3. legacy `route` string 仍保留在输出里，但它已退化成 compatibility field，不再代表 canonical handoff contract。
-4. 本次实现只冻结 payload，不提前把 Section 6.7 的 legacy normalizer 范围一起做掉，因此 `S3-082` 仍应作为独立后续项推进。
+4. `ios/spare-life-ios-app/Domain/Models/companionContracts.mjs` 现已提供 `normalizeLegacyMessagesRoute(...)`，把三种历史 messages URI 统一收口为 shared contract：
+   - `messages/self?draft=...` -> canonical `compose_draft` handoff
+   - `messages/thread?lane=...&counterpart=...` -> `messages home` fallback + `pendingThread`
+   - `messages/thread?bond_id=...&icebreak_session_id=...` -> `messages home` fallback + `pendingThread`
+5. `ios/spare-life-openclaw-plugin/src/outbound/buildMasterResponses.mjs` 与 `buildEarnSocialResponses.mjs` 现在会在顶层 `route` 命中上述 legacy alias 时附带 `legacyMessagesRouteNormalization`，避免兼容信息继续散落在各个 consumer 自己解析。

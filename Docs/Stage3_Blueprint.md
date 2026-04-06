@@ -125,7 +125,7 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 
 - [ ] S3-080 把 `messages` 内部 route、跨 tab handoff、OpenClaw IM locator 对齐成同一套主键体系。
 - [x] S3-081 冻结 `CrossTabHandoff` 的 canonical payload，不再继续扩散 ad-hoc URI。
-- [ ] S3-082 为 `messages/self?draft=...`、`thread?lane=...&counterpart=...`、`thread?bond_id=...&icebreak_session_id=...` 建立 legacy normalizer。
+- [x] S3-082 为 `messages/self?draft=...`、`thread?lane=...&counterpart=...`、`thread?bond_id=...&icebreak_session_id=...` 建立 legacy normalizer，并把 `messages/self` 收口到 canonical `compose_draft` handoff，把两类 `thread` 历史入口统一降级为 `messages home + pendingThread` 兼容层。
 - [ ] S3-083 让 `masters -> messages`、`masters -> profile`、`earn social -> messages` 在 iOS 与 macOS 上共享同一 handoff 解释逻辑。
 - [ ] S3-084 当目标 surface 尚未 ready 时，为 iOS 和 macOS 同时提供 pending handoff，而不是直接丢 payload。
 

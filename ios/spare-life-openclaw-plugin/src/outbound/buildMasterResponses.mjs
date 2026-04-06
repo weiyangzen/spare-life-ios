@@ -1,3 +1,5 @@
+import { attachLegacyMessagesRouteNormalization } from './attachLegacyMessagesRouteNormalization.mjs';
+
 export function buildMasterCatalogResponse(result) {
   return {
     eventType: 'master_catalog_synced',
@@ -25,7 +27,7 @@ export function buildMasterHomeResponse(result) {
 }
 
 export function buildMasterChatResponse(result) {
-  return {
+  return attachLegacyMessagesRouteNormalization({
     eventType: 'master_reply_ready',
     route: result.route,
     master: {
@@ -37,7 +39,7 @@ export function buildMasterChatResponse(result) {
     session: result.session,
     reply: result.reply,
     recentChats: result.recentChats
-  };
+  });
 }
 
 export function buildMasterRestoreResponse(result) {

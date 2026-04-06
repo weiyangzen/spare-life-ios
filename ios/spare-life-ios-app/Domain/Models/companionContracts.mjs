@@ -34,6 +34,8 @@ export const COMPANION_MEMORY_LAYERS = new Set([
 ]);
 export const COMPANION_GROUP_VOTE_STATUSES = new Set(['open', 'closed']);
 export const COMPANION_CHANNEL_ID = 'companion';
+export const IM_CARD_SURFACE_KINDS = new Set(['dm', 'group']);
+export const IM_HOME_TABS = new Set(['recent']);
 
 export const COMPANION_CONTACT_SEEDS = [
   {
@@ -119,9 +121,25 @@ export function resolveGroupVoteStatus(value, fallback = 'open') {
   return requireCompanionEnum(value, COMPANION_GROUP_VOTE_STATUSES, fallback, 'group vote status');
 }
 
+export function resolveIMCardSurfaceKind(value, fallback = 'dm') {
+  const normalized = sanitizeText(value) || fallback;
+  if (!IM_CARD_SURFACE_KINDS.has(normalized)) {
+    throw new Error(`Unsupported IM card surface kind: ${normalized}`);
+  }
+  return normalized;
+}
+
+export function resolveMessagesHomeTab(value, fallback = 'recent') {
+  const normalized = sanitizeText(value) || fallback;
+  if (!IM_HOME_TABS.has(normalized)) {
+    throw new Error(`Unsupported messages home tab: ${normalized}`);
+  }
+  return normalized;
+}
+
 export function buildMessagesHomeRoute(tab = 'recent') {
   const params = new URLSearchParams({
-    tab: sanitizeText(tab) || 'recent'
+    tab: resolveMessagesHomeTab(tab)
   });
   return `sparelife://messages/home?${params.toString()}`;
 }
@@ -245,6 +263,145 @@ export function buildCanonicalIMCardID({
   }
 }
 
+export function buildIMCapabilityFlags(surfaceKind) {
+  const resolvedSurfaceKind = resolveIMCardSurfaceKind(surfaceKind);
+  const isGroup = resolvedSurfaceKind === 'group';
+  return {
+    canOpenConversation: true,
+    canSearchConversation: true,
+    canInspectCompanion: true,
+    canSendDirectMessage: !isGroup,
+    canUpdateMask: !isGroup,
+    canDraftSharedStage: !isGroup,
+    canManageStageAccess: !isGroup,
+    canPostStageMessage: !isGroup,
+    canScheduleRelationshipRitual: !isGroup,
+    canCompleteRelationshipRitual: !isGroup,
+    canOpenGroupConversation: isGroup,
+    canPostGroupMessage: isGroup,
+    canLaunchGroupVote: isGroup,
+    canCastGroupVote: isGroup,
+    canSummarizeGroup: isGroup
+  };
+}
+
+function normalizeIMBadge(badge, unreadCount) {
+  if (badge && typeof badge === 'object' && !Array.isArray(badge)) {
+    const kind = sanitizeText(badge.kind) || 'status';
+    const label = sanitizeText(badge.label);
+    const count = Number.isFinite(Number(badge.count)) ? Math.max(0, Number(badge.count)) : null;
+    if (!label && count === null) {
+      return null;
+    }
+    return {
+      kind,
+      label: label || (count === null ? null : `${count} unread`),
+      count
+    };
+  }
+
+  const normalizedBadge = sanitizeText(badge);
+  if (normalizedBadge) {
+    return {
+      kind: 'status',
+      label: normalizedBadge,
+      count: null
+    };
+  }
+
+  const normalizedUnreadCount = Math.max(0, Number(unreadCount) || 0);
+  if (normalizedUnreadCount <= 0) {
+    return null;
+  }
+  return {
+    kind: 'unread_count',
+    label: `${normalizedUnreadCount} unread`,
+    count: normalizedUnreadCount
+  };
+}
+
+export function buildIMRenderFields({
+  surfaceKind,
+  primaryTitle,
+  secondaryTitle = null,
+  preview = null,
+  badge = null,
+  avatarHint = null,
+  unreadCount = 0,
+  lastMessageAt = null,
+  sourceChannelID = COMPANION_CHANNEL_ID,
+  capabilityFlags = null
+}) {
+  const resolvedSurfaceKind = resolveIMCardSurfaceKind(surfaceKind);
+  const normalizedUnreadCount = Math.max(0, Number(unreadCount) || 0);
+  const normalizedLastMessageAt = sanitizeText(lastMessageAt)
+    ? new Date(lastMessageAt).toISOString()
+    : null;
+
+  return {
+    surfaceKind: resolvedSurfaceKind,
+    primaryTitle: sanitizeText(primaryTitle) || '未命名会话',
+    secondaryTitle: sanitizeText(secondaryTitle) || null,
+    preview: sanitizeText(preview) || null,
+    badge: normalizeIMBadge(badge, normalizedUnreadCount),
+    avatarHint: sanitizeText(avatarHint) || (resolvedSurfaceKind === 'group' ? 'group' : 'person'),
+    unreadCount: normalizedUnreadCount,
+    lastMessageAt: normalizedLastMessageAt,
+    sourceChannelID: sanitizeText(sourceChannelID) || COMPANION_CHANNEL_ID,
+    capabilityFlags: capabilityFlags ?? buildIMCapabilityFlags(resolvedSurfaceKind)
+  };
+}
+
+export function normalizeIMCardEnvelope(envelope) {
+  if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
+    throw new Error('IM card envelope is required.');
+  }
+
+  const locator = normalizeIMConversationLocator(
+    envelope.locator ??
+      envelope.cardEnvelope?.locator ??
+      envelope.openAction?.locator ??
+      envelope.handoff?.route?.locator
+  );
+  const conversationId =
+    sanitizeText(
+      envelope.conversationId ??
+        envelope.conversationID ??
+        envelope.cardEnvelope?.conversationId ??
+        envelope.openAction?.conversationId
+    ) || (locator.kind === 'conversation' ? locator.conversationID : null);
+  const sourceChannelID =
+    sanitizeText(
+      envelope.sourceChannelID ??
+        envelope.sourceChannelId ??
+        envelope.cardEnvelope?.sourceChannelID ??
+        locator.channelID
+    ) || COMPANION_CHANNEL_ID;
+  const surfaceKind = resolveIMCardSurfaceKind(
+    envelope.surfaceKind ?? envelope.cardEnvelope?.surfaceKind,
+    locator.kind === 'group' ? 'group' : 'dm'
+  );
+
+  return {
+    canonicalCardID:
+      sanitizeText(
+        envelope.canonicalCardID ??
+          envelope.canonicalCardId ??
+          envelope.cardEnvelope?.canonicalCardID
+      ) ||
+      buildCanonicalIMCardID({
+        conversationId,
+        channelId: sourceChannelID,
+        groupId: locator.groupID ?? null,
+        peerId: locator.peerID ?? null
+      }),
+    conversationId,
+    locator,
+    surfaceKind,
+    sourceChannelID
+  };
+}
+
 export function buildMessagesHomeHandoff({ sourceSurface = 'messages', tab = 'recent' } = {}) {
   return buildCrossTabHandoff({
     sourceSurface,
@@ -296,6 +453,168 @@ export function buildMessagesThreadHandoff({
       hint
     })
   });
+}
+
+export function buildConversationOpenAction({
+  sourceSurface = 'messages',
+  conversationId = null,
+  locator,
+  route = null
+}) {
+  const normalizedLocator = normalizeIMConversationLocator(locator);
+  const normalizedConversationId =
+    sanitizeText(conversationId) ||
+    (normalizedLocator.kind === 'conversation' ? normalizedLocator.conversationID : null);
+
+  return {
+    actionKind: 'open_conversation',
+    conversationId: normalizedConversationId,
+    locator: normalizedLocator,
+    route:
+      sanitizeText(route) ||
+      buildConversationRoute({
+        conversationId: normalizedConversationId,
+        kind: normalizedLocator.kind === 'group' ? 'group' : 'direct',
+        channelId: normalizedLocator.channelID ?? COMPANION_CHANNEL_ID,
+        groupId: normalizedLocator.groupID ?? null,
+        peerId: normalizedLocator.peerID ?? null
+      }),
+    handoff: buildMessagesThreadHandoff({
+      sourceSurface,
+      conversationId: normalizedConversationId,
+      channelId: normalizedLocator.channelID ?? COMPANION_CHANNEL_ID,
+      groupId: normalizedLocator.groupID ?? null,
+      peerId: normalizedLocator.peerID ?? null
+    })
+  };
+}
+
+export function buildIMCardEnvelope({
+  canonicalCardID,
+  conversationId = null,
+  locator,
+  surfaceKind,
+  route = null,
+  sourceChannelID = COMPANION_CHANNEL_ID,
+  renderFields,
+  fieldSources = {},
+  handoff = null,
+  openAction = null
+}) {
+  const normalizedLocator = normalizeIMConversationLocator(locator);
+  const normalizedConversationId =
+    sanitizeText(conversationId) ||
+    (normalizedLocator.kind === 'conversation' ? normalizedLocator.conversationID : null);
+  const normalizedSurfaceKind = resolveIMCardSurfaceKind(
+    surfaceKind,
+    normalizedLocator.kind === 'group' ? 'group' : 'dm'
+  );
+  const normalizedSourceChannelID =
+    sanitizeText(sourceChannelID) || normalizedLocator.channelID || COMPANION_CHANNEL_ID;
+  const normalizedRenderFields = buildIMRenderFields({
+    ...renderFields,
+    surfaceKind: normalizedSurfaceKind,
+    sourceChannelID: normalizedSourceChannelID
+  });
+  const summary = {
+    canonicalCardID:
+      sanitizeText(canonicalCardID) ||
+      buildCanonicalIMCardID({
+        conversationId: normalizedConversationId,
+        channelId: normalizedSourceChannelID,
+        groupId: normalizedLocator.groupID ?? null,
+        peerId: normalizedLocator.peerID ?? null
+      }),
+    conversationId: normalizedConversationId,
+    locator: normalizedLocator,
+    surfaceKind: normalizedSurfaceKind,
+    sourceChannelID: normalizedSourceChannelID
+  };
+  const normalizedHandoff = handoff
+    ? {
+        ...handoff,
+        cardEnvelope: summary
+      }
+    : null;
+  const normalizedOpenAction = openAction
+    ? {
+        ...openAction,
+        cardEnvelope: summary,
+        handoff: openAction.handoff
+          ? {
+              ...openAction.handoff,
+              cardEnvelope: summary
+            }
+          : null
+      }
+    : null;
+
+  return {
+    ...summary,
+    route: sanitizeText(route) || null,
+    renderFields: normalizedRenderFields,
+    fieldSources: {
+      title: sanitizeText(fieldSources.title) || null,
+      subtitle: sanitizeText(fieldSources.subtitle) || null,
+      preview: sanitizeText(fieldSources.preview) || null,
+      badge: sanitizeText(fieldSources.badge) || null,
+      locator: sanitizeText(fieldSources.locator) || null,
+      capability: sanitizeText(fieldSources.capability) || 'surface_kind_capability_matrix'
+    },
+    capabilityFlags: normalizedRenderFields.capabilityFlags,
+    title: normalizedRenderFields.primaryTitle,
+    subtitle: normalizedRenderFields.secondaryTitle,
+    preview: normalizedRenderFields.preview,
+    badge: normalizedRenderFields.badge,
+    unreadCount: normalizedRenderFields.unreadCount,
+    lastMessagePreview: normalizedRenderFields.preview,
+    lastMessageAt: normalizedRenderFields.lastMessageAt,
+    handoff: normalizedHandoff,
+    openAction: normalizedOpenAction
+  };
+}
+
+export function buildMessagesHomeInputModel({
+  userId,
+  limit = 12,
+  sourceSurface = 'messages',
+  tab = 'recent'
+}) {
+  return {
+    kind: 'messages_home_input',
+    userId: sanitizeText(userId) || null,
+    limit: Math.max(1, Number(limit) || 12),
+    sourceSurface: sanitizeText(sourceSurface) || 'messages',
+    tab: resolveMessagesHomeTab(tab),
+    route: buildMessagesHomeRoute(tab)
+  };
+}
+
+export function buildMessagesHomeOutputModel({
+  route = null,
+  handoff = null,
+  sourceChannelID = COMPANION_CHANNEL_ID,
+  unreadTotal = 0,
+  cards = [],
+  tab = 'recent'
+}) {
+  const normalizedTab = resolveMessagesHomeTab(tab);
+  const cardEnvelopes = Array.isArray(cards) ? cards.filter(Boolean) : [];
+  return {
+    kind: 'messages_home_output',
+    tab: normalizedTab,
+    route: sanitizeText(route) || buildMessagesHomeRoute(normalizedTab),
+    handoff:
+      handoff ??
+      buildMessagesHomeHandoff({
+        sourceSurface: 'messages',
+        tab: normalizedTab
+      }),
+    sourceChannelID: sanitizeText(sourceChannelID) || COMPANION_CHANNEL_ID,
+    unreadTotal: Math.max(0, Number(unreadTotal) || 0),
+    cardCount: cardEnvelopes.length,
+    cardEnvelopes
+  };
 }
 
 function parseLegacyMessagesRoute(rawRoute) {

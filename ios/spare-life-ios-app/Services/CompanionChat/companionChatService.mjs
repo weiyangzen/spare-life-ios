@@ -3,11 +3,13 @@ import {
 } from '../../Domain/Models/masterContracts.mjs';
 import {
   buildCanonicalIMCardID,
+  buildConversationOpenAction,
   buildConversationRoute,
   buildCounterpartParticipantKey,
   buildDefaultDirectParticipants,
   buildDefaultGroupParticipants,
   buildGroupParticipantKey,
+  buildIMCardEnvelope,
   buildGroupVoteRoute,
   buildIMConversationLocator,
   buildMessagesHomeHandoff,
@@ -59,6 +61,91 @@ function buildConversationIdentityFields(conversation, sourceSurface = 'messages
       groupId: conversation.groupId,
       contactId: conversation.contactId
     })
+  };
+}
+
+function buildConversationCardEnvelope({
+  conversation,
+  contact = null,
+  group = null,
+  relationship = null,
+  memoryCards = [],
+  sourceSurface = 'messages'
+}) {
+  const identity = buildConversationIdentityFields(conversation, sourceSurface);
+  const title = contact?.displayName ?? group?.title ?? conversation.title ?? '未命名会话';
+  const subtitle =
+    contact?.personaSummary ??
+    group?.summary ??
+    conversation.lastMessagePreview ??
+    '最近暂无摘要';
+  const latestMemorySummary = memoryCards[0]?.summary ?? null;
+  const preview = conversation.lastMessagePreview ?? latestMemorySummary ?? '最近暂无消息';
+  const badge = conversation.unreadCount > 0
+    ? {
+        kind: 'unread_count',
+        label: `${conversation.unreadCount} unread`,
+        count: conversation.unreadCount
+      }
+    : null;
+
+  const cardEnvelope = buildIMCardEnvelope({
+    canonicalCardID: identity.cardId,
+    conversationId: conversation.id,
+    locator: identity.locator,
+    surfaceKind: identity.surfaceKind,
+    sourceChannelID: identity.sourceChannelID,
+    route: conversation.route,
+    renderFields: {
+      primaryTitle: title,
+      secondaryTitle: subtitle,
+      preview,
+      badge,
+      avatarHint: identity.surfaceKind === 'group' ? 'group_members' : 'counterpart_contact',
+      unreadCount: conversation.unreadCount,
+      lastMessageAt: conversation.lastMessageAt
+    },
+    fieldSources: {
+      title: contact?.displayName
+        ? 'contact.displayName'
+        : group?.title
+          ? 'group.title'
+          : 'conversation.title',
+      subtitle: contact?.personaSummary
+        ? 'contact.personaSummary'
+        : group?.summary
+          ? 'group.summary'
+          : conversation.lastMessagePreview
+            ? 'conversation.lastMessagePreview'
+            : 'fallback.recent_empty_summary',
+      preview: conversation.lastMessagePreview
+        ? 'conversation.lastMessagePreview'
+        : latestMemorySummary
+          ? 'memory.latestSummary'
+          : 'fallback.recent_empty_preview',
+      badge: conversation.unreadCount > 0 ? 'conversation.unreadCount' : 'none',
+      locator: identity.locator.kind === 'conversation'
+        ? 'conversation.id'
+        : identity.locator.kind === 'group'
+          ? 'conversation.groupId+channelId'
+          : 'conversation.contactId+channelId',
+      capability: 'surfaceKind_capability_matrix'
+    },
+    handoff: identity.handoff,
+    openAction: buildConversationOpenAction({
+      sourceSurface,
+      conversationId: conversation.id,
+      locator: identity.locator,
+      route: conversation.route
+    })
+  });
+
+  return {
+    ...cardEnvelope,
+    kind: conversation.kind,
+    warmthScore: relationship?.warmthScore ?? null,
+    relationshipLevel: relationship?.level ?? null,
+    latestMemorySummary
   };
 }
 
@@ -460,29 +547,14 @@ export function buildRecentChatCards({
     const group = conversation.groupId ? groupsById.get(conversation.groupId) : null;
     const relationship = contact ? relationshipsByContactId.get(contact.id) : null;
     const memoryCards = collapseMemoryLayers(memoriesByConversationId.get(conversation.id) ?? []);
-    const identity = buildConversationIdentityFields(conversation, sourceSurface);
-    return {
-      canonicalCardID: identity.cardId,
-      conversationId: conversation.id,
-      locator: identity.locator,
-      sourceChannelID: identity.sourceChannelID,
-      surfaceKind: identity.surfaceKind,
-      title: contact?.displayName ?? group?.title ?? conversation.title,
-      kind: conversation.kind,
-      subtitle:
-        contact?.personaSummary ??
-        group?.summary ??
-        conversation.lastMessagePreview ??
-        '最近暂无摘要',
-      unreadCount: conversation.unreadCount,
-      lastMessagePreview: conversation.lastMessagePreview,
-      lastMessageAt: conversation.lastMessageAt,
-      handoff: identity.handoff,
-      route: conversation.route,
-      warmthScore: relationship?.warmthScore ?? null,
-      relationshipLevel: relationship?.level ?? null,
-      latestMemorySummary: memoryCards[0]?.summary ?? null
-    };
+    return buildConversationCardEnvelope({
+      conversation,
+      contact,
+      group,
+      relationship,
+      memoryCards,
+      sourceSurface
+    });
   });
 }
 
@@ -497,7 +569,15 @@ export function buildConversationContext({
   messages = [],
   sourceSurface = 'messages'
 }) {
-  const identity = buildConversationIdentityFields(conversation, sourceSurface);
+  const memoryCards = collapseMemoryLayers(memories);
+  const cardEnvelope = buildConversationCardEnvelope({
+    conversation,
+    contact,
+    group,
+    relationship,
+    memoryCards,
+    sourceSurface
+  });
   const recentAssistantMessage = [...messages]
     .reverse()
     .find((message) => ['self_agent', 'counterpart_agent', 'tool_agent'].includes(message.actorRole));
@@ -505,18 +585,23 @@ export function buildConversationContext({
     ? clipText(recentAssistantMessage.content, 100)
     : relationship?.latestSummary ??
       group?.summary ??
-      collapseMemoryLayers(memories)[0]?.summary ??
+      memoryCards[0]?.summary ??
       conversation.lastMessagePreview ??
       '这段关系的上下文还在继续积累。';
 
   return {
+    cardEnvelope,
     conversation: {
       ...conversation,
-      canonicalCardID: identity.cardId,
-      locator: identity.locator,
-      sourceChannelID: identity.sourceChannelID,
-      surfaceKind: identity.surfaceKind,
-      handoff: identity.handoff
+      canonicalCardID: cardEnvelope.canonicalCardID,
+      locator: cardEnvelope.locator,
+      sourceChannelID: cardEnvelope.sourceChannelID,
+      surfaceKind: cardEnvelope.surfaceKind,
+      renderFields: cardEnvelope.renderFields,
+      fieldSources: cardEnvelope.fieldSources,
+      capabilityFlags: cardEnvelope.capabilityFlags,
+      handoff: cardEnvelope.handoff,
+      openAction: cardEnvelope.openAction
     },
     contextCards: [
       contact
@@ -539,7 +624,7 @@ export function buildConversationContext({
         cardType: 'memory',
         title: group ? '群上下文摘要' : '跨会话记忆',
         route: conversation.route,
-        payload: collapseMemoryLayers(memories)
+        payload: memoryCards
       },
       {
         cardType: 'agent_summary',

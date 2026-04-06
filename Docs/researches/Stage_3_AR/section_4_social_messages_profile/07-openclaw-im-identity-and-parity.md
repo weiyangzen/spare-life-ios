@@ -157,17 +157,37 @@ dm:<channel_id>:<peer_id>
 
 ## 当前实现回写
 
-1. `ios/spare-life-ios-app/Domain/Models/companionContracts.mjs` 已冻结三件事：
+1. `ios/spare-life-ios-app/Domain/Models/companionContracts.mjs` 当前已冻结消息卡片主 contract：
    - `COMPANION_CHANNEL_ID = companion`
    - `buildCanonicalIMCardID(...)`
    - `buildIMConversationLocator(...)`
-2. `messages home` 与 `conversation detail` 当前 support runtime 都会带出：
+   - `buildIMRenderFields(...)`
+   - `buildIMCardEnvelope(...)`
+   - `buildMessagesHomeInputModel(...)`
+   - `buildMessagesHomeOutputModel(...)`
+   - `buildConversationOpenAction(...)`
+2. `ios/spare-life-ios-app/Services/CompanionChat/companionChatService.mjs` 现在把 `messages home` 卡片与 `conversation detail` 顶部入口都收口成同一层 `IMCardEnvelope`。同一 envelope 会同时带出：
    - `canonicalCardID`
    - `locator`
    - `sourceChannelID`
+   - `surfaceKind`
+   - `renderFields`
+   - `fieldSources`
    - `handoff`
-3. `openConversation` 的 inbound normalize 与 use case 现在都接受 canonical locator，不再只认单一 `conversationId`。
-4. 兼容字段 `route` 仍保留给旧 surface 使用，但它已退化成 legacy 兼容字段，不再是 canonical identity。
+   - `openAction`
+3. `IMRenderFields` 现在已经把 group 与 dm 统一进同一字段袋：
+   - 同字段：`primaryTitle / secondaryTitle / preview / badge / unreadCount / lastMessageAt / sourceChannelID / capabilityFlags`
+   - 不同能力：dm 打开 `mask / shared stage / ritual`，group 打开 `group message / vote / summary`
+4. `messages home` 的 runtime 出口现在有明确的规范化输入输出模型：
+   - `input`: `kind=userId/limit/sourceSurface/tab/route`
+   - `output`: `kind=messages_home_output`，并显式带出 `route / handoff / sourceChannelID / unreadTotal / cardEnvelopes`
+   - 每张卡片再用 `fieldSources` 明确 `title / subtitle / preview / badge / locator / capability` 的来源
+5. `openConversation` 不再只认显式 `conversationId`。当前 runtime 可接受三类详情打开入口：
+   - `cardEnvelope`
+   - `openAction`
+   - canonical `locator`
+   其中 group/dm locator 会先在 handler 层经 repository 解析成真实 `conversationId`，再进入 use case；因此“locator 可开详情”现在是 runtime truth，但不是“use case 原生理解 locator”。
+6. 兼容字段 `route` 仍保留给旧 surface 使用，但它已退化成 legacy 兼容字段，不再是 canonical identity。
 
 ## 风险
 

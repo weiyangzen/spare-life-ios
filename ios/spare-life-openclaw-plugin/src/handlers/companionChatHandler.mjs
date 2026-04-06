@@ -42,11 +42,24 @@ export function createCompanionChatRuntime({ dbPath }) {
   return {
     openMessagesHome(payload) {
       const normalized = normalizeMessagesHomeInput(payload);
-      return buildMessagesHomeResponse(useCase.openMessagesHome(normalized));
+      return buildMessagesHomeResponse(useCase.openMessagesHome(normalized), normalized);
     },
     openConversation(payload) {
       const normalized = normalizeConversationOpenInput(payload);
-      return buildConversationResponse(useCase.openConversation(normalized));
+      const resolvedConversationId =
+        normalized.conversationId ??
+        repository.findConversationByLocator(normalized.userId, normalized.locator)?.id ??
+        null;
+      return buildConversationResponse(
+        useCase.openConversation({
+          ...normalized,
+          conversationId: resolvedConversationId
+        }),
+        {
+          ...normalized,
+          conversationId: resolvedConversationId
+        }
+      );
     },
     searchConversation(payload) {
       const normalized = normalizeConversationSearchInput(payload);

@@ -1,4 +1,9 @@
-import { normalizeIMConversationLocator } from '../../../spare-life-ios-app/Domain/Models/companionContracts.mjs';
+import {
+  buildMessagesHomeRoute,
+  normalizeIMCardEnvelope,
+  normalizeIMConversationLocator,
+  resolveMessagesHomeTab
+} from '../../../spare-life-ios-app/Domain/Models/companionContracts.mjs';
 
 function requireString(value, fieldName) {
   const normalized = `${value ?? ''}`.trim();
@@ -27,20 +32,45 @@ function normalizeConversationLocatorInput(input) {
   });
 }
 
+function normalizeCardEnvelopeInput(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return null;
+  }
+  return normalizeIMCardEnvelope(input);
+}
+
 export function normalizeMessagesHomeInput(input) {
+  const tab = resolveMessagesHomeTab(input.tab ?? input.homeTab ?? 'recent');
   return {
     userId: requireString(input.userId, 'userId'),
     limit: Number(input.limit ?? 12),
-    sourceSurface: `${input.sourceSurface ?? input.source_surface ?? ''}`.trim() || 'messages'
+    sourceSurface: `${input.sourceSurface ?? input.source_surface ?? ''}`.trim() || 'messages',
+    tab,
+    route: buildMessagesHomeRoute(tab)
   };
 }
 
 export function normalizeConversationOpenInput(input) {
+  const envelope = normalizeCardEnvelopeInput(
+    input.envelope ?? input.cardEnvelope ?? input.card_envelope ?? input.openAction?.cardEnvelope
+  );
+  const sourceSurface =
+    `${input.sourceSurface ?? input.source_surface ?? input.openAction?.handoff?.sourceSurface ?? input.cardEnvelope?.handoff?.sourceSurface ?? input.envelope?.handoff?.sourceSurface ?? ''}`.trim() ||
+    'messages';
+  const locator = input.openAction?.locator
+    ? normalizeIMConversationLocator(input.openAction.locator)
+    : envelope?.locator ?? normalizeConversationLocatorInput(input);
+  const conversationId =
+    `${input.conversationId ?? input.conversation_id ?? input.openAction?.conversationId ?? ''}`.trim() ||
+    envelope?.conversationId ||
+    (locator.kind === 'conversation' ? locator.conversationID : null);
+
   return {
     userId: requireString(input.userId, 'userId'),
-    conversationId: `${input.conversationId ?? input.conversation_id ?? ''}`.trim() || null,
-    locator: normalizeConversationLocatorInput(input),
-    sourceSurface: `${input.sourceSurface ?? input.source_surface ?? ''}`.trim() || 'messages',
+    conversationId,
+    locator,
+    envelope,
+    sourceSurface,
     markRead: input.markRead !== false,
     limit: Number(input.limit ?? 40)
   };

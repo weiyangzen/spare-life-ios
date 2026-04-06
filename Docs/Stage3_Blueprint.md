@@ -131,7 +131,7 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 
 ### 6.8 验证、联调与验收
 
-- [ ] S3-090 为 `ios/` 新结构补完整路径敏感验证，至少覆盖 README、assets、preview-host、plugin import、Swift tests。
+- [x] S3-090 为 `ios/` 新结构补完整路径敏感验证，至少覆盖 README、assets、preview-host、plugin import、Swift tests；当前已落地 `Docs/Stage3IOSPathValidation`、`Docs/scripts/validate_ios_paths.sh`、`Docs/Stage3_iOS_Path_Validation.md`，并把 README / lane README / preview-host smoke / plugin self-import / path-validation Swift tests 收口到同一条可重复执行的本地验证链路。
 - [ ] S3-091 为 `OpenClaw IM` lane 建最小 smoke：messages home、DM open/send、group open/send、vote、summary、inspect。
 - [ ] S3-092 为 `messages` typed route 建最小 smoke：hub -> thread -> relationship / memory / groupPlay / quadRole。
 - [ ] S3-093 为 macOS UIUX parity + desktop optimization 建最小 smoke：五大主页面可打开、主路径详情可进入、主导航可返回、窗口可 resize、多栏布局可稳定工作。

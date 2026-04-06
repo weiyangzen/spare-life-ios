@@ -4,3 +4,10 @@
 - `spare-life-ios-preview-host/`: preview host, UI test shell, and helper scripts.
 - `spare-life-openclaw-plugin/`: OpenClaw plugin workspace and demo/runtime glue.
 - `assets/`: local client assets kept with the Apple client lane.
+
+## Validation
+
+- Path-sensitive validation for the lane move lives in [Docs/Stage3_iOS_Path_Validation.md](/Users/wangweiyang/GitHub/spare-life-ios/.cron/stage3_exec_repo_slot4/Docs/Stage3_iOS_Path_Validation.md), [Docs/scripts/validate_ios_paths.sh](/Users/wangweiyang/GitHub/spare-life-ios/.cron/stage3_exec_repo_slot4/Docs/scripts/validate_ios_paths.sh), and [Docs/Stage3IOSPathValidation](/Users/wangweiyang/GitHub/spare-life-ios/.cron/stage3_exec_repo_slot4/Docs/Stage3IOSPathValidation).
+- Run `swift test --package-path Docs/Stage3IOSPathValidation` before claiming the new `ios/` layout is stable.
+- The gate checks `ios/assets/**`, preview-host smoke, plugin self-import, the current checkout docs, and Swift tests together so the `ios/` lane does not silently drift back to root-level assumptions.
+- Keep `crossTabHandoffContracts.mjs` in the current checkout contract discussion: route normalization still lives beside the shared Swift/package surface.

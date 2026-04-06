@@ -46,6 +46,7 @@ export function createCompanionChatRuntime({ dbPath }) {
     },
     openConversation(payload) {
       const normalized = normalizeConversationOpenInput(payload);
+      useCase.ensureWorkspace(normalized.userId);
       const resolvedConversationId =
         normalized.conversationId ??
         repository.findConversationByLocator(normalized.userId, normalized.locator)?.id ??
@@ -63,7 +64,27 @@ export function createCompanionChatRuntime({ dbPath }) {
     },
     searchConversation(payload) {
       const normalized = normalizeConversationSearchInput(payload);
-      return buildConversationSearchResponse(useCase.searchConversation(normalized));
+      useCase.ensureWorkspace(normalized.userId);
+      const resolvedConversationId =
+        normalized.conversationId ??
+        repository.findConversationByLocator(normalized.userId, normalized.locator)?.id ??
+        null;
+      const participants = resolvedConversationId
+        ? repository.listConversationParticipants(resolvedConversationId)
+        : [];
+      return buildConversationSearchResponse(
+        useCase.searchConversation({
+          ...normalized,
+          conversationId: resolvedConversationId
+        }),
+        {
+          ...normalized,
+          conversationId: resolvedConversationId
+        },
+        {
+          participants
+        }
+      );
     },
     sendDirectMessage(payload) {
       const normalized = normalizeDirectMessageInput(payload);

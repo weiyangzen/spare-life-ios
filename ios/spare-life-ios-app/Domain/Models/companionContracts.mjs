@@ -320,6 +320,51 @@ function normalizeIMBadge(badge, unreadCount) {
   };
 }
 
+function normalizeIsoTimestamp(value) {
+  const normalized = sanitizeText(value);
+  if (!normalized) {
+    return null;
+  }
+  const timestamp = new Date(normalized);
+  return Number.isNaN(timestamp.getTime()) ? null : timestamp.toISOString();
+}
+
+function normalizeParticipantPermissions(permissions = {}) {
+  const normalized = permissions && typeof permissions === 'object' && !Array.isArray(permissions)
+    ? permissions
+    : {};
+  return {
+    canPost: normalized.canPost === true,
+    canSuggest: normalized.canSuggest === true,
+    canModerate: normalized.canModerate === true,
+    canLaunchVote: normalized.canLaunchVote === true,
+    canSummarize: normalized.canSummarize === true,
+    requiresGrant: normalized.requiresGrant === true
+  };
+}
+
+function buildConversationLocatorFallback(conversation = {}, locator = null) {
+  if (locator) {
+    return normalizeIMConversationLocator(locator);
+  }
+  return buildIMConversationLocator({
+    conversationId: conversation.id ?? conversation.conversationId ?? null,
+    groupId: conversation.groupId ?? null,
+    contactId: conversation.contactId ?? null
+  });
+}
+
+function normalizeConversationSurfaceKind(value, fallback = 'dm') {
+  const normalized = sanitizeText(value);
+  if (normalized === 'direct') {
+    return 'dm';
+  }
+  if (normalized === 'group') {
+    return 'group';
+  }
+  return resolveIMCardSurfaceKind(normalized, fallback);
+}
+
 export function buildIMRenderFields({
   surfaceKind,
   primaryTitle,
@@ -614,6 +659,516 @@ export function buildMessagesHomeOutputModel({
     unreadTotal: Math.max(0, Number(unreadTotal) || 0),
     cardCount: cardEnvelopes.length,
     cardEnvelopes
+  };
+}
+
+export function buildConversationSummaryModel({
+  conversation = {},
+  cardEnvelope = null
+} = {}) {
+  const normalizedLocator = buildConversationLocatorFallback(
+    conversation,
+    cardEnvelope?.locator ?? conversation.locator ?? null
+  );
+  const normalizedConversationId =
+    sanitizeText(
+      cardEnvelope?.conversationId ??
+        conversation.id ??
+        conversation.conversationId
+    ) || (normalizedLocator.kind === 'conversation' ? normalizedLocator.conversationID : null);
+  const normalizedSurfaceKind = resolveIMCardSurfaceKind(
+    normalizeConversationSurfaceKind(
+      cardEnvelope?.surfaceKind ??
+        conversation.surfaceKind ??
+        conversation.kind,
+      normalizedLocator.kind === 'group' ? 'group' : 'dm'
+    ),
+    normalizedLocator.kind === 'group' ? 'group' : 'dm'
+  );
+  const normalizedSourceChannelID =
+    sanitizeText(
+      cardEnvelope?.sourceChannelID ??
+        conversation.sourceChannelID ??
+        conversation.channelId ??
+        normalizedLocator.channelID
+    ) || COMPANION_CHANNEL_ID;
+  const renderFields = cardEnvelope?.renderFields ?? {};
+
+  return {
+    kind: 'conversation_summary',
+    conversationId: normalizedConversationId,
+    canonicalCardID:
+      sanitizeText(cardEnvelope?.canonicalCardID ?? conversation.canonicalCardID) ||
+      buildCanonicalIMCardID({
+        conversationId: normalizedConversationId,
+        channelId: normalizedSourceChannelID,
+        groupId: normalizedLocator.groupID ?? conversation.groupId ?? null,
+        peerId: normalizedLocator.peerID ?? conversation.contactId ?? null
+      }),
+    locator: normalizedLocator,
+    surfaceKind: normalizedSurfaceKind,
+    sourceChannelID: normalizedSourceChannelID,
+    route:
+      sanitizeText(cardEnvelope?.route ?? conversation.route) ||
+      buildConversationRoute({
+        conversationId: normalizedConversationId,
+        kind: normalizedSurfaceKind === 'group' ? 'group' : 'direct',
+        channelId: normalizedSourceChannelID,
+        groupId: normalizedLocator.groupID ?? conversation.groupId ?? null,
+        peerId: normalizedLocator.peerID ?? conversation.contactId ?? null
+      }),
+    title:
+      sanitizeText(renderFields.primaryTitle ?? cardEnvelope?.title ?? conversation.title) ||
+      '未命名会话',
+    subtitle:
+      sanitizeText(renderFields.secondaryTitle ?? cardEnvelope?.subtitle) ||
+      null,
+    preview:
+      sanitizeText(
+        renderFields.preview ??
+          cardEnvelope?.preview ??
+          conversation.lastMessagePreview
+      ) || null,
+    unreadCount: Math.max(
+      0,
+      Number(renderFields.unreadCount ?? cardEnvelope?.unreadCount ?? conversation.unreadCount) || 0
+    ),
+    lastMessageAt: normalizeIsoTimestamp(
+      renderFields.lastMessageAt ?? cardEnvelope?.lastMessageAt ?? conversation.lastMessageAt
+    ),
+    capabilityFlags:
+      renderFields.capabilityFlags ??
+      cardEnvelope?.capabilityFlags ??
+      buildIMCapabilityFlags(normalizedSurfaceKind)
+  };
+}
+
+export function buildConversationOpenInputModel({
+  userId,
+  conversationId = null,
+  locator = null,
+  sourceSurface = 'messages',
+  markRead = true,
+  limit = 40,
+  envelope = null
+} = {}) {
+  const normalizedLocator = buildConversationLocatorFallback(
+    {
+      id: conversationId ?? null
+    },
+    locator ?? envelope?.locator ?? null
+  );
+  const normalizedConversationId =
+    sanitizeText(conversationId) ||
+    sanitizeText(envelope?.conversationId) ||
+    (normalizedLocator.kind === 'conversation' ? normalizedLocator.conversationID : null);
+
+  return {
+    kind: 'conversation_open_input',
+    userId: sanitizeText(userId) || null,
+    conversationId: normalizedConversationId,
+    locator: normalizedLocator,
+    sourceSurface: sanitizeText(sourceSurface) || 'messages',
+    markRead: markRead !== false,
+    limit: Math.max(1, Number(limit) || 40),
+    route: buildConversationRoute({
+      conversationId: normalizedConversationId,
+      kind: normalizedLocator.kind === 'group' ? 'group' : 'direct',
+      channelId: normalizedLocator.channelID ?? COMPANION_CHANNEL_ID,
+      groupId: normalizedLocator.groupID ?? null,
+      peerId: normalizedLocator.peerID ?? null
+    }),
+    cardEnvelope: envelope ? normalizeIMCardEnvelope(envelope) : null
+  };
+}
+
+export function buildConversationParticipantModel(participant = {}) {
+  const role = requireCompanionEnum(
+    sanitizeText(participant.role),
+    COMPANION_PARTICIPANT_ROLES,
+    'self_human',
+    'participant role'
+  );
+  return {
+    kind: 'conversation_participant',
+    participantKey: sanitizeText(participant.participantKey) || null,
+    role,
+    displayName: sanitizeText(participant.displayName) || participantLabel(role),
+    permissions: normalizeParticipantPermissions(participant.permissions),
+    isOwnerActor: [buildSelfParticipantKey('human'), buildSelfParticipantKey('agent')].includes(
+      sanitizeText(participant.participantKey)
+    ),
+    createdAt: normalizeIsoTimestamp(participant.createdAt),
+    updatedAt: normalizeIsoTimestamp(participant.updatedAt)
+  };
+}
+
+export function buildConversationMessageModel(message = {}, participant = null) {
+  const actorRole = requireCompanionEnum(
+    sanitizeText(message.actorRole),
+    COMPANION_PARTICIPANT_ROLES,
+    'self_human',
+    'participant role'
+  );
+  const channelKind = requireCompanionEnum(
+    sanitizeText(message.channelKind),
+    COMPANION_CHANNEL_KINDS,
+    'timeline',
+    'channel kind'
+  );
+  const metadata =
+    message.metadata && typeof message.metadata === 'object' && !Array.isArray(message.metadata)
+      ? message.metadata
+      : {};
+
+  return {
+    kind: 'conversation_message',
+    messageId: sanitizeText(message.id) || null,
+    conversationId: sanitizeText(message.conversationId) || null,
+    turnIndex: Math.max(0, Number(message.turnIndex) || 0),
+    actorKey: sanitizeText(message.actorKey) || null,
+    actorRole,
+    actorDisplayName:
+      sanitizeText(participant?.displayName) || participantLabel(actorRole),
+    channelKind,
+    content: sanitizeText(message.content) || '',
+    createdAt: normalizeIsoTimestamp(message.createdAt),
+    unreadForOwner: Boolean(message.unreadForOwner),
+    suppressed: Boolean(message.suppressed),
+    signalScore: Number.isFinite(Number(message.signalScore)) ? Number(message.signalScore) : null,
+    stageMode: sanitizeText(metadata.stageMode) || null,
+    metadata
+  };
+}
+
+export function buildConversationTimelineItemModel(messageModel = {}) {
+  const messageId = sanitizeText(messageModel.messageId);
+  return {
+    kind: 'conversation_timeline_item',
+    timelineItemID:
+      messageId ||
+      stableId(
+        'conversation-timeline-item',
+        messageModel.conversationId ?? 'unknown',
+        messageModel.turnIndex ?? 0,
+        messageModel.actorKey ?? 'unknown'
+      ),
+    locationPrimaryKey: {
+      kind: 'message_id',
+      value: messageId,
+      turnIndex: Math.max(0, Number(messageModel.turnIndex) || 0)
+    },
+    messageId,
+    turnIndex: Math.max(0, Number(messageModel.turnIndex) || 0),
+    actorKey: sanitizeText(messageModel.actorKey) || null,
+    actorRole: sanitizeText(messageModel.actorRole) || 'self_human',
+    actorDisplayName: sanitizeText(messageModel.actorDisplayName) || null,
+    channelKind: sanitizeText(messageModel.channelKind) || 'timeline',
+    createdAt: normalizeIsoTimestamp(messageModel.createdAt),
+    stageMode: sanitizeText(messageModel.stageMode) || null,
+    suppressed: Boolean(messageModel.suppressed),
+    unreadForOwner: Boolean(messageModel.unreadForOwner)
+  };
+}
+
+export function buildConversationStageContextModel({
+  conversation = {},
+  participants = [],
+  messages = []
+} = {}) {
+  const summary = buildConversationSummaryModel({ conversation });
+  if (summary.surfaceKind === 'group') {
+    return null;
+  }
+
+  const stageParticipants = participants.filter((participant) =>
+    ['self_human', 'self_agent', 'counterpart_human', 'counterpart_agent'].includes(participant.role)
+  );
+  const stageMessages = messages.filter((message) => sanitizeText(message.stageMode) === 'shared_stage');
+  const latestStageMessage = stageMessages.at(-1) ?? null;
+
+  return {
+    kind: 'conversation_stage_context',
+    conversationId: summary.conversationId,
+    locator: summary.locator,
+    participantKeys: stageParticipants.map((participant) => participant.participantKey),
+    grantedParticipantKeys: stageParticipants
+      .filter((participant) => participant.permissions.canPost)
+      .map((participant) => participant.participantKey),
+    pendingGrantParticipantKeys: stageParticipants
+      .filter((participant) => participant.permissions.requiresGrant && !participant.permissions.canPost)
+      .map((participant) => participant.participantKey),
+    messageCount: stageMessages.length,
+    latestMessageId: latestStageMessage?.messageId ?? null,
+    latestMessageAt: latestStageMessage?.createdAt ?? null
+  };
+}
+
+export function buildConversationGroupContextModel({
+  conversation = {},
+  participants = [],
+  messages = [],
+  votes = [],
+  groupSummaries = []
+} = {}) {
+  const summary = buildConversationSummaryModel({ conversation });
+  if (summary.surfaceKind !== 'group') {
+    return null;
+  }
+
+  const latestVote = Array.isArray(votes) ? votes[0] ?? null : null;
+  const latestSummary = Array.isArray(groupSummaries) ? groupSummaries[0] ?? null : null;
+  const toolAgent = participants.find((participant) => participant.role === 'tool_agent') ?? null;
+
+  return {
+    kind: 'conversation_group_context',
+    conversationId: summary.conversationId,
+    locator: summary.locator,
+    groupId: summary.locator.groupID || sanitizeText(conversation.groupId) || null,
+    channelId: summary.locator.channelID ?? summary.sourceChannelID,
+    participantCount: participants.length,
+    messageCount: messages.length,
+    toolAgentParticipantKey: toolAgent?.participantKey ?? null,
+    voteCount: Array.isArray(votes) ? votes.length : 0,
+    latestVote: latestVote
+      ? {
+          voteId: sanitizeText(latestVote.id) || null,
+          status: resolveGroupVoteStatus(latestVote.status),
+          question: sanitizeText(latestVote.question) || null,
+          resultSummary: sanitizeText(latestVote.resultSummary) || null,
+          route: sanitizeText(latestVote.route) || null,
+          updatedAt: normalizeIsoTimestamp(latestVote.updatedAt)
+        }
+      : null,
+    summaryCount: Array.isArray(groupSummaries) ? groupSummaries.length : 0,
+    latestSummary: latestSummary
+      ? {
+          summaryId: sanitizeText(latestSummary.id) || null,
+          suppressedCount: Math.max(0, Number(latestSummary.suppressedCount) || 0),
+          createdAt: normalizeIsoTimestamp(latestSummary.createdAt)
+        }
+      : null
+  };
+}
+
+export function buildConversationOpenOutputModel({
+  conversation = {},
+  cardEnvelope = null,
+  participants = [],
+  messages = [],
+  contextCards = [],
+  votes = [],
+  groupSummaries = [],
+  homeRoute = null,
+  homeHandoff = null
+} = {}) {
+  const conversationSummary = buildConversationSummaryModel({
+    conversation,
+    cardEnvelope
+  });
+  const participantModels = participants.map((participant) => buildConversationParticipantModel(participant));
+  const participantByKey = new Map(
+    participantModels
+      .filter((participant) => participant.participantKey)
+      .map((participant) => [participant.participantKey, participant])
+  );
+  const messageModels = messages.map((message) =>
+    buildConversationMessageModel(message, participantByKey.get(sanitizeText(message.actorKey)))
+  );
+  const timelineItems = messageModels.map((messageModel) => buildConversationTimelineItemModel(messageModel));
+
+  return {
+    kind: 'conversation_open_output',
+    conversation: conversationSummary,
+    homeRoute: sanitizeText(homeRoute) || buildMessagesHomeRoute(),
+    homeHandoff:
+      homeHandoff ??
+      buildMessagesHomeHandoff({
+        sourceSurface: 'messages'
+      }),
+    participantCount: participantModels.length,
+    participants: participantModels,
+    messageCount: messageModels.length,
+    messages: messageModels,
+    timeline: {
+      kind: 'conversation_timeline',
+      itemCount: timelineItems.length,
+      latestTimelineItemID: timelineItems.at(-1)?.timelineItemID ?? null,
+      items: timelineItems
+    },
+    stageContext: buildConversationStageContextModel({
+      conversation: {
+        ...conversation,
+        ...conversationSummary
+      },
+      participants: participantModels,
+      messages: messageModels
+    }),
+    groupContext: buildConversationGroupContextModel({
+      conversation: {
+        ...conversation,
+        ...conversationSummary
+      },
+      participants: participantModels,
+      messages: messageModels,
+      votes,
+      groupSummaries
+    }),
+    contextCards: Array.isArray(contextCards) ? contextCards.filter(Boolean) : []
+  };
+}
+
+export function buildConversationSearchQueryModel({
+  query,
+  conversationId = null,
+  locator = null,
+  limit = 12
+} = {}) {
+  const text = sanitizeText(query) || '';
+  const normalizedLocator = buildConversationLocatorFallback(
+    {
+      id: conversationId ?? null
+    },
+    locator ?? null
+  );
+
+  return {
+    kind: 'conversation_search_query',
+    text,
+    normalizedText: text.toLowerCase(),
+    conversationId:
+      sanitizeText(conversationId) ||
+      (normalizedLocator.kind === 'conversation' ? normalizedLocator.conversationID : null),
+    locator: normalizedLocator,
+    limit: Math.max(1, Number(limit) || 12)
+  };
+}
+
+export function buildConversationSearchInputModel({
+  userId,
+  conversationId = null,
+  locator = null,
+  query,
+  sourceSurface = 'messages',
+  limit = 12
+} = {}) {
+  const queryModel = buildConversationSearchQueryModel({
+    query,
+    conversationId,
+    locator,
+    limit
+  });
+
+  return {
+    kind: 'conversation_search_input',
+    userId: sanitizeText(userId) || null,
+    conversationId: queryModel.conversationId,
+    locator: queryModel.locator,
+    sourceSurface: sanitizeText(sourceSurface) || 'messages',
+    limit: queryModel.limit,
+    query: queryModel
+  };
+}
+
+export function buildConversationSearchResultItem({
+  conversation = {},
+  message = {},
+  participant = null,
+  sourceSurface = 'messages'
+} = {}) {
+  const conversationSummary = buildConversationSummaryModel({ conversation });
+  const messageModel = buildConversationMessageModel(message, participant);
+  const locationPrimaryKey = {
+    kind: 'message_id',
+    value: messageModel.messageId,
+    turnIndex: messageModel.turnIndex
+  };
+
+  return {
+    kind: 'conversation_search_result_item',
+    resultID:
+      messageModel.messageId ||
+      stableId(
+        'conversation-search-result',
+        conversationSummary.conversationId ?? 'unknown',
+        messageModel.turnIndex ?? 0
+      ),
+    conversationId: conversationSummary.conversationId,
+    locator: conversationSummary.locator,
+    route: conversationSummary.route,
+    handoff: buildMessagesThreadHandoff({
+      sourceSurface,
+      conversationId: conversationSummary.conversationId,
+      channelId: conversationSummary.locator.channelID ?? conversationSummary.sourceChannelID,
+      groupId: conversationSummary.locator.groupID ?? null,
+      peerId: conversationSummary.locator.peerID ?? null,
+      hint: {
+        locationPrimaryKeyKind: locationPrimaryKey.kind,
+        locationPrimaryKeyValue: locationPrimaryKey.value,
+        locationTurnIndex: locationPrimaryKey.turnIndex
+      }
+    }),
+    locationPrimaryKey,
+    messageId: messageModel.messageId,
+    turnIndex: messageModel.turnIndex,
+    actorKey: messageModel.actorKey,
+    actorRole: messageModel.actorRole,
+    actorDisplayName: messageModel.actorDisplayName,
+    channelKind: messageModel.channelKind,
+    excerpt: messageModel.content,
+    createdAt: messageModel.createdAt,
+    suppressed: messageModel.suppressed,
+    unreadForOwner: messageModel.unreadForOwner
+  };
+}
+
+export function buildConversationSearchOutputModel({
+  conversation = {},
+  query,
+  limit = 12,
+  participants = [],
+  hits = [],
+  sourceSurface = 'messages'
+} = {}) {
+  const conversationSummary = buildConversationSummaryModel({ conversation });
+  const queryModel = buildConversationSearchQueryModel({
+    query,
+    conversationId: conversationSummary.conversationId,
+    locator: conversationSummary.locator,
+    limit
+  });
+  const participantModels = participants.map((participant) => buildConversationParticipantModel(participant));
+  const participantByKey = new Map(
+    participantModels
+      .filter((participant) => participant.participantKey)
+      .map((participant) => [participant.participantKey, participant])
+  );
+  const resultItems = hits.map((message) =>
+    buildConversationSearchResultItem({
+      conversation,
+      message,
+      participant: participantByKey.get(sanitizeText(message.actorKey)),
+      sourceSurface
+    })
+  );
+
+  return {
+    kind: 'conversation_search_output',
+    conversation: conversationSummary,
+    locator: conversationSummary.locator,
+    query: queryModel,
+    resultCount: resultItems.length,
+    resultItems,
+    emptyState: resultItems.length
+      ? null
+      : {
+          kind: 'conversation_search_empty_state',
+          reason: 'no_match',
+          conversationId: conversationSummary.conversationId,
+          locator: conversationSummary.locator,
+          queryText: queryModel.text,
+          resultCount: 0
+        }
   };
 }
 

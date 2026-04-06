@@ -165,6 +165,11 @@ dm:<channel_id>:<peer_id>
    - `buildIMCardEnvelope(...)`
    - `buildMessagesHomeInputModel(...)`
    - `buildMessagesHomeOutputModel(...)`
+   - `buildConversationSummaryModel(...)`
+   - `buildConversationOpenInputModel(...)`
+   - `buildConversationOpenOutputModel(...)`
+   - `buildConversationSearchInputModel(...)`
+   - `buildConversationSearchOutputModel(...)`
    - `buildConversationOpenAction(...)`
 2. `ios/spare-life-ios-app/Services/CompanionChat/companionChatService.mjs` 现在把 `messages home` 卡片与 `conversation detail` 顶部入口都收口成同一层 `IMCardEnvelope`。同一 envelope 会同时带出：
    - `canonicalCardID`
@@ -187,7 +192,21 @@ dm:<channel_id>:<peer_id>
    - `openAction`
    - canonical `locator`
    其中 group/dm locator 会先在 handler 层经 repository 解析成真实 `conversationId`，再进入 use case；因此“locator 可开详情”现在是 runtime truth，但不是“use case 原生理解 locator”。
-6. 兼容字段 `route` 仍保留给旧 surface 使用，但它已退化成 legacy 兼容字段，不再是 canonical identity。
+6. `conversation open` 现在已有明确的 typed 输入输出模型：
+   - `input.kind = conversation_open_input`
+   - `output.kind = conversation_open_output`
+   - `output.conversation` 收口为稳定 `conversation_summary`
+   - `output.timeline` 明确以 `timeline_item -> locationPrimaryKey(message_id)` 描述时间线定位
+   - `output.participants / messages` 最少冻结 `participantKey / role / displayName / permissions` 与 `messageId / turnIndex / actor / channelKind / content / stageMode`
+   - `output.stageContext / groupContext` 分别补齐 direct shared-stage 与 group vote/summary 的最小上下文，不再只靠 raw message/participant 数组猜语义
+7. `conversation search` 现在已有独立 query/result/empty-state contract：
+   - `input.kind = conversation_search_input`
+   - `output.kind = conversation_search_output`
+   - `output.query.kind = conversation_search_query`
+   - `output.resultItems[*]` 固定带 `locationPrimaryKey = { kind: message_id, value, turnIndex }`
+   - 每条 result item 同时带 `handoff.route.kind = thread`，并把定位主键塞进 `hint`
+   - 空结果统一返回 `conversation_search_empty_state(reason=no_match)`，而不是让上层靠 `hits.length === 0` 自行猜测
+8. 兼容字段 `route` 仍保留给旧 surface 使用，但它已退化成 legacy 兼容字段，不再是 canonical identity。
 
 ## 风险
 

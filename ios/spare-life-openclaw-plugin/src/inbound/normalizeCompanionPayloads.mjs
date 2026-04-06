@@ -77,10 +77,25 @@ export function normalizeConversationOpenInput(input) {
 }
 
 export function normalizeConversationSearchInput(input) {
+  const envelope = normalizeCardEnvelopeInput(
+    input.envelope ?? input.cardEnvelope ?? input.card_envelope ?? input.openAction?.cardEnvelope
+  );
+  const locator = input.openAction?.locator
+    ? normalizeIMConversationLocator(input.openAction.locator)
+    : envelope?.locator ?? normalizeConversationLocatorInput(input);
+  const conversationId =
+    `${input.conversationId ?? input.conversation_id ?? input.openAction?.conversationId ?? ''}`.trim() ||
+    envelope?.conversationId ||
+    (locator.kind === 'conversation' ? locator.conversationID : null);
+
   return {
     userId: requireString(input.userId, 'userId'),
-    conversationId: requireString(input.conversationId, 'conversationId'),
-    query: requireString(input.query, 'query'),
+    conversationId,
+    locator,
+    query: requireString(input.query ?? input.queryText ?? input.searchText, 'query'),
+    sourceSurface:
+      `${input.sourceSurface ?? input.source_surface ?? input.openAction?.handoff?.sourceSurface ?? input.cardEnvelope?.handoff?.sourceSurface ?? input.envelope?.handoff?.sourceSurface ?? ''}`.trim() ||
+      'messages',
     limit: Number(input.limit ?? 12)
   };
 }

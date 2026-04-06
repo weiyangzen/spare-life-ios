@@ -1,5 +1,9 @@
 import {
   buildConversationOpenAction,
+  buildConversationOpenInputModel,
+  buildConversationOpenOutputModel,
+  buildConversationSearchInputModel,
+  buildConversationSearchOutputModel,
   buildIMCardEnvelope,
   buildMessagesHomeHandoff,
   buildMessagesHomeInputModel,
@@ -99,6 +103,23 @@ export function buildConversationResponse(result, input = {}) {
   const normalizedConversationEnvelope = result.cardEnvelope
     ? rewriteCardEnvelopeForSourceSurface(result.cardEnvelope, input.sourceSurface ?? 'messages')
     : rewriteCardEnvelopeForSourceSurface(result.conversation, input.sourceSurface ?? 'messages');
+  const inputModel = buildConversationOpenInputModel({
+    ...input,
+    envelope: normalizedConversationEnvelope
+  });
+  const outputModel = buildConversationOpenOutputModel({
+    conversation: result.conversation ?? {},
+    cardEnvelope: normalizedConversationEnvelope,
+    participants: result.participants ?? [],
+    messages: result.messages ?? [],
+    contextCards: result.contextCards ?? [],
+    votes: result.votes ?? [],
+    groupSummaries: result.groupSummaries ?? [],
+    homeRoute: result.homeRoute ?? null,
+    homeHandoff: buildMessagesHomeHandoff({
+      sourceSurface: inputModel.sourceSurface
+    })
+  });
 
   return {
     ...result,
@@ -117,20 +138,46 @@ export function buildConversationResponse(result, input = {}) {
           openAction: normalizedConversationEnvelope.openAction
         }
       : result.conversation,
-    input: {
-      userId: input.userId ?? null,
-      conversationId: input.conversationId ?? null,
-      locator: input.locator ?? null,
-      sourceSurface: input.sourceSurface ?? 'messages',
-      markRead: input.markRead !== false,
-      limit: Number(input.limit ?? 40),
-      envelope: input.envelope ?? null
-    }
+    input: inputModel,
+    output: outputModel,
+    conversationSummary: outputModel.conversation,
+    participantModels: outputModel.participants,
+    messageModels: outputModel.messages,
+    timeline: outputModel.timeline,
+    stageContext: outputModel.stageContext,
+    groupContext: outputModel.groupContext,
+    homeRoute: outputModel.homeRoute,
+    homeHandoff: outputModel.homeHandoff
   };
 }
 
-export function buildConversationSearchResponse(result) {
-  return result;
+export function buildConversationSearchResponse(result, input = {}, extras = {}) {
+  const inputModel = buildConversationSearchInputModel({
+    ...input,
+    conversationId: input.conversationId ?? result.conversation?.id ?? null,
+    locator: input.locator ?? result.conversation?.locator ?? null
+  });
+  const outputModel = buildConversationSearchOutputModel({
+    conversation: result.conversation ?? {},
+    query: result.query ?? inputModel.query.text,
+    limit: inputModel.limit,
+    participants: extras.participants ?? [],
+    hits: result.hits ?? [],
+    sourceSurface: inputModel.sourceSurface
+  });
+
+  return {
+    ...result,
+    input: inputModel,
+    output: outputModel,
+    conversationSummary: outputModel.conversation,
+    locator: outputModel.locator,
+    queryModel: outputModel.query,
+    searchQuery: outputModel.query,
+    resultItems: outputModel.resultItems,
+    hitCount: outputModel.resultCount,
+    emptyState: outputModel.emptyState
+  };
 }
 
 export function buildDirectMessageResponse(result) {

@@ -102,6 +102,8 @@ Workers may update only:
 - [x] S4-04 研究消息模块的导航整合方案，让现有高级子页不再只是分散组件，而是有可验证的入口、状态和返回路径 -> Docs/researches/Stage_3_AR/section_4_social_messages_profile/04-messages-surface-integration.md
 - [x] S4-05 把 `MyProfileView.swift` 的 mock root data 与 `MyProfileOverviewMetrics.swift` 的 live-ish stats provider 对齐，明确 root profile 的数据来源层级 -> Docs/researches/Stage_3_AR/section_4_social_messages_profile/05-my-profile-data-provenance.md
 - [x] S4-06 定义跨 tab handoff 契约，统一 `xianxia -> earn social`, `masters -> messages/profile`, `earn social -> messages` 的 route 和 state payload 规则 -> Docs/researches/Stage_3_AR/section_4_social_messages_profile/06-cross-tab-handoff-contract.md
+- [x] S4-07 冻结 OpenClaw IM 的 canonical locator、card identity、capability parity 与 compatibility fallback contract，避免 `messages home / thread open / cross-tab handoff` 再继续各说各话 -> Docs/researches/Stage_3_AR/section_4_social_messages_profile/07-openclaw-im-identity-and-parity.md
+- Wave 4 backfill: `MessagesRoute`、legacy route normalizer、canonical locator、OpenClaw IM envelope 的当前 acceptance 已由 `Docs/Stage3_Wave4_Smoke.md` 与 `Docs/Stage3_Apple_Parity_Checklists.md` 承接；这些文档是执行与验收镜像，不替代本 Section 的研究结论。
 <!-- STAGE3_SECTION: slot4:end -->
 
 ### Section 5. Repo Boundaries, Validation, And Automation

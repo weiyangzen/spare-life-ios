@@ -22,6 +22,17 @@ bash Docs/scripts/validate_stage3_verification_matrix.sh
 
 That script runs all currently valid lanes and leaves the server lane as `gated` until the sibling server checkout contains tracked content.
 
+## Validation Log Schema
+
+Future Stage 3 validation receipts and `Docs/ValidationLog_*.md` entries should follow [Docs/Stage3_Validation_Log_Template.md](/Users/wangweiyang/GitHub/spare-life-ios/.cron/stage3_exec_repo_slot4/Docs/Stage3_Validation_Log_Template.md).
+
+At minimum, each receipt must truthfully record:
+
+- which `verification_tier` actually ran
+- which runtime lane was exercised and which adjacent lanes stayed placeholder or gated
+- whether route / locator proof came from canonical handoff or only from compatibility fields
+- whether macOS parity and desktop optimization were both exercised, instead of being collapsed into a generic smoke claim
+
 ## Tier Matrix
 
 | Tier ID | Current runtime truth | Commands | Coverage | Gate / expected result | Evidence |
@@ -59,5 +70,6 @@ Until then, Stage 3 must not describe client / plugin / server as already wired.
 - `plugin-demo` is not a fake unit-test lane. It runs the real demo/runtime path that currently backs the OpenClaw companion IM surface.
 - `client-only-local-seed` is the authoritative current checkout lane. It intentionally validates the seeded/local runtime truth instead of pretending a server is already connected.
 - `server-backed-joint-debug` is allowed to return `gated` today. That is the truthful passing state for this checkout because the sibling server repo has no tracked files yet.
+- Validation receipts should use the Stage 3 template so future logs keep `OpenClaw IM identity`, `typed route / pending handoff`, `macOS parity`, `desktop optimization`, and `platform lane boundary` in one honest record.
 
 Code and executable scripts override this matrix if the repository evolves.

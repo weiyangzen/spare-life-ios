@@ -141,9 +141,9 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 
 ### 6.9 文档同步与收尾
 
-- [ ] S3-100 当 `Stage3_Blueprint` 中的 route / locator / macOS parity contract 落地后，同步回写 `Docs/Stage_3_AR_Blueprint.md` 的相关条目。
-- [ ] S3-101 把本轮新增的 OpenClaw IM identity、macOS parity、macOS desktop optimization、平台车道边界补进后续验证日志模板，避免未来执行记录再次失真。
-- [ ] S3-102 当 iOS 与 macOS 的 UIUX parity 和 desktop optimization 都达到可验收状态后，再讨论下一轮更激进的 OS-native 扩展，而不是把本阶段目标继续往后拖。
+- [x] S3-100 当 `Stage3_Blueprint` 中的 route / locator / macOS parity contract 落地后，同步回写 `Docs/Stage_3_AR_Blueprint.md` 的相关条目；当前已把 Section 4 回写为显式包含 `S4-07` 与 Wave 4 route / locator / parity acceptance backfill，避免 OpenClaw IM identity contract 继续游离在 AR blueprint 之外。
+- [x] S3-101 把本轮新增的 OpenClaw IM identity、macOS parity、macOS desktop optimization、平台车道边界补进后续验证日志模板，避免未来执行记录再次失真；当前已在 `Docs/Stage3_Validation_Log_Template.md` 冻结统一模板，并由 `Docs/Stage3_Verification_Matrix.md`、`README.md`、`ios/README.md`、`app/macos/README.md` 接线。
+- [x] S3-102 当 iOS 与 macOS 的 UIUX parity 和 desktop optimization 都达到可验收状态后，再讨论下一轮更激进的 OS-native 扩展，而不是把本阶段目标继续往后拖；当前已在 `Docs/Stage3_Apple_Parity_Checklists.md`、`README.md`、`app/macos/README.md`、`app/README.md` 冻结 Stage 3 scope gate，不再把下一轮 OS-native 扩展混写成当前阶段进度。
 
 ## 7. 推荐施工顺序
 

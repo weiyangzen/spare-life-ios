@@ -32,6 +32,15 @@ These commands are the only acceptance anchors for this checklist:
 - `validate_stage3_messages_typed_routes.sh` proves `MessagesFeatureRootView` still runs the canonical `home -> thread -> relationship / memory / groupPlay / quadRole` route path from the current checkout.
 - `validate_stage3_macos_smoke.sh` proves the current macOS host still opens the five mirrored pages, keeps multi-column workspaces, and returns from `messages` detail back to `home`.
 
+## Stage 3 Scope Gate
+
+This checklist accepts Stage 3 only on `iOS / macOS parity + desktop optimization`.
+
+- Do not count a new macOS-only feature tree, route graph, or store fork as Stage 3 completion before this checklist is passed and logged.
+- Do not count `app/windows11` or `app/ubuntu` placeholder work as Apple parity evidence.
+- If a follow-up idea needs broader OS-native divergence, record it as next-round planning after this checklist passes; do not mix it back into the current Stage 3 acceptance line.
+- When parity is logged, use [Docs/Stage3_Validation_Log_Template.md](/Users/wangweiyang/GitHub/spare-life-ios/.cron/stage3_exec_repo_slot4/Docs/Stage3_Validation_Log_Template.md) so the receipt also states lane boundaries and desktop-optimization evidence explicitly.
+
 ## Shared Page Parity Checklist
 
 Every row below must stay true before parity can be claimed.

@@ -105,6 +105,7 @@ public struct Stage3MacOSDiagnosticPageView: View {
 }
 
 struct Stage3MacOSInfrastructureWorkspaceView: View {
+    @ObservedObject private var appState = Stage3MacOSAppState.shared
     @Environment(\.openWindow) private var openWindow
     @State private var selectedToolID = Stage3MacOSRuntime.openClawDiagnosticPageID
 
@@ -137,7 +138,19 @@ struct Stage3MacOSInfrastructureWorkspaceView: View {
             inspectorColumn
                 .frame(minWidth: 272, idealWidth: 304, maxWidth: 340)
         }
+        .stage3SplitAutosave("infrastructureWorkspace")
         .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            selectedToolID = appState.infrastructureToolID
+        }
+        .onChange(of: selectedToolID) { toolID in
+            appState.selectInfrastructureTool(toolID)
+        }
+        .onChange(of: appState.infrastructureToolID) { toolID in
+            if selectedToolID != toolID {
+                selectedToolID = toolID
+            }
+        }
     }
 
     private var catalogColumn: some View {
@@ -192,6 +205,21 @@ struct Stage3MacOSInfrastructureWorkspaceView: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .stage3HoverLift(enabled: selectedTool.id != tool.id)
+                        .contextMenu {
+                            Button("在工作区中查看") {
+                                selectedToolID = tool.id
+                            }
+
+                            Button("打开独立窗口") {
+                                appState.selectInfrastructureTool(tool.id)
+                                openWindow(id: tool.id)
+                            }
+
+                            Button("复制 root view") {
+                                Stage3MacOSPasteboard.copy(tool.rootView)
+                            }
+                        }
                     }
                 }
                 .padding(Spacing.md)
@@ -207,6 +235,7 @@ struct Stage3MacOSInfrastructureWorkspaceView: View {
                 subtitle: Stage3MacOSInfrastructureToolCatalogItem.detailSubtitle(for: selectedTool.id)
             ) {
                 Button("打开独立窗口") {
+                    appState.selectInfrastructureTool(selectedTool.id)
                     openWindow(id: selectedTool.id)
                 }
                 .buttonStyle(.borderedProminent)

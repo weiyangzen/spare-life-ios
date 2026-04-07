@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "note": "Diagnostic surfaces remain explicit desktop diagnostic and preview workspaces. The manifest exists so the macOS host can mirror those dependencies through one resource bridge instead of hardcoding path assumptions in each executable.",
+  "diagnostic_pages": [
+    {
+      "id": "infrastructure",
+      "root_view": "Stage3MacOSInfrastructureWorkspaceView",
+      "dependency_kind": "host manifest"
+    },
+    {
+      "id": "openClawPlugin",
+      "root_view": "Stage3MacOSOpenClawWorkspaceView",
+      "dependency_kind": "seeded diagnostic workspace"
+    },
+    {
+      "id": "sqliteBackend",
+      "root_view": "Stage3MacOSSQLiteWorkspaceView",
+      "dependency_kind": "seeded diagnostic workspace"
+    },
+    {
+      "id": "securityRisk",
+      "root_view": "SecurityRiskControlView",
+      "dependency_kind": "shared embedded diagnostic"
+    },
+    {
+      "id": "aiMemoryMatching",
+      "root_view": "AIMemoryMatchingView",
+      "dependency_kind": "shared embedded diagnostic"
+    }
+  ]
+}

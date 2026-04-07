@@ -58,6 +58,9 @@ let package = Package(
                 "Shared/SpareLifeCoreSource/Features/MyProfile",
                 "Shared/SpareLifeCoreSource/Features/Shared",
                 "Shared/SpareLifeCoreSource/Features/Xianxia"
+            ],
+            resources: [
+                .copy("Resources/HostResources")
             ]
         ),
         .executableTarget(

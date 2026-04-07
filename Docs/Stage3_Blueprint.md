@@ -103,10 +103,10 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 - [x] S3-056 让 `messages` 在 macOS 上升级为桌面友好的 hub-thread-detail 工作区，可利用更宽屏幕做多栏承接，但消息卡片、线程语义、子页入口与 iOS 一致；当前 `Stage3MacOSMessagesWorkspaceView` 已把 hub、route detail、thread inspector 并排承接，并继续走共享 `ConversationRouter`、同一 thread/subpage typed route 与消息 store 语义。
 - [x] S3-057 让 `masters` 在 macOS 上升级为桌面友好的目录-会话工作区，至少支持更稳定的卡片浏览区、会话区、辅助信息区并存；当前 `Stage3MacOSMastersWorkspaceView` 已把大师目录、会话区、辅助 inspector 固定为三栏，并复用共享 `MasterExperienceStore`、会话恢复、domain filter 与 recent session 语义。
 - [x] S3-058 让 `earnSocial`、`myProfile`、`Infrastructure` 相关页面在 macOS 上完成更高信息密度编排，而不是简单居中放大 iOS 单列页面；当前 `earnSocial` 已升级为 `category catalog + market canvas + inspector` 工作区，`myProfile` 已升级为 `identity summary + feature dashboard + avatar/backend inspector` 工作区，`Infrastructure` 也已落成独立 desktop workspace 与相关诊断入口，不再只是居中放大 iOS 单列长页。
-- [ ] S3-059 让 `ios/assets` 的资源读取链路在 macOS 宿主可复用，至少覆盖大师目录、图片、基础本地 seed 与诊断页依赖资源。
+- [x] S3-059 让 `ios/assets` 的资源读取链路在 macOS 宿主可复用，至少覆盖大师目录、图片、基础本地 seed 与诊断页依赖资源；当前 `app/macos` 已补 `HostResources` bundle bridge 与 `Stage3MacOSRuntime.validateHostResources()`，`MasterExperienceStore` 先走 bundled `HostResources`、再回退源码侧 `./ios/assets` / legacy 路径，实际覆盖 `master_service_directory.json`、4 组 `char + image` 大师资源、`seed_manifest.json` 与 `diagnostic_manifest.json`。
 - [x] S3-060 让 `OpenClawPluginView`、`SQLiteBackendDashboardView` 等基础诊断页在 macOS 上可打开，并利用桌面空间做更适合联调的面板化布局；当前 `Stage3MacOSApp` 已提供 `Infrastructure / OpenClaw / SQLite / Security / AI Memory Matching` 独立诊断窗口，`OpenClaw` 采用 `adapter catalog + event stream + schema/handler inspector` 三栏面板，`SQLite` 采用 `repository catalog + repository detail + migration timeline` 三栏面板，并已通过 `stage3-macos-surface-smoke` 真实实例化验证。
-- [ ] S3-061 为 macOS 增加桌面级交互：hover 状态、secondary click / context menu、键盘快捷键、command 菜单入口。
-- [ ] S3-062 为 macOS 增加窗口级优化：窗口最小尺寸、默认尺寸、可调列宽、状态恢复、上次工作区恢复。
+- [x] S3-061 为 macOS 增加桌面级交互：hover 状态、secondary click / context menu、键盘快捷键、command 菜单入口；当前 `Stage3MacOSDesktopSupport` 已落地 hover lift、`Stage3MacOSWorkspaceCommands`、`Workspace / Infrastructure` command menus 与 `cmd+1...5` / `cmd+option+1...5` shortcuts，并把 context menu 接到 sidebar、消息线程、大师目录卡片、近期会话和 Infrastructure 工具卡。
+- [x] S3-062 为 macOS 增加窗口级优化：窗口最小尺寸、默认尺寸、可调列宽、状态恢复、上次工作区恢复；当前 `Stage3MacOSWindowConfiguration` + `stage3WindowConfiguration` 已冻结 desktop / diagnostic window 的默认尺寸、最小尺寸与 frame autosave，`stage3SplitAutosave` 已为 desktop shell 与各 workspace 挂上可调列宽 autosave，`Stage3MacOSAppState` 负责恢复上次 tab 与 Infrastructure 工具选择。
 - [ ] S3-063 为 macOS 增加桌面级工具栏与搜索入口，让全局搜索、筛选、刷新、诊断入口不再完全复刻移动端按钮摆放。
 - [ ] S3-064 为 macOS 增加桌面级多栏 / inspector / side panel 承接规则，优先把详情、上下文、诊断信息从 modal 改成更适合桌面的并排工作区。
 - [ ] S3-065 保持 macOS 与 iOS 的视觉语言同源：色板、卡片、文案、模块边界、状态语义一致；但允许在密度、布局、快捷交互、窗口组织上做桌面优化。

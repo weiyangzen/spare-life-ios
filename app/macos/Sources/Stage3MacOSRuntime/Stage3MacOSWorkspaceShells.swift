@@ -100,6 +100,7 @@ struct Stage3MacOSXianxiaWorkspaceView: View {
             inspectorColumn
                 .frame(minWidth: 260, idealWidth: 292, maxWidth: 332)
         }
+        .stage3SplitAutosave("xianxiaWorkspace")
         .background(Color(nsColor: .windowBackgroundColor))
         .task {
             viewModel.loadIfNeeded()
@@ -421,6 +422,7 @@ struct Stage3MacOSMessagesWorkspaceView: View {
             inspectorColumn
                 .frame(minWidth: 260, idealWidth: 296, maxWidth: 336)
         }
+        .stage3SplitAutosave("messagesWorkspace")
         .background(Color(nsColor: .windowBackgroundColor))
         .task {
             store.load()
@@ -827,12 +829,16 @@ private struct Stage3MacOSMessagesThreadRow: View {
             )
         }
         .buttonStyle(.plain)
+        .stage3HoverLift(enabled: !isSelected)
         .contextMenu {
             Button(thread.unreadCount > 0 ? "标记已读" : "保持已读") {
                 onMarkRead()
             }
             Button(thread.isPinned ? "取消置顶" : "置顶") {
                 onPinToggle()
+            }
+            Button("复制线程 locator") {
+                Stage3MacOSPasteboard.copy(thread.locator.legacyThreadRoute)
             }
         }
     }
@@ -917,6 +923,7 @@ struct Stage3MacOSMastersWorkspaceView: View {
             inspectorColumn
                 .frame(minWidth: 280, idealWidth: 320, maxWidth: 360)
         }
+        .stage3SplitAutosave("mastersWorkspace")
         .background(Color(nsColor: .windowBackgroundColor))
         .task {
             store.loadIfNeeded()
@@ -1254,8 +1261,18 @@ private struct Stage3MacOSMasterDirectoryCard: View {
         )
         .cardShadow()
         .contentShape(RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous))
+        .stage3HoverLift(enabled: !isSelected)
         .onTapGesture {
             onSelect()
+        }
+        .contextMenu {
+            Button("继续聊") {
+                onOpenConversation()
+            }
+
+            Button("复制大师 asset_id") {
+                Stage3MacOSPasteboard.copy(profile.id)
+            }
         }
     }
 }
@@ -1426,6 +1443,20 @@ private struct Stage3MacOSMasterRecentSessionRow: View {
             RoundedRectangle(cornerRadius: CornerRadius.md, style: .continuous)
                 .stroke(Color.cardStroke, lineWidth: 1)
         )
+        .stage3HoverLift()
+        .contextMenu {
+            Button("恢复会话") {
+                restore()
+            }
+
+            Button(session.isPinned ? "取消置顶" : "置顶") {
+                togglePin()
+            }
+
+            Button("复制会话摘要") {
+                Stage3MacOSPasteboard.copy(session.preview)
+            }
+        }
     }
 }
 

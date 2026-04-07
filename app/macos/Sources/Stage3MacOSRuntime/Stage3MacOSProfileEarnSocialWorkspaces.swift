@@ -14,6 +14,7 @@ struct Stage3MacOSEarnSocialWorkspaceView: View {
             inspectorColumn
                 .frame(minWidth: 272, idealWidth: 304, maxWidth: 340)
         }
+        .stage3SplitAutosave("earnSocialWorkspace")
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
@@ -65,6 +66,7 @@ struct Stage3MacOSEarnSocialWorkspaceView: View {
                             RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
                                 .stroke(Color.cardStroke, lineWidth: 1)
                         )
+                        .stage3HoverLift()
                     }
                 }
                 .padding(Spacing.md)
@@ -265,6 +267,7 @@ private enum Stage3MacOSProfileSurface: String, CaseIterable, Identifiable {
 }
 
 struct Stage3MacOSProfileWorkspaceView: View {
+    @ObservedObject private var appState = Stage3MacOSAppState.shared
     @Environment(\.openWindow) private var openWindow
     @StateObject private var store = MyProfileStore()
     @StateObject private var privacyStore = PrivacyLocalBackendStore()
@@ -289,6 +292,7 @@ struct Stage3MacOSProfileWorkspaceView: View {
             inspectorColumn
                 .frame(minWidth: 280, idealWidth: 312, maxWidth: 344)
         }
+        .stage3SplitAutosave("profileWorkspace")
         .background(Color(nsColor: .windowBackgroundColor))
         .task {
             store.load()
@@ -405,9 +409,17 @@ struct Stage3MacOSProfileWorkspaceView: View {
                         profile: profile,
                         avatarProfile: avatarProfile,
                         onSelectSurface: { selectedSurface = $0 },
-                        onOpenInfrastructure: { openWindow(id: Stage3MacOSRuntime.infrastructureWorkspacePageID) },
-                        onOpenOpenClaw: { openWindow(id: Stage3MacOSRuntime.openClawDiagnosticPageID) },
-                        onOpenSQLite: { openWindow(id: Stage3MacOSRuntime.sqliteDiagnosticPageID) }
+                        onOpenInfrastructure: {
+                            openWindow(id: Stage3MacOSRuntime.infrastructureWorkspacePageID)
+                        },
+                        onOpenOpenClaw: {
+                            appState.selectInfrastructureTool(Stage3MacOSRuntime.openClawDiagnosticPageID)
+                            openWindow(id: Stage3MacOSRuntime.openClawDiagnosticPageID)
+                        },
+                        onOpenSQLite: {
+                            appState.selectInfrastructureTool(Stage3MacOSRuntime.sqliteDiagnosticPageID)
+                            openWindow(id: Stage3MacOSRuntime.sqliteDiagnosticPageID)
+                        }
                     )
                 case .sync:
                     SyncScoreDashboardView()
@@ -479,9 +491,11 @@ struct Stage3MacOSProfileWorkspaceView: View {
                             openWindow(id: Stage3MacOSRuntime.infrastructureWorkspacePageID)
                         }
                         Stage3MacOSInspectorActionButton(title: "打开 OpenClaw 插件页", icon: "link.circle.fill") {
+                            appState.selectInfrastructureTool(Stage3MacOSRuntime.openClawDiagnosticPageID)
                             openWindow(id: Stage3MacOSRuntime.openClawDiagnosticPageID)
                         }
                         Stage3MacOSInspectorActionButton(title: "打开 SQLite 后端页", icon: "internaldrive.fill") {
+                            appState.selectInfrastructureTool(Stage3MacOSRuntime.sqliteDiagnosticPageID)
                             openWindow(id: Stage3MacOSRuntime.sqliteDiagnosticPageID)
                         }
                     }
@@ -656,6 +670,7 @@ private struct Stage3MacOSProfileSurfaceButton: View {
             )
         }
         .buttonStyle(.plain)
+        .stage3HoverLift(enabled: !isSelected)
     }
 }
 
@@ -699,5 +714,6 @@ private struct Stage3MacOSDashboardTile: View {
             RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
                 .stroke(Color.cardStroke, lineWidth: 1)
         )
+        .stage3HoverLift()
     }
 }

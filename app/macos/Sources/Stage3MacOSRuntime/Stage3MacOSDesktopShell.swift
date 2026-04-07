@@ -27,6 +27,7 @@ public struct Stage3MacOSDesktopShellSnapshot: Equatable, Sendable {
 }
 
 public struct Stage3MacOSDesktopShellView: View {
+    @ObservedObject private var appState = Stage3MacOSAppState.shared
     @State private var selectedTabID: String
     @StateObject private var router = ConversationRouter()
 
@@ -51,6 +52,7 @@ public struct Stage3MacOSDesktopShellView: View {
             sidebar
             detail
         }
+        .stage3SplitAutosave("desktopShell")
         .frame(minWidth: 1120, minHeight: 760)
         .background(Color(nsColor: .windowBackgroundColor))
         .environmentObject(router)
@@ -79,6 +81,20 @@ public struct Stage3MacOSDesktopShellView: View {
 
             withAnimation(.spareSpring) {
                 selectedTabID = Stage3MacOSRuntime.messagesTabID
+            }
+        }
+        .onAppear {
+            let restoredTabID = appState.selectedTabID
+            if selectedTabID != restoredTabID {
+                selectedTabID = restoredTabID
+            }
+        }
+        .onChange(of: selectedTabID) { tabID in
+            appState.selectTab(tabID)
+        }
+        .onChange(of: appState.selectedTabID) { tabID in
+            if selectedTabID != tabID {
+                selectedTabID = tabID
             }
         }
     }
@@ -219,6 +235,18 @@ public struct Stage3MacOSDesktopShellView: View {
             .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
+        .stage3HoverLift(enabled: !isSelected)
+        .contextMenu {
+            Button("切换到 \(page.label)") {
+                withAnimation(.spareSpring) {
+                    selectedTabID = page.id
+                }
+            }
+
+            Button("复制模块路径") {
+                Stage3MacOSPasteboard.copy("root / \(page.id)")
+            }
+        }
         .accessibilityIdentifier("macos-shell-sidebar-\(page.id)")
     }
 }

@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "note": "Desktop host resource bridge keeps local seed-backed shared surfaces readable from the macOS bundle without claiming those surfaces are already live-runtime wired.",
+  "seed_surfaces": [
+    {
+      "id": "masters",
+      "source": "MasterExperienceStore.seedMessages(for:)",
+      "entry": "Bundled master catalog bootstrap"
+    },
+    {
+      "id": "earnSocial",
+      "source": "EarnSocialExperienceStore.seedContent()",
+      "entry": "Local market intent cards"
+    },
+    {
+      "id": "messages",
+      "source": "ConversationHubStore.load()",
+      "entry": "Recent contacts and seeded thread routes"
+    },
+    {
+      "id": "myProfile",
+      "source": "MyProfileStore.load()",
+      "entry": "Avatar/public profile fixtures"
+    }
+  ]
+}

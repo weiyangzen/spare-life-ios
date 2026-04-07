@@ -5,9 +5,27 @@ import SwiftUI
 
 struct MessagesThreadContext: Hashable {
     let thread: ConversationThread
+    let identity: MessagesThreadIdentity
 
     init(thread: ConversationThread) {
         self.thread = thread
+        self.identity = thread.identity
+    }
+
+    var locator: MessagesConversationLocator {
+        identity.locator
+    }
+
+    var canonicalThreadID: String {
+        identity.canonicalThreadID
+    }
+
+    static func == (lhs: MessagesThreadContext, rhs: MessagesThreadContext) -> Bool {
+        lhs.identity == rhs.identity
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(identity)
     }
 }
 
@@ -26,6 +44,15 @@ struct MessagesGroupVoteContext: Hashable {
         self.thread = thread
         self.voteID = voteID
         self.title = title
+    }
+
+    static func == (lhs: MessagesGroupVoteContext, rhs: MessagesGroupVoteContext) -> Bool {
+        lhs.thread == rhs.thread && lhs.voteID == rhs.voteID
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(thread)
+        hasher.combine(voteID)
     }
 }
 
@@ -52,6 +79,14 @@ struct MessagesComposeDraftContext: Hashable {
         self.draftID = draftID
         self.seedText = seedText
         self.recipient = recipientContext
+    }
+
+    static func == (lhs: MessagesComposeDraftContext, rhs: MessagesComposeDraftContext) -> Bool {
+        lhs.draftID == rhs.draftID
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(draftID)
     }
 }
 
@@ -117,46 +152,55 @@ enum MessagesRoute: Hashable {
 final class ConversationRouter: ObservableObject {
     @Published var path: [MessagesRoute] = []
     @Published private(set) var lastRequestedRoute: MessagesRoute = .home
+    @Published private(set) var lastHandoff: CrossTabHandoff?
     @Published private(set) var handoffSerial: UInt64 = 0
 
     var currentRoute: MessagesRoute {
         path.last ?? .home
     }
 
-    func goHome() {
-        navigate(to: .home)
+    func goHome(sourceSurface: AppSurfaceID = .messages) {
+        navigate(to: .home, sourceSurface: sourceSurface)
     }
 
-    func open(_ route: MessagesRoute) {
-        navigate(to: route)
+    func open(_ route: MessagesRoute, sourceSurface: AppSurfaceID = .messages) {
+        navigate(to: route, sourceSurface: sourceSurface)
     }
 
-    func openChat(_ thread: ConversationThread) {
-        open(.thread(MessagesThreadContext(thread: thread)))
+    func openChat(_ thread: ConversationThread, sourceSurface: AppSurfaceID = .messages) {
+        open(.thread(MessagesThreadContext(thread: thread)), sourceSurface: sourceSurface)
     }
 
-    func openMask(for thread: ConversationThread) {
-        open(.mask(MessagesThreadContext(thread: thread)))
+    func openMask(for thread: ConversationThread, sourceSurface: AppSurfaceID = .messages) {
+        open(.mask(MessagesThreadContext(thread: thread)), sourceSurface: sourceSurface)
     }
 
-    func openRelationship(for thread: ConversationThread) {
-        open(.relationship(MessagesThreadContext(thread: thread)))
+    func openRelationship(for thread: ConversationThread, sourceSurface: AppSurfaceID = .messages) {
+        open(.relationship(MessagesThreadContext(thread: thread)), sourceSurface: sourceSurface)
     }
 
-    func openMemory(for thread: ConversationThread) {
-        open(.memory(MessagesThreadContext(thread: thread)))
+    func openMemory(for thread: ConversationThread, sourceSurface: AppSurfaceID = .messages) {
+        open(.memory(MessagesThreadContext(thread: thread)), sourceSurface: sourceSurface)
     }
 
-    func openQuadRole(for thread: ConversationThread) {
-        open(.quadRole(MessagesThreadContext(thread: thread)))
+    func openQuadRole(for thread: ConversationThread, sourceSurface: AppSurfaceID = .messages) {
+        open(.quadRole(MessagesThreadContext(thread: thread)), sourceSurface: sourceSurface)
     }
 
-    func openGroupPlay(for thread: ConversationThread) {
-        open(.groupPlay(MessagesThreadContext(thread: thread)))
+    func openGroupPlay(for thread: ConversationThread, sourceSurface: AppSurfaceID = .messages) {
+        open(.groupPlay(MessagesThreadContext(thread: thread)), sourceSurface: sourceSurface)
     }
 
-    func openGroupVote(for thread: ConversationThread, voteID: String, title: String) {
-        open(.groupVote(MessagesGroupVoteContext(thread: thread, voteID: voteID, title: title)))
+    func openGroupVote(
+        for thread: ConversationThread,
+        voteID: String,
+        title: String,
+        sourceSurface: AppSurfaceID = .messages
+    ) {
+        open(
+            .groupVote(MessagesGroupVoteContext(thread: thread, voteID: voteID, title: title)),
+            sourceSurface: sourceSurface
+        )
     }
 
     func openComposeDraft(
@@ -175,8 +219,9 @@ final class ConversationRouter: ObservableObject {
         )
     }
 
-    private func navigate(to route: MessagesRoute) {
+    private func navigate(to route: MessagesRoute, sourceSurface: AppSurfaceID = .messages) {
         lastRequestedRoute = route
+        lastHandoff = route.handoff(sourceSurface: sourceSurface)
         path = route.canonicalStack
         handoffSerial &+= 1
     }

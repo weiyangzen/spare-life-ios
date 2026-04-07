@@ -22,7 +22,33 @@ struct MessagesFeatureRootView: View {
             ConversationHubView()
         case .thread(let context):
             ChatThreadView(thread: context.thread)
-        case .mask, .relationship, .memory, .quadRole, .groupPlay, .groupVote, .composeDraft:
+        case .mask(let context):
+            ContactMaskView(
+                contactID: context.thread.routePrimaryKey,
+                contactName: context.thread.contactName,
+                presentation: .embedded
+            )
+        case .relationship(let context):
+            RelationshipGardenView(
+                profile: .routeSeed(for: context.thread),
+                presentation: .embedded
+            )
+        case .memory(let context):
+            CrossSessionMemoryView(
+                thread: context.thread,
+                presentation: .embedded
+            )
+        case .quadRole(let context):
+            QuadRoleChatView(
+                thread: context.thread,
+                presentation: .embedded
+            )
+        case .groupPlay(let context):
+            GroupAgentPlayView(
+                thread: context.thread,
+                presentation: .embedded
+            )
+        case .groupVote, .composeDraft:
             MessagesPendingSurfaceView(route: route)
         }
     }
@@ -101,11 +127,11 @@ private struct MessagesPendingSurfaceView: View {
 
     private var pendingMessage: String {
         switch route {
-        case .mask, .relationship, .memory, .quadRole, .groupPlay, .groupVote:
-            return "该路由 contract 已冻结，但线程内入口仍保留 legacy sheet 流程，等待后续 S3-023 接成 typed navigation。"
+        case .groupVote:
+            return "group vote 已有 typed route，但当前仍停留在群玩法总面板，独立投票详情还没拆成 runtime surface。"
         case .composeDraft:
             return "该草稿路由已纳入统一 messages route，但 compose surface 仍未接成独立 runtime。"
-        case .home, .thread:
+        case .home, .thread, .mask, .relationship, .memory, .quadRole, .groupPlay:
             return "该页面没有 pending 状态。"
         }
     }

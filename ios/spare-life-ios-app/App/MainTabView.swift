@@ -51,6 +51,21 @@ enum MainTab: String, CaseIterable, Identifiable {
 
     /// The center tab (赚闲能) is the prominent one with a larger icon.
     var isProminent: Bool { self == .earnSocial }
+
+    var surfaceID: AppSurfaceID {
+        switch self {
+        case .xianxia:
+            return .xianxia
+        case .master:
+            return .masters
+        case .earnSocial:
+            return .earnSocial
+        case .messages:
+            return .messages
+        case .myProfile:
+            return .myProfile
+        }
+    }
 }
 
 // MARK: - Main Tab View
@@ -63,7 +78,8 @@ struct MainTabView: View {
     var body: some View {
         tabLayer
             .environmentObject(router)
-            .onChange(of: router.handoffSerial) { _ in
+            .onChange(of: router.handoffSerial) { _, _ in
+                guard router.lastHandoff?.targetSurface == .messages else { return }
                 guard router.lastRequestedRoute != .home else { return }
                 guard selectedTab != .messages else { return }
                 withAnimation(.spareSpring) {

@@ -92,6 +92,7 @@ final class ContactMaskStore: ObservableObject {
 struct ContactMaskView: View {
     let contactID: String
     let contactName: String
+    let presentation: CompanionSurfacePresentationMode
 
     @StateObject private var store: ContactMaskStore
     @Environment(\.dismiss) private var dismiss
@@ -99,39 +100,55 @@ struct ContactMaskView: View {
     @State private var newWhitelistTopic = ""
     @State private var newBlacklistTopic = ""
 
-    init(contactID: String, contactName: String) {
+    init(
+        contactID: String,
+        contactName: String,
+        presentation: CompanionSurfacePresentationMode = .modal
+    ) {
         self.contactID = contactID
         self.contactName = contactName
+        self.presentation = presentation
         _store = StateObject(wrappedValue: ContactMaskStore(contactID: contactID, contactName: contactName))
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: Spacing.lg) {
-                    headerCard
-                    maskNameSection
-                    toneSection
-                    disclosureSection
-                    topicWhitelistSection
-                    topicBlacklistSection
-                    historySection
-                    saveButton
-                }
-                .padding(Spacing.lg)
-                .padding(.bottom, Spacing.xxxl)
+        Group {
+            switch presentation {
+            case .modal:
+                NavigationStack { surfaceContent }
+            case .embedded:
+                surfaceContent
             }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("面具设置")
-            .spareNavigationBarTitleDisplayMode(.inline)
-            .toolbar {
+        }
+    }
+
+    private var surfaceContent: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: Spacing.lg) {
+                headerCard
+                maskNameSection
+                toneSection
+                disclosureSection
+                topicWhitelistSection
+                topicBlacklistSection
+                historySection
+                saveButton
+            }
+            .padding(Spacing.lg)
+            .padding(.bottom, Spacing.xxxl)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("面具设置")
+        .spareNavigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if presentation == .modal {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
                 }
             }
-            .alert("保存成功", isPresented: $store.saveSuccess) {
-                Button("好") { }
-            }
+        }
+        .alert("保存成功", isPresented: $store.saveSuccess) {
+            Button("好") { }
         }
     }
 

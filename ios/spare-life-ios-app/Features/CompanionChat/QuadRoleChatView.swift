@@ -82,53 +82,69 @@ final class QuadRoleChatStore: ObservableObject {
 
 struct QuadRoleChatView: View {
     let thread: ConversationThread
+    let presentation: CompanionSurfacePresentationMode
     @StateObject private var store: QuadRoleChatStore
     @Environment(\.dismiss) private var dismiss
 
-    init(thread: ConversationThread) {
+    init(
+        thread: ConversationThread,
+        presentation: CompanionSurfacePresentationMode = .modal
+    ) {
         self.thread = thread
+        self.presentation = presentation
         _store = StateObject(wrappedValue: QuadRoleChatStore(thread: thread))
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .bottom) {
-                Color(.systemGroupedBackground).ignoresSafeArea()
-
-                VStack(spacing: 0) {
-                    roleHeaderBar
-                    Divider()
-
-                    if store.isLoading {
-                        loadingBody
-                    } else {
-                        messageArea
-                    }
-
-                    roleInputBar
-                }
+        Group {
+            switch presentation {
+            case .modal:
+                NavigationStack { surfaceContent }
+            case .embedded:
+                surfaceContent
             }
-            .navigationTitle("四人场")
-            .spareNavigationBarTitleDisplayMode(.inline)
-            .toolbar {
+        }
+    }
+
+    private var surfaceContent: some View {
+        ZStack(alignment: .bottom) {
+            Color(.systemGroupedBackground).ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                roleHeaderBar
+                Divider()
+
+                if store.isLoading {
+                    loadingBody
+                } else {
+                    messageArea
+                }
+
+                roleInputBar
+            }
+        }
+        .navigationTitle("四人场")
+        .spareNavigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if presentation == .modal {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        store.showRoleGuide = true
-                    } label: {
-                        Image(systemName: "info.circle")
-                            .foregroundColor(.secondary)
-                    }
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    store.showRoleGuide = true
+                } label: {
+                    Image(systemName: "info.circle")
+                        .foregroundColor(.secondary)
                 }
             }
-            .task { store.load() }
-            .sheet(isPresented: $store.showRoleGuide) {
-                roleGuideSheet
-                    .presentationDragIndicator(.visible)
-                    .presentationDetents([.medium])
-            }
+        }
+        .task { store.load() }
+        .sheet(isPresented: $store.showRoleGuide) {
+            roleGuideSheet
+                .presentationDragIndicator(.visible)
+                .presentationDetents([.medium])
         }
     }
 
@@ -213,7 +229,7 @@ struct QuadRoleChatView: View {
                 .padding(.horizontal, Spacing.md)
                 .padding(.vertical, Spacing.md)
             }
-            .onChange(of: store.messages.count) { _ in
+            .onChange(of: store.messages.count) { _, _ in
                 if let last = store.messages.last {
                     withAnimation(.spareEase) {
                         proxy.scrollTo(last.id, anchor: .bottom)

@@ -67,8 +67,8 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 - [x] S3-020 把 `messages` 页从当前局部 `NavigationStack` + 根层 `fullScreenCover` 双宿主，收口为单一 feature root。
 - [x] S3-021 把 `ConversationRouter` 从“消息线程 modal 状态”升级成 typed route / handoff coordinator。
 - [x] S3-022 冻结 `MessagesRoute`，至少覆盖 `home / thread / mask / relationship / memory / quadRole / groupPlay / groupVote / composeDraft`。
-- [ ] S3-023 把 `ChatThreadView` 当前本地 `showContactMask / showRelationship / showQuadRole / showGroupPlay / showCrossSessionMemory` 迁移成 typed navigation action。
-- [ ] S3-024 按 `S4-03` 边界，把 `CompanionChatStore.swift` 最少拆成 `hub / thread / mask / relationship / memory / group play / shared`。
+- [x] S3-023 把 `ChatThreadView` 当前本地 `showContactMask / showRelationship / showQuadRole / showGroupPlay / showCrossSessionMemory` 迁移成 typed navigation action；线程内入口现统一走 `ConversationRouter + MessagesRoute`，`mask / relationship / memory / quadRole / groupPlay` 由 `MessagesFeatureRootView` 的 typed destination 承接，不再各自持有本地 sheet bool。
+- [x] S3-024 按 `S4-03` 边界，把 `CompanionChatStore.swift` 最少拆成 `hub / thread / mask / relationship / memory / group play / shared`；当前已拆到 `Features/CompanionChat/{Hub,Thread,Mask,Relationship,Memory,GroupPlay,Shared}` 并移除旧大一统文件，消息 shared identity 与各边界模型各自归位。
 - [ ] S3-025 让 `EarnSocialHomeView` 与 `EarnSocialExperienceStore` 收口成单一 runtime truth，不再继续双路径并存。
 - [ ] S3-026 让 `MyProfile` 根页明确区分 live-ish 聚合值、seeded fallback、未接线指标与 route target。
 - [ ] S3-027 修正 `Xianxia` topic/shard `loadMore()` 追加语义，停止覆盖已有数组。
@@ -123,7 +123,7 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 
 ### 6.7 路由、handoff 与跨端一致性
 
-- [ ] S3-080 把 `messages` 内部 route、跨 tab handoff、OpenClaw IM locator 对齐成同一套主键体系。
+- [x] S3-080 把 `messages` 内部 route、跨 tab handoff、OpenClaw IM locator 对齐成同一套主键体系；Swift runtime 已冻结 `MessagesConversationLocator / MessagesThreadIdentity / CrossTabHandoff`，thread context 只按 canonical locator 身份比较，thread-anchored handoff 对 `mask / relationship / memory / quadRole / groupPlay / groupVote` 统一复用同一 locator + hint。
 - [x] S3-081 冻结 `CrossTabHandoff` 的 canonical payload，不再继续扩散 ad-hoc URI。
 - [x] S3-082 为 `messages/self?draft=...`、`thread?lane=...&counterpart=...`、`thread?bond_id=...&icebreak_session_id=...` 建立 legacy normalizer，并把 `messages/self` 收口到 canonical `compose_draft` handoff，把两类 `thread` 历史入口统一降级为 `messages home + pendingThread` 兼容层。
 - [ ] S3-083 让 `masters -> messages`、`masters -> profile`、`earn social -> messages` 在 iOS 与 macOS 上共享同一 handoff 解释逻辑。

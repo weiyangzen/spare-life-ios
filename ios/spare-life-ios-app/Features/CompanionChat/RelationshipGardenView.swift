@@ -131,45 +131,61 @@ final class RelationshipGardenStore: ObservableObject {
 
 struct RelationshipGardenView: View {
     let profile: RelationshipProfile
+    let presentation: CompanionSurfacePresentationMode
     @StateObject private var store: RelationshipGardenStore
     @Environment(\.dismiss) private var dismiss
 
-    init(profile: RelationshipProfile) {
+    init(
+        profile: RelationshipProfile,
+        presentation: CompanionSurfacePresentationMode = .modal
+    ) {
         self.profile = profile
+        self.presentation = presentation
         _store = StateObject(wrappedValue: RelationshipGardenStore(profile: profile))
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if store.isLoading {
-                    loadingBody
-                } else {
-                    mainBody
-                }
+        Group {
+            switch presentation {
+            case .modal:
+                NavigationStack { surfaceContent }
+            case .embedded:
+                surfaceContent
             }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("与 \(store.profile.contactName) 的关系")
-            .spareNavigationBarTitleDisplayMode(.inline)
-            .toolbar {
+        }
+    }
+
+    private var surfaceContent: some View {
+        Group {
+            if store.isLoading {
+                loadingBody
+            } else {
+                mainBody
+            }
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("与 \(store.profile.contactName) 的关系")
+        .spareNavigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if presentation == .modal {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        store.showAddAnniversary = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .foregroundColor(.spareYellow)
-                    }
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    store.showAddAnniversary = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundColor(.spareYellow)
                 }
             }
-            .task { store.load() }
-            .sheet(isPresented: $store.showAddAnniversary) {
-                addAnniversarySheet
-                    .presentationDragIndicator(.visible)
-                    .presentationDetents([.medium])
-            }
+        }
+        .task { store.load() }
+        .sheet(isPresented: $store.showAddAnniversary) {
+            addAnniversarySheet
+                .presentationDragIndicator(.visible)
+                .presentationDetents([.medium])
         }
     }
 

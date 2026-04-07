@@ -38,6 +38,11 @@ enum SparePlatformSurfacePolicy {
             reason: "Route state and cross-tab payloads stay canonical across Apple platforms."
         ),
         .init(
+            file: "App/CrossTabHandoff.swift",
+            role: .sharedContentAndState,
+            reason: "Cross-tab payload mirrors and messages handoff hints stay canonical across Apple platforms."
+        ),
+        .init(
             file: "App/DesignSystem/DesignTokens.swift",
             role: .sharedContentAndState,
             reason: "Shared color, typography, avatar loading, and empty/error states are common UI primitives."
@@ -53,9 +58,19 @@ enum SparePlatformSurfacePolicy {
             reason: "Shared waterfall layout math and skeleton rendering are identical on iOS and macOS."
         ),
         .init(
-            file: "Features/CompanionChat/CompanionChatStore.swift",
+            file: "Features/CompanionChat/Shared/CompanionMessagesIdentity.swift",
             role: .sharedContentAndState,
-            reason: "Feature state and seeded conversation data stay shared; only presentation may diverge later."
+            reason: "Messages locator, canonical thread keys, and presentation mode contracts are shared runtime truth."
+        ),
+        .init(
+            file: "Features/CompanionChat/Hub/ConversationHubStore.swift",
+            role: .sharedContentAndState,
+            reason: "Hub summaries and seeded thread projections stay shared even when platform containers diverge."
+        ),
+        .init(
+            file: "Features/CompanionChat/Thread/ChatThreadStore.swift",
+            role: .sharedContentAndState,
+            reason: "Thread timeline state and seeded chat data remain shared; only presentation may diverge later."
         ),
         .init(
             file: "Features/EarnSocial/EarnSocialExperienceStore.swift",

@@ -273,43 +273,59 @@ final class CrossSessionMemoryStore: ObservableObject {
 
 struct CrossSessionMemoryView: View {
     let thread: ConversationThread
+    let presentation: CompanionSurfacePresentationMode
     @StateObject private var store: CrossSessionMemoryStore
     @Environment(\.dismiss) private var dismiss
 
-    init(thread: ConversationThread) {
+    init(
+        thread: ConversationThread,
+        presentation: CompanionSurfacePresentationMode = .modal
+    ) {
         self.thread = thread
+        self.presentation = presentation
         _store = StateObject(wrappedValue: CrossSessionMemoryStore(thread: thread))
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color(.systemGroupedBackground).ignoresSafeArea()
+        Group {
+            switch presentation {
+            case .modal:
+                NavigationStack { surfaceContent }
+            case .embedded:
+                surfaceContent
+            }
+        }
+    }
 
-                Group {
-                    switch store.loadState {
-                    case .idle, .loading:
-                        loadingBody
-                    case .loaded:
-                        loadedBody
-                    case .error(let message):
-                        ErrorStateView(message: message, retry: store.retry)
-                    }
+    private var surfaceContent: some View {
+        ZStack {
+            Color(.systemGroupedBackground).ignoresSafeArea()
+
+            Group {
+                switch store.loadState {
+                case .idle, .loading:
+                    loadingBody
+                case .loaded:
+                    loadedBody
+                case .error(let message):
+                    ErrorStateView(message: message, retry: store.retry)
                 }
             }
-            .navigationTitle("跨会话记忆")
-            .spareNavigationBarTitleDisplayMode(.inline)
-            .toolbar {
+        }
+        .navigationTitle("跨会话记忆")
+        .spareNavigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if presentation == .modal {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
                 }
             }
-            .task { store.load() }
-            .sheet(isPresented: $store.showCorrectionSheet) {
-                correctionSheet
-                    .presentationDragIndicator(.visible)
-                    .presentationDetents([.medium])
-            }
+        }
+        .task { store.load() }
+        .sheet(isPresented: $store.showCorrectionSheet) {
+            correctionSheet
+                .presentationDragIndicator(.visible)
+                .presentationDetents([.medium])
         }
     }
 

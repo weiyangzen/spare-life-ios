@@ -214,7 +214,7 @@ dm:<channel_id>:<peer_id>
    - `normalizeDirectMessageInput(...)` 与 `normalizeGroupConversationInput(...)` 可选接收 `cardEnvelope / locator / surfaceKind`
    - `companionChatHandler.sendDirectMessage(...)` 会通过 `assertOpenClawIMCapabilityAllowed(...)` 拒绝 group surface 误入
    - `companionChatHandler.openGroupConversation(...)` 会通过同一 gate 拒绝 direct surface 误入
-   - 当前其余 group-only / direct-only action 仍主要依赖 `capabilityFlags` 呈现，后续再由 `S3-040/S3-041/S3-043/S3-044` 继续补齐更细的 route/error gate
+   - 其余 direct-only action 现在也不再只剩 `capabilityFlags`：`S3-041` 已把 direct thread lane / card re-entry / error fallback 显式冻结到 contract 层，`S3-042` 也已把 inspect 收口到 diagnostics/internal tool
 11. `S3-040` 当前已把 `group vote launch / ballot / summary` 从“view 自己判断是不是群聊”推进到 contract-first：
    - `conversation_group_context.actionLanes[*]` 现在固定输出 `group_vote_launch / group_vote_ballot / group_summary`
    - 每条 lane 同时带 `route / handoff / surfaceGate / requiredIDs / fallbackIDs / optionalHints / uiStatus`
@@ -231,6 +231,15 @@ dm:<channel_id>:<peer_id>
    - `temporarily_unavailable`
    - `permission_denied`
    具体实现是 `buildOpenClawIMErrorSurface(...)` 与 `normalizeOpenClawIMActionError(...)`。companion handler 现在会把 raw runtime error 归一成结构化 `errorKind + errorSurface`，而 `buildUnifiedChannelFailure(...)` 也会把这些字段透出给上层。
+14. `S3-041` 现在已把 `mask update / shared stage draft / access / message / ritual schedule / complete` 的 client 承接位冻结为 contract：
+   - `buildDirectThreadActionEntryModel(...)` 会为每个 direct-only action 输出 `cardEntry / threadEntry / errorFallback`
+   - `cardEntry` 统一声明 `messages home` 卡片只负责重开私聊线程，不直接触发这些动作
+   - `threadEntry` 会明确指出当前 host surface：`mask` 走现有 `messages/mask` 子页；`shared stage` 动作回到 direct thread 的 shared-stage lane；`ritual` 动作回到 `relationship / rituals` 上下文
+   - `buildConversationStageContextModel(...)` 现已把这 6 条 lane 挂到 `actionLanes[*]`，`openConversation(...)` response 也会把这些 lane 追加进 `contextCards`，因此 direct-only 承接不再悬空
+15. `S3-042` 现在已把 `companion inspect` 的 client 位置固定为 diagnostics/internal tool，而不是 messages thread 子页：
+   - `buildCompanionInspectionEntryModel(...)` 固定输出 `acceptedClientPosition=internal_tool`
+   - `diagnosticsEntry` 会显式提示 host 应落在 `OpenClawPluginView / SQLiteBackendDashboardView` 一类基础诊断面
+   - `cardEntry / threadEntry` 都会明确标记为 `supported=false`，并把回退面固定到当前 thread 或 messages home，避免继续把 inspect 误写成 thread runtime
 
 ## 风险
 

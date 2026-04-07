@@ -159,7 +159,7 @@ export function createCompanionChatRuntime({ dbPath }) {
           envelope: normalized.envelope,
           contactId: normalized.contactId
         });
-        return buildMaskUpdateResponse(useCase.updateContactMask(normalized));
+        return buildMaskUpdateResponse(useCase.updateContactMask(normalized), normalized);
       } catch (error) {
         throw normalizeActionError('update_contact_mask', error, {
           surfaceKind: normalized?.surfaceKind ?? null,
@@ -178,7 +178,7 @@ export function createCompanionChatRuntime({ dbPath }) {
           envelope: normalized.envelope,
           contactId: normalized.contactId
         });
-        return buildSharedStageDraftResponse(useCase.draftSharedStage(normalized));
+        return buildSharedStageDraftResponse(useCase.draftSharedStage(normalized), normalized);
       } catch (error) {
         throw normalizeActionError('draft_shared_stage', error, {
           surfaceKind: normalized?.surfaceKind ?? null,
@@ -196,7 +196,7 @@ export function createCompanionChatRuntime({ dbPath }) {
           locator: normalized.locator,
           envelope: normalized.envelope
         });
-        return buildStageResponse(useCase.grantStageAccess(normalized), 'grant_stage_access');
+        return buildStageResponse(useCase.grantStageAccess(normalized), 'grant_stage_access', normalized);
       } catch (error) {
         throw normalizeActionError('grant_stage_access', error, {
           surfaceKind: normalized?.surfaceKind ?? null,
@@ -214,7 +214,7 @@ export function createCompanionChatRuntime({ dbPath }) {
           locator: normalized.locator,
           envelope: normalized.envelope
         });
-        return buildStageResponse(useCase.postStageMessage(normalized), 'post_stage_message');
+        return buildStageResponse(useCase.postStageMessage(normalized), 'post_stage_message', normalized);
       } catch (error) {
         throw normalizeActionError('post_stage_message', error, {
           surfaceKind: normalized?.surfaceKind ?? null,
@@ -235,7 +235,8 @@ export function createCompanionChatRuntime({ dbPath }) {
         });
         return buildRitualResponse(
           useCase.scheduleRelationshipRitual(normalized),
-          'schedule_relationship_ritual'
+          'schedule_relationship_ritual',
+          normalized
         );
       } catch (error) {
         throw normalizeActionError('schedule_relationship_ritual', error, {
@@ -247,10 +248,7 @@ export function createCompanionChatRuntime({ dbPath }) {
     completeRelationshipRitual(payload) {
       try {
         const normalized = normalizeRitualCompletionInput(payload);
-        return buildRitualResponse(
-          useCase.completeRelationshipRitual(normalized),
-          'complete_relationship_ritual'
-        );
+        return buildRitualResponse(useCase.completeRelationshipRitual(normalized), 'complete_relationship_ritual', normalized);
       } catch (error) {
         throw normalizeActionError('complete_relationship_ritual', error);
       }
@@ -409,7 +407,7 @@ export function createCompanionChatRuntime({ dbPath }) {
     inspectCompanionState(payload) {
       try {
         const normalized = normalizeCompanionInspectInput(payload);
-        return buildCompanionInspectionResponse(useCase.inspectCompanionState(normalized.userId));
+        return buildCompanionInspectionResponse(useCase.inspectCompanionState(normalized.userId), normalized);
       } catch (error) {
         throw normalizeActionError('inspect_companion', error);
       }

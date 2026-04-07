@@ -278,7 +278,7 @@ const OPENCLAW_IM_ACTION_RUNTIME_CONTRACTS = Object.freeze({
   update_contact_mask: Object.freeze({
     uiTitle: '更新对人面具',
     uiStatus: 'not_ready',
-    uiUnavailableCopy: '对人面具的 OpenClaw IM 入口仍在消息线程收口中，暂不作为独立卡片入口开放。',
+    uiUnavailableCopy: '对人面具入口已收口到 direct thread 的 mask 卡 / mask 子页；messages home 卡片只负责重开线程。',
     requiredIDs: ['user_id', 'contact_id'],
     fallbackIDs: ['locator.peer_id', 'card_envelope.locator.peer_id'],
     optionalHints: ['tone', 'openness', 'boundary_tags', 'signature'],
@@ -287,7 +287,7 @@ const OPENCLAW_IM_ACTION_RUNTIME_CONTRACTS = Object.freeze({
   draft_shared_stage: Object.freeze({
     uiTitle: '生成共享舞台草稿',
     uiStatus: 'not_ready',
-    uiUnavailableCopy: '共享舞台草稿仍在 direct thread 内部收口中，暂不作为独立 OpenClaw IM 入口开放。',
+    uiUnavailableCopy: '共享舞台草稿应承接在 direct thread 的 shared-stage lane；messages home 卡片不直接起草草稿。',
     requiredIDs: ['user_id', 'contact_id'],
     fallbackIDs: ['locator.peer_id', 'card_envelope.locator.peer_id'],
     optionalHints: ['conversation_id', 'source_surface'],
@@ -296,7 +296,7 @@ const OPENCLAW_IM_ACTION_RUNTIME_CONTRACTS = Object.freeze({
   grant_stage_access: Object.freeze({
     uiTitle: '管理舞台访问',
     uiStatus: 'not_ready',
-    uiUnavailableCopy: '共享舞台授权入口还未收口成稳定的 OpenClaw IM route。',
+    uiUnavailableCopy: '共享舞台授权应承接在 direct thread 的 participant / stage access 上下文，不作为首页卡片独立动作。',
     requiredIDs: ['user_id', 'conversation_id', 'participant_key'],
     fallbackIDs: ['card_envelope.conversation_id', 'locator.conversation_id'],
     optionalHints: ['granted', 'source_surface'],
@@ -305,7 +305,7 @@ const OPENCLAW_IM_ACTION_RUNTIME_CONTRACTS = Object.freeze({
   post_stage_message: Object.freeze({
     uiTitle: '发送舞台消息',
     uiStatus: 'not_ready',
-    uiUnavailableCopy: '共享舞台消息入口还在 direct thread 内部整理中，暂不作为独立 OpenClaw IM route。',
+    uiUnavailableCopy: '共享舞台消息应承接在 direct thread 的 shared-stage lane；若缺少线程上下文，请先回到消息线程。',
     requiredIDs: ['user_id', 'conversation_id', 'participant_key'],
     fallbackIDs: ['card_envelope.conversation_id', 'locator.conversation_id'],
     optionalHints: ['channel_kind', 'source_surface'],
@@ -314,7 +314,7 @@ const OPENCLAW_IM_ACTION_RUNTIME_CONTRACTS = Object.freeze({
   schedule_relationship_ritual: Object.freeze({
     uiTitle: '安排关系仪式',
     uiStatus: 'not_ready',
-    uiUnavailableCopy: '关系仪式入口仍在消息线程上下文卡里收口，暂不开放独立 OpenClaw IM 入口。',
+    uiUnavailableCopy: '关系仪式入口应承接在 direct thread 的 relationship / rituals 上下文，不作为独立首页卡片开放。',
     requiredIDs: ['user_id', 'contact_id'],
     fallbackIDs: ['locator.peer_id', 'card_envelope.locator.peer_id'],
     optionalHints: ['ritual_kind', 'scheduled_for', 'note'],
@@ -323,7 +323,7 @@ const OPENCLAW_IM_ACTION_RUNTIME_CONTRACTS = Object.freeze({
   complete_relationship_ritual: Object.freeze({
     uiTitle: '完成关系仪式',
     uiStatus: 'not_ready',
-    uiUnavailableCopy: '关系仪式完成入口还未冻结成稳定 OpenClaw IM route。',
+    uiUnavailableCopy: '关系仪式完成应承接在 relationship / rituals 上下文，缺少 ritual_id 时需先回到对应线程或关系页。',
     requiredIDs: ['user_id', 'ritual_id'],
     fallbackIDs: [],
     optionalHints: ['note'],
@@ -393,7 +393,7 @@ const OPENCLAW_IM_ACTION_RUNTIME_CONTRACTS = Object.freeze({
   inspect_companion: Object.freeze({
     uiTitle: '检查 companion 状态',
     uiStatus: 'not_ready',
-    uiUnavailableCopy: 'companion inspect 仍是内部诊断入口，当前还没有稳定的 client-facing IM 承接位。',
+    uiUnavailableCopy: 'companion inspect 已定义为 diagnostics / internal tool 入口，不再作为 messages thread 子页。',
     requiredIDs: ['user_id'],
     fallbackIDs: [],
     optionalHints: ['diagnostics_scope'],
@@ -1570,10 +1570,312 @@ export function buildConversationTimelineItemModel(messageModel = {}) {
   };
 }
 
+function buildMessagesThreadRecoverySurface(summary, actionKey, sourceSurface = 'messages', hint = {}) {
+  return {
+    kind: 'messages_thread',
+    entrySurface: 'messages_thread',
+    route: summary.route,
+    handoff: buildMessagesThreadHandoff({
+      sourceSurface,
+      conversationId: summary.conversationId,
+      channelId: summary.locator.channelID ?? summary.sourceChannelID,
+      groupId: summary.locator.groupID ?? null,
+      peerId: summary.locator.peerID ?? null,
+      hint: {
+        actionKey,
+        ...hint
+      }
+    })
+  };
+}
+
+function buildMessagesHomeRecoverySurface(sourceSurface = 'messages') {
+  return {
+    kind: 'messages_home',
+    entrySurface: 'messages_home',
+    route: buildMessagesHomeRoute(),
+    handoff: buildMessagesHomeHandoff({
+      sourceSurface
+    })
+  };
+}
+
+export function buildDirectThreadActionEntryModel(actionKey, {
+  conversation = {},
+  contactId = null,
+  participants = [],
+  messages = [],
+  rituals = [],
+  sourceSurface = 'messages'
+} = {}) {
+  const summary = buildConversationSummaryModel({ conversation });
+  if (summary.surfaceKind === 'group') {
+    throw new Error(`Direct thread action ${actionKey} requires a dm conversation summary.`);
+  }
+
+  const resolvedContactId =
+    sanitizeText(contactId ?? conversation.contactId ?? summary.locator.peerID) || null;
+  const normalizedParticipants = Array.isArray(participants) ? participants : [];
+  const normalizedMessages = Array.isArray(messages) ? messages : [];
+  const normalizedRituals = Array.isArray(rituals) ? rituals : [];
+  const latestStageMessage =
+    normalizedMessages.filter((message) => sanitizeText(message.stageMode) === 'shared_stage').at(-1) ?? null;
+  const latestRitual = normalizedRituals[0] ?? null;
+  const latestScheduledRitual =
+    normalizedRituals.find((ritual) => sanitizeText(ritual.status) === 'scheduled') ?? latestRitual ?? null;
+  const pendingGrantParticipant =
+    normalizedParticipants.find((participant) => participant.permissions?.requiresGrant && !participant.permissions?.canPost) ??
+    null;
+  const threadRecovery = buildMessagesThreadRecoverySurface(summary, actionKey, sourceSurface);
+  const homeRecovery = buildMessagesHomeRecoverySurface(sourceSurface);
+
+  let targetID = summary.conversationId;
+  let threadCardType = 'direct_thread_context';
+  let threadRoute = summary.route;
+  let threadMessage = '当前动作应承接在 direct thread 上下文，不从 messages home 卡片直接触发。';
+  let unavailableDetail = '当前动作仍依附 direct thread 上下文，独立 client-facing IM route 还未冻结。';
+
+  switch (actionKey) {
+    case 'update_contact_mask':
+      targetID = resolvedContactId;
+      threadCardType = 'mask';
+      threadRoute = resolvedContactId ? buildMaskRoute(resolvedContactId) : summary.route;
+      threadMessage = 'client 应先进入 direct thread 的 mask 卡 / mask 子页，再执行 mask update。';
+      unavailableDetail = 'mask update 已有 mask 子页承接，但 messages home 卡片仍只负责重开线程。';
+      break;
+    case 'draft_shared_stage':
+      targetID = summary.conversationId;
+      threadCardType = 'shared_stage_draft';
+      threadRoute = summary.route;
+      threadMessage = 'client 应先回到 direct thread 的 shared-stage lane，再起草共享舞台草稿。';
+      unavailableDetail = 'shared stage draft 仍承接在 direct thread 的 shared-stage lane，独立 client route 尚未冻结。';
+      break;
+    case 'grant_stage_access':
+      targetID = sanitizeText(pendingGrantParticipant?.participantKey) || summary.conversationId;
+      threadCardType = 'shared_stage_access';
+      threadRoute = summary.route;
+      threadMessage = 'client 应先进入 direct thread 的 participant / stage access 上下文，再调整授权。';
+      unavailableDetail = 'stage access 仍依附 direct thread 的 participant 权限上下文，尚未升级成独立 client route。';
+      break;
+    case 'post_stage_message':
+      targetID = sanitizeText(latestStageMessage?.messageId) || summary.conversationId;
+      threadCardType = 'shared_stage_message';
+      threadRoute = summary.route;
+      threadMessage = 'client 应先进入 direct thread 的 shared-stage lane，再发送 stage message。';
+      unavailableDetail = 'stage message 仍依附 direct thread 的 shared-stage lane，缺少稳定的独立 client route。';
+      break;
+    case 'schedule_relationship_ritual':
+      targetID = resolvedContactId;
+      threadCardType = 'relationship_rituals';
+      threadRoute = resolvedContactId ? buildRelationshipRoute(resolvedContactId) : summary.route;
+      threadMessage = 'client 应先进入 direct thread 的 relationship / rituals 上下文，再安排 ritual。';
+      unavailableDetail = 'ritual schedule 仍应承接在 relationship / rituals 上下文，不作为首页卡片直接动作开放。';
+      break;
+    case 'complete_relationship_ritual':
+      targetID = sanitizeText(latestScheduledRitual?.id ?? latestRitual?.id) || null;
+      threadCardType = 'relationship_rituals';
+      threadRoute = resolvedContactId ? buildRelationshipRoute(resolvedContactId) : summary.route;
+      threadMessage = 'client 应先进入 relationship / rituals 上下文，确认 ritual 后再执行 completion。';
+      unavailableDetail = targetID
+        ? 'ritual completion 仍依附 relationship / rituals 上下文，当前没有独立 client route。'
+        : '当前关系还没有可完成的 ritual；若要补全 completion，请先回到 relationship / rituals 上下文。';
+      break;
+    default:
+      break;
+  }
+
+  return {
+    kind: 'direct_thread_action_entry',
+    actionKey,
+    targetID,
+    cardEntry: {
+      supported: false,
+      entrySurface: 'messages_home_card',
+      hostCardType: 'im_card',
+      route: threadRecovery.route,
+      handoff: threadRecovery.handoff,
+      message: 'messages home 卡片只负责重开私聊线程；该动作必须在线程上下文内承接。'
+    },
+    threadEntry: {
+      supported: true,
+      entrySurface: 'direct_thread_context',
+      hostCardType: threadCardType,
+      route: threadRoute,
+      handoff: threadRecovery.handoff,
+      message: threadMessage
+    },
+    errorFallback: {
+      kind: 'messages_reentry',
+      primarySurface: threadRecovery,
+      secondarySurface: homeRecovery,
+      unavailableDetail
+    }
+  };
+}
+
+function buildDirectThreadActionLane({
+  actionKey,
+  conversation = {},
+  participants = [],
+  messages = [],
+  rituals = [],
+  sourceSurface = 'messages'
+} = {}) {
+  const summary = buildConversationSummaryModel({ conversation });
+  if (summary.surfaceKind === 'group') {
+    return null;
+  }
+
+  const actionContract = buildOpenClawIMActionContract(actionKey, {
+    surfaceKind: 'dm',
+    locator: summary.locator,
+    contactId: summary.locator.peerID ?? conversation.contactId ?? null
+  });
+  const clientEntry = buildDirectThreadActionEntryModel(actionKey, {
+    conversation: {
+      ...conversation,
+      ...summary
+    },
+    contactId: summary.locator.peerID ?? conversation.contactId ?? null,
+    participants,
+    messages,
+    rituals,
+    sourceSurface
+  });
+  const uiReady = actionContract.availableOnSurface && actionContract.uiStatus === 'ready';
+  const resolvedUnavailableKind = uiReady
+    ? null
+    : normalizeOpenClawIMErrorKind(actionContract.uiUnavailableErrorKind ?? 'not_ready');
+
+  return {
+    laneKey: actionContract.actionKey,
+    actionKey: actionContract.actionKey,
+    stage3Item: actionContract.stage3Item,
+    title: actionContract.uiTitle || actionContract.label,
+    surfaceKind: 'dm',
+    entrySurface: actionContract.entrySurface,
+    route: clientEntry.threadEntry.route,
+    handoff: clientEntry.threadEntry.handoff,
+    targetID: clientEntry.targetID,
+    requiredIDs: actionContract.requiredIDs,
+    fallbackIDs: actionContract.fallbackIDs,
+    optionalHints: actionContract.optionalHints,
+    supportedErrorKinds: actionContract.supportedErrorKinds,
+    uiReady,
+    uiStatus: uiReady ? 'ready' : resolvedUnavailableKind,
+    uiUnavailableCopy: actionContract.uiUnavailableCopy,
+    surfaceGate: {
+      allowedSurfaceKind: 'dm',
+      blockedBySurface: actionContract.blockedBySurface
+    },
+    errorSurface: uiReady
+      ? null
+      : buildOpenClawIMErrorSurface({
+          kind: resolvedUnavailableKind,
+          actionKey: actionContract.actionKey,
+          surfaceKind: 'dm',
+          allowedSurfaceKind: 'dm',
+          detail: clientEntry.errorFallback.unavailableDetail
+        }),
+    cardEntry: clientEntry.cardEntry,
+    threadEntry: clientEntry.threadEntry,
+    errorFallback: {
+      ...clientEntry.errorFallback,
+      errorSurface: buildOpenClawIMErrorSurface({
+        kind: resolvedUnavailableKind ?? actionContract.uiUnavailableErrorKind ?? 'not_ready',
+        actionKey: actionContract.actionKey,
+        surfaceKind: 'dm',
+        allowedSurfaceKind: 'dm',
+        detail: clientEntry.errorFallback.unavailableDetail
+      })
+    }
+  };
+}
+
+function buildDirectThreadActionLanes({
+  conversation = {},
+  participants = [],
+  messages = [],
+  rituals = [],
+  sourceSurface = 'messages'
+} = {}) {
+  return [
+    'update_contact_mask',
+    'draft_shared_stage',
+    'grant_stage_access',
+    'post_stage_message',
+    'schedule_relationship_ritual',
+    'complete_relationship_ritual'
+  ].map((actionKey) =>
+    buildDirectThreadActionLane({
+      actionKey,
+      conversation,
+      participants,
+      messages,
+      rituals,
+      sourceSurface
+    })
+  ).filter(Boolean);
+}
+
+export function buildCompanionInspectionEntryModel({
+  conversation = null,
+  sourceSurface = 'messages'
+} = {}) {
+  const summary = conversation ? buildConversationSummaryModel({ conversation }) : null;
+  const threadRecovery = summary
+    ? buildMessagesThreadRecoverySurface(summary, 'inspect_companion', sourceSurface)
+    : null;
+  const homeRecovery = buildMessagesHomeRecoverySurface(sourceSurface);
+  const diagnosticsErrorSurface = buildOpenClawIMErrorSurface({
+    kind: 'not_ready',
+    actionKey: 'inspect_companion',
+    surfaceKind: summary?.surfaceKind ?? null,
+    detail: 'companion inspect 被定义为 diagnostics / internal tool 入口，不再承接为 messages thread 子页。'
+  });
+
+  return {
+    kind: 'companion_inspection_entry',
+    actionKey: 'inspect_companion',
+    stage3Item: 'S3-042',
+    acceptedClientPosition: 'internal_tool',
+    diagnosticsEntry: {
+      supported: true,
+      entrySurface: 'diagnostics',
+      hostViewHints: ['OpenClawPluginView', 'SQLiteBackendDashboardView'],
+      route: null,
+      handoff: null,
+      message: 'client 应把 companion inspect 承接在 diagnostics / internal tool，而不是 messages thread route。'
+    },
+    cardEntry: {
+      supported: false,
+      entrySurface: 'messages_home_card',
+      route: threadRecovery?.route ?? homeRecovery.route,
+      handoff: threadRecovery?.handoff ?? homeRecovery.handoff,
+      message: 'companion inspect 不从 messages home 卡片直接触发；消息卡片只负责重开线程。'
+    },
+    threadEntry: {
+      supported: false,
+      entrySurface: 'messages_thread',
+      route: threadRecovery?.route ?? null,
+      handoff: threadRecovery?.handoff ?? null,
+      message: 'companion inspect 已收口到 diagnostics / internal tool，不再作为线程附属子页。'
+    },
+    errorFallback: {
+      kind: 'diagnostics_or_messages_reentry',
+      primarySurface: threadRecovery ?? homeRecovery,
+      secondarySurface: homeRecovery,
+      errorSurface: diagnosticsErrorSurface
+    }
+  };
+}
+
 export function buildConversationStageContextModel({
   conversation = {},
   participants = [],
-  messages = []
+  messages = [],
+  rituals = [],
+  sourceSurface = 'messages'
 } = {}) {
   const summary = buildConversationSummaryModel({ conversation });
   if (summary.surfaceKind === 'group') {
@@ -1585,6 +1887,18 @@ export function buildConversationStageContextModel({
   );
   const stageMessages = messages.filter((message) => sanitizeText(message.stageMode) === 'shared_stage');
   const latestStageMessage = stageMessages.at(-1) ?? null;
+  const normalizedRituals = Array.isArray(rituals) ? rituals : [];
+  const latestRitual = normalizedRituals[0] ?? null;
+  const actionLanes = buildDirectThreadActionLanes({
+    conversation: {
+      ...conversation,
+      ...summary
+    },
+    participants: stageParticipants,
+    messages,
+    rituals: normalizedRituals,
+    sourceSurface
+  });
 
   return {
     kind: 'conversation_stage_context',
@@ -1599,7 +1913,10 @@ export function buildConversationStageContextModel({
       .map((participant) => participant.participantKey),
     messageCount: stageMessages.length,
     latestMessageId: latestStageMessage?.messageId ?? null,
-    latestMessageAt: latestStageMessage?.createdAt ?? null
+    latestMessageAt: latestStageMessage?.createdAt ?? null,
+    ritualCount: normalizedRituals.length,
+    latestRitualId: sanitizeText(latestRitual?.id) || null,
+    actionLanes
   };
 }
 
@@ -1820,6 +2137,7 @@ export function buildConversationOpenOutputModel({
   cardEnvelope = null,
   participants = [],
   messages = [],
+  rituals = [],
   contextCards = [],
   votes = [],
   groupSummaries = [],
@@ -1867,7 +2185,9 @@ export function buildConversationOpenOutputModel({
         ...conversationSummary
       },
       participants: participantModels,
-      messages: messageModels
+      messages: messageModels,
+      rituals,
+      sourceSurface
     }),
     groupContext: buildConversationGroupContextModel({
       conversation: {
@@ -1878,6 +2198,13 @@ export function buildConversationOpenOutputModel({
       messages: messageModels,
       votes,
       groupSummaries,
+      sourceSurface
+    }),
+    companionInspectionEntry: buildCompanionInspectionEntryModel({
+      conversation: {
+        ...conversation,
+        ...conversationSummary
+      },
       sourceSurface
     }),
     contextCards: Array.isArray(contextCards) ? contextCards.filter(Boolean) : []

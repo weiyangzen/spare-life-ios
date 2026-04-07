@@ -77,6 +77,7 @@ function readCardEnvelopeInput(input) {
 
 function normalizeOptionalSurfaceContext(input, fallbackSurfaceKind, actionKey = null) {
   try {
+    const rawEnvelope = readCardEnvelopeInput(input);
     const envelope = normalizeCardEnvelopeInput(readCardEnvelopeInput(input), actionKey);
     const locator = input.openAction?.locator
       ? normalizeIMConversationLocator(input.openAction.locator)
@@ -101,7 +102,10 @@ function normalizeOptionalSurfaceContext(input, fallbackSurfaceKind, actionKey =
             null
         },
         fallbackSurfaceKind
-      )
+      ),
+      sourceSurface:
+        `${input.sourceSurface ?? input.source_surface ?? input.openAction?.handoff?.sourceSurface ?? rawEnvelope?.handoff?.sourceSurface ?? ''}`.trim() ||
+        'messages'
     };
   } catch (error) {
     throw normalizeOpenClawIMActionError(error, {
@@ -219,7 +223,8 @@ export function normalizeMaskUpdateInput(input) {
     changeSummary: `${input.changeSummary ?? ''}`.trim() || null,
     locator: surfaceContext.locator,
     envelope: surfaceContext.envelope,
-    surfaceKind: surfaceContext.surfaceKind
+    surfaceKind: surfaceContext.surfaceKind,
+    sourceSurface: surfaceContext.sourceSurface
   };
 }
 
@@ -239,7 +244,8 @@ export function normalizeSharedStageDraftInput(input) {
     text: requireString(input.text, 'text'),
     locator: surfaceContext.locator,
     envelope: surfaceContext.envelope,
-    surfaceKind: surfaceContext.surfaceKind
+    surfaceKind: surfaceContext.surfaceKind,
+    sourceSurface: surfaceContext.sourceSurface
   };
 }
 
@@ -267,7 +273,8 @@ export function normalizeStageAccessInput(input) {
     granted: input.granted !== false,
     locator: surfaceContext.locator,
     envelope: surfaceContext.envelope,
-    surfaceKind: surfaceContext.surfaceKind
+    surfaceKind: surfaceContext.surfaceKind,
+    sourceSurface: surfaceContext.sourceSurface
   };
 }
 
@@ -296,7 +303,8 @@ export function normalizeStageMessageInput(input) {
     channelKind: `${input.channelKind ?? ''}`.trim() || null,
     locator: surfaceContext.locator,
     envelope: surfaceContext.envelope,
-    surfaceKind: surfaceContext.surfaceKind
+    surfaceKind: surfaceContext.surfaceKind,
+    sourceSurface: surfaceContext.sourceSurface
   };
 }
 
@@ -318,15 +326,22 @@ export function normalizeRitualScheduleInput(input) {
     note: `${input.note ?? ''}`.trim() || null,
     locator: surfaceContext.locator,
     envelope: surfaceContext.envelope,
-    surfaceKind: surfaceContext.surfaceKind
+    surfaceKind: surfaceContext.surfaceKind,
+    sourceSurface: surfaceContext.sourceSurface
   };
 }
 
 export function normalizeRitualCompletionInput(input) {
+  const actionKey = 'complete_relationship_ritual';
+  const surfaceContext = normalizeOptionalSurfaceContext(input, 'dm', actionKey);
   return {
     userId: requireString(input.userId, 'userId'),
     ritualId: requireString(input.ritualId, 'ritualId'),
-    note: `${input.note ?? ''}`.trim() || null
+    note: `${input.note ?? ''}`.trim() || null,
+    locator: surfaceContext.locator,
+    envelope: surfaceContext.envelope,
+    surfaceKind: surfaceContext.surfaceKind,
+    sourceSurface: surfaceContext.sourceSurface
   };
 }
 
@@ -424,7 +439,12 @@ export function normalizeGroupSummaryInput(input) {
 }
 
 export function normalizeCompanionInspectInput(input) {
+  const surfaceContext = normalizeOptionalSurfaceContext(input, 'dm', 'inspect_companion');
   return {
-    userId: requireString(input.userId, 'userId')
+    userId: requireString(input.userId, 'userId'),
+    locator: surfaceContext.locator,
+    envelope: surfaceContext.envelope,
+    surfaceKind: surfaceContext.surfaceKind,
+    sourceSurface: surfaceContext.sourceSurface
   };
 }

@@ -647,6 +647,7 @@ export function buildConversationContext({
           }
         : null
     ].filter(Boolean),
+    rituals,
     homeRoute: buildMessagesHomeRoute(),
     homeHandoff: buildMessagesHomeHandoff({
       sourceSurface

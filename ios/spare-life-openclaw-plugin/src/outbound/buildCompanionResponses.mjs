@@ -1,9 +1,11 @@
 import {
+  buildCompanionInspectionEntryModel,
   buildConversationOpenAction,
   buildConversationOpenInputModel,
   buildConversationOpenOutputModel,
   buildConversationSearchInputModel,
   buildConversationSearchOutputModel,
+  buildDirectThreadActionEntryModel,
   buildIMCardEnvelope,
   buildOpenClawIMActionContract,
   buildIMCapabilityFlags,
@@ -124,6 +126,54 @@ function buildGroupLaneContextCards(groupContext = null) {
   }));
 }
 
+function buildDirectLaneContextCards(stageContext = null) {
+  const lanes = Array.isArray(stageContext?.actionLanes) ? stageContext.actionLanes : [];
+  return lanes.map((lane) => ({
+    cardType: lane.laneKey,
+    title: lane.title,
+    route: lane.route,
+    handoff: lane.handoff,
+    payload: {
+      actionKey: lane.actionKey,
+      stage3Item: lane.stage3Item,
+      targetID: lane.targetID,
+      uiReady: lane.uiReady,
+      uiStatus: lane.uiStatus,
+      uiUnavailableCopy: lane.uiUnavailableCopy,
+      errorSurface: lane.errorSurface,
+      requiredIDs: lane.requiredIDs,
+      fallbackIDs: lane.fallbackIDs,
+      optionalHints: lane.optionalHints,
+      supportedErrorKinds: lane.supportedErrorKinds,
+      surfaceGate: lane.surfaceGate,
+      cardEntry: lane.cardEntry,
+      threadEntry: lane.threadEntry,
+      errorFallback: lane.errorFallback
+    }
+  }));
+}
+
+function buildInspectionContextCard(inspectionEntry = null) {
+  if (!inspectionEntry) {
+    return [];
+  }
+  return [
+    {
+      cardType: 'companion_inspect',
+      title: 'Companion Inspect',
+      route:
+        inspectionEntry.threadEntry?.route ??
+        inspectionEntry.cardEntry?.route ??
+        null,
+      handoff:
+        inspectionEntry.threadEntry?.handoff ??
+        inspectionEntry.cardEntry?.handoff ??
+        null,
+      payload: inspectionEntry
+    }
+  ];
+}
+
 function attachGroupLaneCards(outputModel) {
   const laneCards = buildGroupLaneContextCards(outputModel?.groupContext);
   if (!laneCards.length) {
@@ -133,6 +183,54 @@ function attachGroupLaneCards(outputModel) {
     ...outputModel,
     contextCards: dedupeContextCards([...(outputModel.contextCards ?? []), ...laneCards])
   };
+}
+
+function attachDirectLaneCards(outputModel) {
+  const laneCards = buildDirectLaneContextCards(outputModel?.stageContext);
+  const inspectionCards = buildInspectionContextCard(outputModel?.companionInspectionEntry);
+  if (!laneCards.length && !inspectionCards.length) {
+    return outputModel;
+  }
+  return {
+    ...outputModel,
+    contextCards: dedupeContextCards([
+      ...(outputModel.contextCards ?? []),
+      ...laneCards,
+      ...inspectionCards
+    ])
+  };
+}
+
+function buildDirectActionPlacement(actionKey, result = {}, input = {}) {
+  const conversationId =
+    result.conversation?.id ??
+    result.relationship?.conversationId ??
+    result.ritual?.conversationId ??
+    null;
+  const contactId =
+    result.contact?.id ??
+    result.relationship?.contactId ??
+    result.conversation?.contactId ??
+    input.contactId ??
+    input.locator?.peerID ??
+    input.envelope?.locator?.peerID ??
+    null;
+  const conversation = result.conversation ?? {
+    id: conversationId,
+    contactId,
+    locator: input.locator ?? input.envelope?.locator ?? null,
+    route: input.envelope?.route ?? input.envelope?.openAction?.route ?? null,
+    surfaceKind: 'dm'
+  };
+
+  return buildDirectThreadActionEntryModel(actionKey, {
+    conversation,
+    contactId,
+    participants: result.participants ?? [],
+    messages: result.messages ?? [],
+    rituals: result.rituals ?? [],
+    sourceSurface: input.sourceSurface ?? 'messages'
+  });
 }
 
 export function buildMessagesHomeResponse(result, input = {}) {
@@ -178,6 +276,7 @@ export function buildConversationResponse(result, input = {}) {
     cardEnvelope: normalizedConversationEnvelope,
     participants: result.participants ?? [],
     messages: result.messages ?? [],
+    rituals: result.rituals ?? [],
     contextCards: result.contextCards ?? [],
     votes: result.votes ?? [],
     groupSummaries: result.groupSummaries ?? [],
@@ -187,7 +286,7 @@ export function buildConversationResponse(result, input = {}) {
       sourceSurface: inputModel.sourceSurface
     })
   });
-  const normalizedOutputModel = attachGroupLaneCards(outputModel);
+  const normalizedOutputModel = attachDirectLaneCards(attachGroupLaneCards(outputModel));
 
   return {
     ...result,
@@ -218,6 +317,7 @@ export function buildConversationResponse(result, input = {}) {
     timeline: normalizedOutputModel.timeline,
     stageContext: normalizedOutputModel.stageContext,
     groupContext: normalizedOutputModel.groupContext,
+    companionInspectionEntry: normalizedOutputModel.companionInspectionEntry,
     contextCards: normalizedOutputModel.contextCards,
     homeRoute: normalizedOutputModel.homeRoute,
     homeHandoff: normalizedOutputModel.homeHandoff
@@ -257,20 +357,32 @@ export function buildDirectMessageResponse(result) {
   return decorateCapabilitySurface(result, 'send_direct_message', 'dm');
 }
 
-export function buildMaskUpdateResponse(result) {
-  return decorateCapabilitySurface(result, 'update_contact_mask', 'dm');
+export function buildMaskUpdateResponse(result, input = {}) {
+  return {
+    ...decorateCapabilitySurface(result, 'update_contact_mask', 'dm'),
+    clientPlacement: buildDirectActionPlacement('update_contact_mask', result, input)
+  };
 }
 
-export function buildSharedStageDraftResponse(result) {
-  return decorateCapabilitySurface(result, 'draft_shared_stage', 'dm');
+export function buildSharedStageDraftResponse(result, input = {}) {
+  return {
+    ...decorateCapabilitySurface(result, 'draft_shared_stage', 'dm'),
+    clientPlacement: buildDirectActionPlacement('draft_shared_stage', result, input)
+  };
 }
 
-export function buildStageResponse(result, actionKey = 'post_stage_message') {
-  return decorateCapabilitySurface(result, actionKey, 'dm');
+export function buildStageResponse(result, actionKey = 'post_stage_message', input = {}) {
+  return {
+    ...decorateCapabilitySurface(result, actionKey, 'dm'),
+    clientPlacement: buildDirectActionPlacement(actionKey, result, input)
+  };
 }
 
-export function buildRitualResponse(result, actionKey = 'schedule_relationship_ritual') {
-  return decorateCapabilitySurface(result, actionKey, 'dm');
+export function buildRitualResponse(result, actionKey = 'schedule_relationship_ritual', input = {}) {
+  return {
+    ...decorateCapabilitySurface(result, actionKey, 'dm'),
+    clientPlacement: buildDirectActionPlacement(actionKey, result, input)
+  };
 }
 
 export function buildGroupConversationResponse(result, input = {}) {
@@ -309,12 +421,14 @@ export function buildGroupConversationResponse(result, input = {}) {
       cardEnvelope: normalizedConversationEnvelope,
       participants: result.participants ?? [],
       messages: result.messages ?? [],
+      rituals: result.rituals ?? [],
       contextCards: result.contextCards ?? [],
       votes: result.votes ?? [],
       groupSummaries: result.summaries ?? result.groupSummaries ?? [],
       sourceSurface: inputModel.sourceSurface
     })
   );
+  const normalizedOutputModel = attachDirectLaneCards(outputModel);
 
   return {
     ...decorateCapabilitySurface(result, 'open_group_conversation', 'group'),
@@ -335,14 +449,15 @@ export function buildGroupConversationResponse(result, input = {}) {
         }
       : result.conversation,
     input: inputModel,
-    output: outputModel,
-    conversationSummary: outputModel.conversation,
-    participantModels: outputModel.participants,
-    messageModels: outputModel.messages,
-    timeline: outputModel.timeline,
-    stageContext: outputModel.stageContext,
-    groupContext: outputModel.groupContext,
-    contextCards: outputModel.contextCards
+    output: normalizedOutputModel,
+    conversationSummary: normalizedOutputModel.conversation,
+    participantModels: normalizedOutputModel.participants,
+    messageModels: normalizedOutputModel.messages,
+    timeline: normalizedOutputModel.timeline,
+    stageContext: normalizedOutputModel.stageContext,
+    groupContext: normalizedOutputModel.groupContext,
+    companionInspectionEntry: normalizedOutputModel.companionInspectionEntry,
+    contextCards: normalizedOutputModel.contextCards
   };
 }
 
@@ -358,9 +473,21 @@ export function buildGroupSummaryResponse(result, actionKey = 'summarize_group')
   return decorateCapabilitySurface(result, actionKey, 'group');
 }
 
-export function buildCompanionInspectionResponse(result) {
+export function buildCompanionInspectionResponse(result, input = {}) {
+  const conversation = input.envelope?.conversationId || input.locator
+    ? {
+        conversationId: input.envelope?.conversationId ?? null,
+        locator: input.locator ?? input.envelope?.locator ?? null,
+        route: input.envelope?.route ?? input.envelope?.openAction?.route ?? null,
+        surfaceKind: input.surfaceKind ?? null
+      }
+    : null;
   return {
     ...result,
-    actionContract: buildOpenClawIMActionContract('inspect_companion', {})
+    actionContract: buildOpenClawIMActionContract('inspect_companion', {}),
+    clientPlacement: buildCompanionInspectionEntryModel({
+      conversation,
+      sourceSurface: input.sourceSurface ?? 'messages'
+    })
   };
 }

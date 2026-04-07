@@ -38,14 +38,17 @@ let package = Package(
             dependencies: ["Stage3MacOSTargetContract"],
             path: ".",
             exclude: [
+                "Shared/SpareLifeCoreSource/App/MainTabView.swift",
                 "Shared/SpareLifeCoreSource/Features/EarnSocial/LeadResultView.swift",
+                "Shared/SpareLifeCoreSource/Features/CompanionChat/ChatThreadView.swift",
+                "Shared/SpareLifeCoreSource/Features/CompanionChat/QuadRoleChatView.swift",
                 "Shared/SpareLifeCoreSource/Features/Masters/Support",
                 "Shared/SpareLifeCoreSource/Features/Xianxia/QRScanView.swift"
             ],
             sources: [
                 "Sources/Stage3MacOSRuntime",
+                "Shared/SpareLifeCoreSource/App/CrossTabHandoff.swift",
                 "Shared/SpareLifeCoreSource/App/ConversationRouter.swift",
-                "Shared/SpareLifeCoreSource/App/MainTabView.swift",
                 "Shared/SpareLifeCoreSource/App/DesignSystem",
                 "Shared/SpareLifeCoreSource/Domain/Models/SceneModels.swift",
                 "Shared/SpareLifeCoreSource/Features/CompanionChat",

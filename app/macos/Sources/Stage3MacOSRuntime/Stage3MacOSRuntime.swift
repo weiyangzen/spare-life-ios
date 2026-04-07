@@ -33,14 +33,13 @@ public struct Stage3MacOSMirroredPageView: View {
     public var body: some View {
         switch tabID {
         case "xianxia":
-            XianxiaHomeView()
+            Stage3MacOSXianxiaWorkspaceView()
         case "master":
-            MasterChatHomeView()
+            Stage3MacOSMastersWorkspaceView()
         case "earnSocial":
             EarnSocialHomeView()
         case "messages":
-            MessagesFeatureRootView()
-                .environmentObject(ConversationRouter())
+            Stage3MacOSMessagesWorkspaceView()
         case "myProfile":
             MyProfileView()
         default:
@@ -92,7 +91,17 @@ public enum Stage3MacOSRuntime {
             return nil
         }
 
-        return makeHostingView(for: AnyView(Stage3MacOSMirroredPageView(tabID: tabID)), size: size)
+        let rootView: AnyView
+        if tabID == messagesTabID {
+            rootView = AnyView(
+                Stage3MacOSMirroredPageView(tabID: tabID)
+                    .environmentObject(ConversationRouter())
+            )
+        } else {
+            rootView = AnyView(Stage3MacOSMirroredPageView(tabID: tabID))
+        }
+
+        return makeHostingView(for: rootView, size: size)
     }
 
     public static func pageDescriptor(for tabID: String) -> Stage3MacOSMirroredPageDescriptor? {

@@ -99,9 +99,9 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 - [x] S3-052 复用现有 SwiftUI 共享层，让 `MainTabView`、shared design system、shared feed / card 组件优先直接跑在 macOS；当前 `Stage3MacOSRuntime` 直接编译 `ios/spare-life-ios-app` 的共享 `App / Features / Domain/Models` 源，并由宿主侧 wrapper 承接包边界。
 - [x] S3-053 让 `xianxia / masters / earnSocial / messages / myProfile` 五个主页面在 macOS 上全部可打开，并保持与 iOS / iPad 横屏一致的模块顺序、页面 chrome、卡片语言和主内容结构；当前已通过 `stage3-macos-surface-smoke` 真实构造 `Stage3MacOSDesktopShellView` root 与五个主页面的 macOS hosting surface 并验证顺序一致。
 - [x] S3-054 为 macOS 建立桌面壳层：允许用 sidebar / top toolbar / segmented control 等桌面容器替代底部栏，但模块信息架构、进入路径与功能语义必须与 iOS 一致；当前 `app/macos` 已由 `Stage3MacOSDesktopShellView` 承接 root，使用 `sidebar + top toolbar + segmented control` 承接五大模块，并通过 `desktopShellSnapshot()` 固定 root -> tab 的进入路径与模块顺序。
-- [ ] S3-055 让 `xianxia` 在 macOS 上升级为桌面友好的 list-detail / multi-column 结构，同时保持 iOS 页面内容、筛选逻辑与详情信息密度一致。
-- [ ] S3-056 让 `messages` 在 macOS 上升级为桌面友好的 hub-thread-detail 工作区，可利用更宽屏幕做多栏承接，但消息卡片、线程语义、子页入口与 iOS 一致。
-- [ ] S3-057 让 `masters` 在 macOS 上升级为桌面友好的目录-会话工作区，至少支持更稳定的卡片浏览区、会话区、辅助信息区并存。
+- [x] S3-055 让 `xianxia` 在 macOS 上升级为桌面友好的 list-detail / multi-column 结构，同时保持 iOS 页面内容、筛选逻辑与详情信息密度一致；当前 `Stage3MacOSXianxiaWorkspaceView` 已把话题目录、shard 详情、topic inspector 拆成三栏，并继续复用共享 `XianxiaHomeViewModel + SceneTopicViewModel`、原始 feed/shard card 与同一 refresh/load-more 逻辑。
+- [x] S3-056 让 `messages` 在 macOS 上升级为桌面友好的 hub-thread-detail 工作区，可利用更宽屏幕做多栏承接，但消息卡片、线程语义、子页入口与 iOS 一致；当前 `Stage3MacOSMessagesWorkspaceView` 已把 hub、route detail、thread inspector 并排承接，并继续走共享 `ConversationRouter`、同一 thread/subpage typed route 与消息 store 语义。
+- [x] S3-057 让 `masters` 在 macOS 上升级为桌面友好的目录-会话工作区，至少支持更稳定的卡片浏览区、会话区、辅助信息区并存；当前 `Stage3MacOSMastersWorkspaceView` 已把大师目录、会话区、辅助 inspector 固定为三栏，并复用共享 `MasterExperienceStore`、会话恢复、domain filter 与 recent session 语义。
 - [ ] S3-058 让 `earnSocial`、`myProfile`、`Infrastructure` 相关页面在 macOS 上完成更高信息密度编排，而不是简单居中放大 iOS 单列页面。
 - [ ] S3-059 让 `ios/assets` 的资源读取链路在 macOS 宿主可复用，至少覆盖大师目录、图片、基础本地 seed 与诊断页依赖资源。
 - [ ] S3-060 让 `OpenClawPluginView`、`SQLiteBackendDashboardView` 等基础诊断页在 macOS 上可打开，并利用桌面空间做更适合联调的面板化布局。

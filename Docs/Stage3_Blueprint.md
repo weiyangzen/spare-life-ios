@@ -132,9 +132,9 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 ### 6.8 验证、联调与验收
 
 - [x] S3-090 为 `ios/` 新结构补完整路径敏感验证，至少覆盖 README、assets、preview-host、plugin import、Swift tests；当前已落地 `Docs/Stage3IOSPathValidation`、`Docs/scripts/validate_ios_paths.sh`、`Docs/Stage3_iOS_Path_Validation.md`，并把 README / lane README / preview-host smoke / plugin self-import / path-validation Swift tests 收口到同一条可重复执行的本地验证链路。
-- [ ] S3-091 为 `OpenClaw IM` lane 建最小 smoke：messages home、DM open/send、group open/send、vote、summary、inspect。
-- [ ] S3-092 为 `messages` typed route 建最小 smoke：hub -> thread -> relationship / memory / groupPlay / quadRole。
-- [ ] S3-093 为 macOS UIUX parity + desktop optimization 建最小 smoke：五大主页面可打开、主路径详情可进入、主导航可返回、窗口可 resize、多栏布局可稳定工作。
+- [x] S3-091 为 `OpenClaw IM` lane 建最小 smoke：messages home、DM open/send、group open/send、vote、summary、inspect；当前已落地 `Docs/scripts/validate_stage3_openclaw_im_smoke.sh` 与 `Docs/Stage3_Wave4_Smoke.md`，脚本直接执行 `ios/spare-life-openclaw-plugin/src/demo/companion-chat-flow-demo.mjs`，并对 messages home、DM open/send、group open/send、vote close、summary 持久化、inspect diagnostics 入口做真实断言。
+- [x] S3-092 为 `messages` typed route 建最小 smoke：hub -> thread -> relationship / memory / groupPlay / quadRole；当前已落地 `Docs/scripts/validate_stage3_messages_typed_routes.sh`，脚本真编译当前 checkout 的 shared `MessagesFeatureRootView / ConversationRouter / CrossTabHandoff / CompanionChat` 源集，验证 canonical stack、handoff hint 与非空渲染布局。
+- [x] S3-093 为 macOS UIUX parity + desktop optimization 建最小 smoke：五大主页面可打开、主路径详情可进入、主导航可返回、窗口可 resize、多栏布局可稳定工作；当前已落地 `Docs/scripts/validate_stage3_macos_smoke.sh` 与 `Docs/Stage3_Wave4_Smoke.md`，脚本绕开失真的 `app/macos` SwiftPM manifest，直接编译 `Stage3MacOSTargetContract + Stage3MacOSRuntime + Shared/SpareLifeCoreSource` 当前源码集，验证五大主页面默认/最小窗口均可打开、messages desktop 路径可进入并返回、workspace snapshot 维持多栏布局。
 - [ ] S3-094 为 iOS 和 macOS 共同建立页面 parity checklist，避免“名称相同但页面内容已分叉”；同时单独建立 desktop optimization checklist，避免“只是放大 iOS 页面”。
 - [ ] S3-095 为 plugin demo、client-only local seed、未来 server-backed joint debug 建三档验证矩阵。
 - [ ] S3-096 当 `../spare-life-server` 有真实内容后，建立 client / plugin / server 三方 contract 验证，覆盖 locator、render fields、error surface、fallback。

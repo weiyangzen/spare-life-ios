@@ -56,6 +56,37 @@ public enum Stage3MacOSSmokeRunner {
         return results
     }
 
+    public static func runDiagnosticSurfaces(
+        size: CGSize = CGSize(width: 1440, height: 900)
+    ) throws -> [Stage3MacOSSmokeSurfaceResult] {
+        _ = NSApplication.shared
+
+        var results: [Stage3MacOSSmokeSurfaceResult] = []
+
+        for page in Stage3MacOSRuntime.diagnosticPages {
+            guard let hostingView = Stage3MacOSRuntime.diagnosticHostingView(for: page.id, size: size) else {
+                throw NSError(
+                    domain: "Stage3MacOSSmokeRunner",
+                    code: 3,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "Could not create a diagnostic macOS page surface for \(page.id)."
+                    ]
+                )
+            }
+
+            results.append(
+                try realizeSurface(
+                    id: page.id,
+                    rootView: page.rootView,
+                    hostingView: hostingView,
+                    size: size
+                )
+            )
+        }
+
+        return results
+    }
+
     private static func realizeSurface(
         id: String,
         rootView: String,

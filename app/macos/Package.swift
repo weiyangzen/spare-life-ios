@@ -53,6 +53,7 @@ let package = Package(
                 "Shared/SpareLifeCoreSource/Domain/Models/SceneModels.swift",
                 "Shared/SpareLifeCoreSource/Features/CompanionChat",
                 "Shared/SpareLifeCoreSource/Features/EarnSocial",
+                "Shared/SpareLifeCoreSource/Features/Infrastructure",
                 "Shared/SpareLifeCoreSource/Features/Masters",
                 "Shared/SpareLifeCoreSource/Features/MyProfile",
                 "Shared/SpareLifeCoreSource/Features/Shared",

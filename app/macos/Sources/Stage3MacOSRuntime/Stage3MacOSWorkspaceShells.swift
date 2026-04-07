@@ -57,6 +57,22 @@ extension Stage3MacOSRuntime {
                 mirroredContentKinds: ["master cards", "master conversation", "recent sessions"],
                 mirroredEntryKinds: ["directory search", "domain filter", "session restore", "conversation open"]
             )
+        case "earnSocial":
+            return Stage3MacOSWorkspaceSnapshot(
+                tabID: "earnSocial",
+                layoutStyle: "market-canvas-inspector",
+                columnKinds: ["category catalog", "market canvas", "engagement inspector"],
+                mirroredContentKinds: ["category rails", "waterfall cards", "preference and chat entry"],
+                mirroredEntryKinds: ["category index", "card open", "preference open"]
+            )
+        case "myProfile":
+            return Stage3MacOSWorkspaceSnapshot(
+                tabID: "myProfile",
+                layoutStyle: "identity-dashboard-inspector",
+                columnKinds: ["identity summary", "feature dashboard", "avatar and backend inspector"],
+                mirroredContentKinds: ["profile metrics", "dashboard surfaces", "visibility and backend state"],
+                mirroredEntryKinds: ["surface switch", "diagnostic open", "backend open"]
+            )
         default:
             return nil
         }
@@ -1413,7 +1429,7 @@ private struct Stage3MacOSMasterRecentSessionRow: View {
     }
 }
 
-private struct Stage3MacOSWorkspaceColumnHeader<Trailing: View>: View {
+struct Stage3MacOSWorkspaceColumnHeader<Trailing: View>: View {
     let title: String
     let subtitle: String
     @ViewBuilder let trailing: Trailing
@@ -1449,7 +1465,7 @@ private struct Stage3MacOSWorkspaceColumnHeader<Trailing: View>: View {
     }
 }
 
-private struct Stage3MacOSWorkspacePlaceholder: View {
+struct Stage3MacOSWorkspacePlaceholder: View {
     let icon: String
     let title: String
     let message: String
@@ -1529,7 +1545,7 @@ struct Stage3MacOSInspectorSection<Content: View>: View {
     }
 }
 
-private struct Stage3MacOSInspectorChip: View {
+struct Stage3MacOSInspectorChip: View {
     let title: String
     let value: String
 
@@ -1548,7 +1564,7 @@ private struct Stage3MacOSInspectorChip: View {
     }
 }
 
-private struct Stage3MacOSMetadataRow: View {
+struct Stage3MacOSMetadataRow: View {
     let label: String
     let value: String
 
@@ -1579,7 +1595,7 @@ private struct Stage3MacOSTopicShardSkeleton: View {
     }
 }
 
-private struct Stage3MacOSInspectorActionButton: View {
+struct Stage3MacOSInspectorActionButton: View {
     let title: String
     let icon: String
     let action: () -> Void
@@ -1594,7 +1610,7 @@ private struct Stage3MacOSInspectorActionButton: View {
     }
 }
 
-private struct Stage3MacOSFilterChip: View {
+struct Stage3MacOSFilterChip: View {
     let title: String
     let isSelected: Bool
     let action: () -> Void
@@ -1619,7 +1635,7 @@ private struct Stage3MacOSFilterChip: View {
     }
 }
 
-private struct Stage3MacOSTagCloud: View {
+struct Stage3MacOSTagCloud: View {
     let tags: [String]
 
     var body: some View {
@@ -1654,7 +1670,7 @@ private enum Stage3MacOSImageLoader {
     }
 }
 
-private extension View {
+extension View {
     func workspacePaneBackground(tint: Color = Color.white.opacity(0.92)) -> some View {
         background(
             LinearGradient(

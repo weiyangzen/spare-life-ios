@@ -47,6 +47,7 @@ let package = Package(
             ],
             sources: [
                 "Sources/Stage3MacOSRuntime",
+                "Shared/SpareLifeCoreSource/App/AppHandoffRouter.swift",
                 "Shared/SpareLifeCoreSource/App/CrossTabHandoff.swift",
                 "Shared/SpareLifeCoreSource/App/ConversationRouter.swift",
                 "Shared/SpareLifeCoreSource/App/DesignSystem",

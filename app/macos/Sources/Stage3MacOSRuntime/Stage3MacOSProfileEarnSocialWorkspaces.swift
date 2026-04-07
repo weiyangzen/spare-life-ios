@@ -1,7 +1,29 @@
 import SwiftUI
 
 struct Stage3MacOSEarnSocialWorkspaceView: View {
+    @ObservedObject private var chrome = Stage3MacOSWorkspaceChrome.shared
     private let categories = Stage3MacOSEarnSocialCategoryDescriptor.currentSurface
+    @State private var searchQuery = ""
+    @State private var selectedCategoryID: String? = nil
+    @State private var refreshToken = 0
+
+    private var filteredCategories: [Stage3MacOSEarnSocialCategoryDescriptor] {
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        return categories.filter { category in
+            (selectedCategoryID == nil || category.id == selectedCategoryID) &&
+            (query.isEmpty ||
+                category.title.localizedCaseInsensitiveContains(query) ||
+                category.summary.localizedCaseInsensitiveContains(query) ||
+                category.tags.contains(where: { $0.localizedCaseInsensitiveContains(query) }))
+        }
+    }
+
+    private var categoryFilterOptions: [Stage3MacOSToolbarFilterOption] {
+        let all = [Stage3MacOSToolbarFilterOption(id: "all", title: "全部分类", systemImage: "square.grid.2x2")]
+        return all + categories.map {
+            Stage3MacOSToolbarFilterOption(id: $0.id, title: $0.title, systemImage: $0.symbol)
+        }
+    }
 
     var body: some View {
         HSplitView {
@@ -11,11 +33,39 @@ struct Stage3MacOSEarnSocialWorkspaceView: View {
             canvasColumn
                 .frame(minWidth: 560, idealWidth: 700, maxWidth: .infinity)
 
-            inspectorColumn
-                .frame(minWidth: 272, idealWidth: 304, maxWidth: 340)
+            if chrome.isInspectorVisible {
+                inspectorColumn
+                    .frame(minWidth: 272, idealWidth: 304, maxWidth: 340)
+            }
         }
         .stage3SplitAutosave("earnSocialWorkspace")
         .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            synchronizeChrome()
+        }
+        .onChange(of: searchQuery) { query in
+            if chrome.activeWorkspaceID == "earnSocial", chrome.searchText != query {
+                chrome.searchText = query
+            }
+        }
+        .onChange(of: selectedCategoryID ?? "all") { _ in
+            synchronizeChrome()
+        }
+        .onChange(of: chrome.searchText) { query in
+            guard chrome.activeWorkspaceID == "earnSocial" else { return }
+            if searchQuery != query {
+                searchQuery = query
+            }
+        }
+        .onChange(of: chrome.selectedFilterID) { filterID in
+            guard chrome.activeWorkspaceID == "earnSocial" else { return }
+            let resolvedID = filterID ?? "all"
+            selectedCategoryID = resolvedID == "all" ? nil : resolvedID
+        }
+        .onChange(of: chrome.refreshRequestSerial) { _ in
+            guard chrome.activeWorkspaceID == "earnSocial" else { return }
+            refreshToken += 1
+        }
     }
 
     private var catalogColumn: some View {
@@ -29,44 +79,63 @@ struct Stage3MacOSEarnSocialWorkspaceView: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: Spacing.md) {
-                    ForEach(categories) { category in
-                        VStack(alignment: .leading, spacing: Spacing.sm) {
-                            HStack(spacing: Spacing.sm) {
-                                Image(systemName: category.symbol)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.spareYellowInk)
-                                    .frame(width: 30, height: 30)
-                                    .background(Color.spareYellow.opacity(0.14), in: Circle())
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(category.title)
-                                        .font(.spareBodySB)
-                                        .foregroundColor(.primary)
-
-                                    Text(category.directionHint)
-                                        .font(.spareMicro)
-                                        .foregroundColor(.secondary)
+                    if filteredCategories.isEmpty {
+                        EmptyStateView(
+                            icon: "magnifyingglass",
+                            title: "没有匹配的分类",
+                            message: "换个关键词，或者清空顶部工具栏搜索与筛选。"
+                        )
+                        .padding(.top, Spacing.xxxl)
+                    } else {
+                        ForEach(filteredCategories) { category in
+                            Button {
+                                withAnimation(.spareSpring) {
+                                    selectedCategoryID = category.id
                                 }
+                            } label: {
+                                VStack(alignment: .leading, spacing: Spacing.sm) {
+                                    HStack(spacing: Spacing.sm) {
+                                        Image(systemName: category.symbol)
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(.spareYellowInk)
+                                            .frame(width: 30, height: 30)
+                                            .background(Color.spareYellow.opacity(0.14), in: Circle())
+
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(category.title)
+                                                .font(.spareBodySB)
+                                                .foregroundColor(.primary)
+
+                                            Text(category.directionHint)
+                                                .font(.spareMicro)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+
+                                    Text(category.summary)
+                                        .font(.spareCaption)
+                                        .foregroundColor(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+
+                                    Stage3MacOSTagCloud(tags: category.tags)
+                                }
+                                .padding(Spacing.md)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(
+                                    RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                                        .fill(Color.white)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
+                                        .stroke(
+                                            selectedCategoryID == category.id ? Color.spareYellow.opacity(0.36) : Color.cardStroke,
+                                            lineWidth: 1
+                                        )
+                                )
                             }
-
-                            Text(category.summary)
-                                .font(.spareCaption)
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            Stage3MacOSTagCloud(tags: category.tags)
+                            .buttonStyle(.plain)
+                            .stage3HoverLift()
                         }
-                        .padding(Spacing.md)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
-                                .fill(Color.white)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: CornerRadius.lg, style: .continuous)
-                                .stroke(Color.cardStroke, lineWidth: 1)
-                        )
-                        .stage3HoverLift()
                     }
                 }
                 .padding(Spacing.md)
@@ -85,6 +154,7 @@ struct Stage3MacOSEarnSocialWorkspaceView: View {
             Divider()
 
             EarnSocialHomeView()
+                .id(refreshToken)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .workspacePaneBackground()
@@ -110,8 +180,8 @@ struct Stage3MacOSEarnSocialWorkspaceView: View {
 
                         Stage3MacOSMetadataRow(label: "category_count", value: "\(categories.count)")
                         Stage3MacOSMetadataRow(label: "card_surface", value: "shared waterfall cards")
-                        Stage3MacOSMetadataRow(label: "detail_entry", value: "card tap -> chat sheet")
-                        Stage3MacOSMetadataRow(label: "preference_entry", value: "toolbar button -> preference sheet")
+                        Stage3MacOSMetadataRow(label: "detail_entry", value: "card tap -> shared chat sheet")
+                        Stage3MacOSMetadataRow(label: "preference_entry", value: "toolbar button -> shared preference sheet")
                     }
                 }
 
@@ -133,6 +203,17 @@ struct Stage3MacOSEarnSocialWorkspaceView: View {
             .padding(Spacing.md)
         }
         .workspacePaneBackground(tint: Color.spareYellow.opacity(0.05))
+    }
+
+    private func synchronizeChrome() {
+        chrome.configure(
+            workspaceID: "earnSocial",
+            searchPrompt: "搜索分类或标签",
+            searchText: searchQuery,
+            filterOptions: categoryFilterOptions,
+            selectedFilterID: selectedCategoryID ?? "all",
+            refreshLabel: "重载闲能市场"
+        )
     }
 }
 
@@ -268,10 +349,28 @@ private enum Stage3MacOSProfileSurface: String, CaseIterable, Identifiable {
 
 struct Stage3MacOSProfileWorkspaceView: View {
     @ObservedObject private var appState = Stage3MacOSAppState.shared
+    @ObservedObject private var chrome = Stage3MacOSWorkspaceChrome.shared
     @Environment(\.openWindow) private var openWindow
     @StateObject private var store = MyProfileStore()
     @StateObject private var privacyStore = PrivacyLocalBackendStore()
     @State private var selectedSurface: Stage3MacOSProfileSurface = .dashboard
+    @State private var searchQuery = ""
+
+    private var filteredSurfaces: [Stage3MacOSProfileSurface] {
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return Stage3MacOSProfileSurface.allCases }
+
+        return Stage3MacOSProfileSurface.allCases.filter {
+            $0.title.localizedCaseInsensitiveContains(query) ||
+            $0.subtitle.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    private var surfaceFilterOptions: [Stage3MacOSToolbarFilterOption] {
+        Stage3MacOSProfileSurface.allCases.map {
+            Stage3MacOSToolbarFilterOption(id: $0.rawValue, title: $0.title, systemImage: $0.icon)
+        }
+    }
 
     private var profile: UserProfile? {
         store.profile
@@ -289,12 +388,48 @@ struct Stage3MacOSProfileWorkspaceView: View {
             detailColumn
                 .frame(minWidth: 560, idealWidth: 700, maxWidth: .infinity)
 
-            inspectorColumn
-                .frame(minWidth: 280, idealWidth: 312, maxWidth: 344)
+            if chrome.isInspectorVisible {
+                inspectorColumn
+                    .frame(minWidth: 280, idealWidth: 312, maxWidth: 344)
+            }
         }
         .stage3SplitAutosave("profileWorkspace")
         .background(Color(nsColor: .windowBackgroundColor))
         .task {
+            store.load()
+            privacyStore.load()
+            synchronizeChrome()
+        }
+        .onAppear {
+            synchronizeChrome()
+        }
+        .onChange(of: searchQuery) { query in
+            if chrome.activeWorkspaceID == "myProfile", chrome.searchText != query {
+                chrome.searchText = query
+            }
+
+            guard filteredSurfaces.contains(selectedSurface) else {
+                selectedSurface = filteredSurfaces.first ?? .dashboard
+                return
+            }
+        }
+        .onChange(of: selectedSurface) { _ in
+            synchronizeChrome()
+        }
+        .onChange(of: chrome.searchText) { query in
+            guard chrome.activeWorkspaceID == "myProfile" else { return }
+            if searchQuery != query {
+                searchQuery = query
+            }
+        }
+        .onChange(of: chrome.selectedFilterID) { filterID in
+            guard chrome.activeWorkspaceID == "myProfile",
+                  let filterID,
+                  let surface = Stage3MacOSProfileSurface(rawValue: filterID) else { return }
+            selectedSurface = surface
+        }
+        .onChange(of: chrome.refreshRequestSerial) { _ in
+            guard chrome.activeWorkspaceID == "myProfile" else { return }
             store.load()
             privacyStore.load()
         }
@@ -373,14 +508,20 @@ struct Stage3MacOSProfileWorkspaceView: View {
                         subtitle: selectedSurface.title
                     ) {
                         VStack(alignment: .leading, spacing: Spacing.sm) {
-                            ForEach(Stage3MacOSProfileSurface.allCases) { surface in
-                                Stage3MacOSProfileSurfaceButton(
-                                    title: surface.title,
-                                    icon: surface.icon,
-                                    isSelected: selectedSurface == surface
-                                ) {
-                                    withAnimation(.spareSpring) {
-                                        selectedSurface = surface
+                            if filteredSurfaces.isEmpty {
+                                Text("没有匹配的桌面面板。")
+                                    .font(.spareCaption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                ForEach(filteredSurfaces) { surface in
+                                    Stage3MacOSProfileSurfaceButton(
+                                        title: surface.title,
+                                        icon: surface.icon,
+                                        isSelected: selectedSurface == surface
+                                    ) {
+                                        withAnimation(.spareSpring) {
+                                            selectedSurface = surface
+                                        }
                                     }
                                 }
                             }
@@ -504,6 +645,17 @@ struct Stage3MacOSProfileWorkspaceView: View {
             .padding(Spacing.md)
         }
         .workspacePaneBackground(tint: Color.spareYellow.opacity(0.05))
+    }
+
+    private func synchronizeChrome() {
+        chrome.configure(
+            workspaceID: "myProfile",
+            searchPrompt: "搜索桌面面板",
+            searchText: searchQuery,
+            filterOptions: surfaceFilterOptions,
+            selectedFilterID: selectedSurface.rawValue,
+            refreshLabel: "刷新个人资料"
+        )
     }
 }
 

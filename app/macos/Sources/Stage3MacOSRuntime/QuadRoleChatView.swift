@@ -94,7 +94,30 @@ struct QuadRoleChatView: View {
         }
     }
 
+    @ViewBuilder
     private var surfaceContent: some View {
+        if presentation == .embedded {
+            Stage3MacOSAccessoryWorkspaceSplit(
+                isPresented: store.showRoleGuide,
+                autosaveName: "quadRoleAccessory"
+            ) {
+                surfaceContentBody
+            } panelContent: {
+                if store.showRoleGuide {
+                    Stage3MacOSQuadRoleGuideSheet()
+                }
+            }
+        } else {
+            surfaceContentBody
+                .sheet(isPresented: $store.showRoleGuide) {
+                    Stage3MacOSQuadRoleGuideSheet()
+                        .presentationDetents([.medium])
+                        .presentationDragIndicator(.visible)
+                }
+        }
+    }
+
+    private var surfaceContentBody: some View {
         ZStack(alignment: .bottom) {
             Color(.systemGroupedBackground).ignoresSafeArea()
 
@@ -130,11 +153,6 @@ struct QuadRoleChatView: View {
         }
         .task {
             store.load()
-        }
-        .sheet(isPresented: $store.showRoleGuide) {
-            Stage3MacOSQuadRoleGuideSheet()
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
         }
     }
 

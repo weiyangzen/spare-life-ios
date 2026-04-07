@@ -119,14 +119,30 @@ public enum Stage3MacOSRuntime {
             sidebarModuleOrder: moduleOrder,
             segmentedControlOrder: moduleOrder,
             selectedTabID: resolvedTabID,
-            entryPath: ["root", resolvedTabID]
+            entryPath: ["root", resolvedTabID],
+            toolbarActionKinds: [
+                "toggle sidebar",
+                "workspace picker",
+                "workspace search",
+                "workspace filter",
+                "refresh",
+                "diagnostics",
+                "toggle inspector"
+            ],
+            searchEntryKind: "toolbar-search-field"
         )
     }
 
     public static func rootHostingView(
         size: CGSize = CGSize(width: 1280, height: 900)
     ) -> NSHostingView<AnyView> {
-        makeHostingView(for: AnyView(Stage3MacOSSharedRootView()), size: size)
+        makeHostingView(
+            for: AnyView(
+                Stage3MacOSSharedRootView()
+                    .environmentObject(AppHandoffRouter())
+            ),
+            size: size
+        )
     }
 
     public static func pageHostingView(
@@ -142,9 +158,13 @@ public enum Stage3MacOSRuntime {
             rootView = AnyView(
                 Stage3MacOSMirroredPageView(tabID: tabID)
                     .environmentObject(ConversationRouter())
+                    .environmentObject(AppHandoffRouter())
             )
         } else {
-            rootView = AnyView(Stage3MacOSMirroredPageView(tabID: tabID))
+            rootView = AnyView(
+                Stage3MacOSMirroredPageView(tabID: tabID)
+                    .environmentObject(AppHandoffRouter())
+            )
         }
 
         return makeHostingView(for: rootView, size: size)

@@ -107,9 +107,9 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 - [x] S3-060 让 `OpenClawPluginView`、`SQLiteBackendDashboardView` 等基础诊断页在 macOS 上可打开，并利用桌面空间做更适合联调的面板化布局；当前 `Stage3MacOSApp` 已提供 `Infrastructure / OpenClaw / SQLite / Security / AI Memory Matching` 独立诊断窗口，`OpenClaw` 采用 `adapter catalog + event stream + schema/handler inspector` 三栏面板，`SQLite` 采用 `repository catalog + repository detail + migration timeline` 三栏面板，并已通过 `stage3-macos-surface-smoke` 真实实例化验证。
 - [x] S3-061 为 macOS 增加桌面级交互：hover 状态、secondary click / context menu、键盘快捷键、command 菜单入口；当前 `Stage3MacOSDesktopSupport` 已落地 hover lift、`Stage3MacOSWorkspaceCommands`、`Workspace / Infrastructure` command menus 与 `cmd+1...5` / `cmd+option+1...5` shortcuts，并把 context menu 接到 sidebar、消息线程、大师目录卡片、近期会话和 Infrastructure 工具卡。
 - [x] S3-062 为 macOS 增加窗口级优化：窗口最小尺寸、默认尺寸、可调列宽、状态恢复、上次工作区恢复；当前 `Stage3MacOSWindowConfiguration` + `stage3WindowConfiguration` 已冻结 desktop / diagnostic window 的默认尺寸、最小尺寸与 frame autosave，`stage3SplitAutosave` 已为 desktop shell 与各 workspace 挂上可调列宽 autosave，`Stage3MacOSAppState` 负责恢复上次 tab 与 Infrastructure 工具选择。
-- [ ] S3-063 为 macOS 增加桌面级工具栏与搜索入口，让全局搜索、筛选、刷新、诊断入口不再完全复刻移动端按钮摆放。
-- [ ] S3-064 为 macOS 增加桌面级多栏 / inspector / side panel 承接规则，优先把详情、上下文、诊断信息从 modal 改成更适合桌面的并排工作区。
-- [ ] S3-065 保持 macOS 与 iOS 的视觉语言同源：色板、卡片、文案、模块边界、状态语义一致；但允许在密度、布局、快捷交互、窗口组织上做桌面优化。
+- [x] S3-063 为 macOS 增加桌面级工具栏与搜索入口，让全局搜索、筛选、刷新、诊断入口不再完全复刻移动端按钮摆放；当前 `Stage3MacOSDesktopShellView + Stage3MacOSWorkspaceChrome` 已把 sidebar toggle、workspace picker、toolbar search、workspace filter、refresh、diagnostic menu、inspector toggle 收口进顶栏，并让 `xianxia / messages / masters / earnSocial / myProfile` 各自把搜索/筛选状态同步回桌面壳层，不再只靠页面内移动端式按钮。
+- [x] S3-064 为 macOS 增加桌面级多栏 / inspector / side panel 承接规则，优先把详情、上下文、诊断信息从 modal 改成更适合桌面的并排工作区；当前 desktop shell 与五个主 workspace 都支持 inspector 显隐规则，`xianxia / messages / masters / earnSocial / myProfile` 已固定 `catalog-or-summary + detail + inspector` 的并排承接，`QuadRole` 的说明面也改成 macOS 内建 accessory side panel，不再只剩 modal 弹层。
+- [x] S3-065 保持 macOS 与 iOS 的视觉语言同源：色板、卡片、文案、模块边界、状态语义一致；但允许在密度、布局、快捷交互、窗口组织上做桌面优化；当前已通过 `Stage3MacOSRuntime.visualParitySnapshot()`、workspace snapshot 与对应 runtime tests 冻结 shared `spareYellow` 色板、白底卡片、中文文案与 loading/error/status 语义，同时把 toolbar chrome、可折叠 sidebar/inspector、workspace split autosave 作为桌面专属优化。
 - [ ] S3-066 不允许把 `macOS` 做成另一套产品：桌面优化必须建立在同一 IA、同一功能路径、同一数据与 route 契约之上。
 
 ### 6.6 macOS 与 iOS 的共享代码策略

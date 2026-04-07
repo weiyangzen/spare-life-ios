@@ -8,6 +8,8 @@ public struct Stage3MacOSDesktopShellSnapshot: Equatable, Sendable {
     public let segmentedControlOrder: [String]
     public let selectedTabID: String
     public let entryPath: [String]
+    public let toolbarActionKinds: [String]
+    public let searchEntryKind: String
 
     public init(
         rootView: String,
@@ -15,7 +17,9 @@ public struct Stage3MacOSDesktopShellSnapshot: Equatable, Sendable {
         sidebarModuleOrder: [String],
         segmentedControlOrder: [String],
         selectedTabID: String,
-        entryPath: [String]
+        entryPath: [String],
+        toolbarActionKinds: [String],
+        searchEntryKind: String
     ) {
         self.rootView = rootView
         self.containerKinds = containerKinds
@@ -23,13 +27,18 @@ public struct Stage3MacOSDesktopShellSnapshot: Equatable, Sendable {
         self.segmentedControlOrder = segmentedControlOrder
         self.selectedTabID = selectedTabID
         self.entryPath = entryPath
+        self.toolbarActionKinds = toolbarActionKinds
+        self.searchEntryKind = searchEntryKind
     }
 }
 
 public struct Stage3MacOSDesktopShellView: View {
     @ObservedObject private var appState = Stage3MacOSAppState.shared
+    @ObservedObject private var chrome = Stage3MacOSWorkspaceChrome.shared
+    @Environment(\.openWindow) private var openWindow
     @State private var selectedTabID: String
     @StateObject private var router = ConversationRouter()
+    @StateObject private var handoffRouter = AppHandoffRouter()
 
     public init(initialTabID: String = Stage3MacOSRuntime.defaultSelectedTabID) {
         _selectedTabID = State(initialValue: Stage3MacOSRuntime.resolvedTabID(initialTabID))
@@ -49,14 +58,27 @@ public struct Stage3MacOSDesktopShellView: View {
 
     public var body: some View {
         HSplitView {
-            sidebar
+            if chrome.isShellSidebarVisible {
+                sidebar
+            }
             detail
         }
         .stage3SplitAutosave("desktopShell")
         .frame(minWidth: 1120, minHeight: 760)
         .background(Color(nsColor: .windowBackgroundColor))
         .environmentObject(router)
+        .environmentObject(handoffRouter)
         .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    chrome.toggleShellSidebar()
+                } label: {
+                    Image(systemName: chrome.isShellSidebarVisible ? "sidebar.leading" : "sidebar.right")
+                        .foregroundStyle(.primary)
+                }
+                .help(chrome.isShellSidebarVisible ? "收起模块侧栏" : "显示模块侧栏")
+            }
+
             ToolbarItem(placement: .automatic) {
                 Label("Spare Life", systemImage: "macwindow.on.rectangle")
                     .font(.headline)
@@ -74,6 +96,45 @@ public struct Stage3MacOSDesktopShellView: View {
                 .labelsHidden()
                 .frame(minWidth: 420)
             }
+
+            ToolbarItemGroup(placement: .primaryAction) {
+                toolbarSearchField
+                toolbarFilterMenu
+
+                if chrome.canRefresh {
+                    Button {
+                        chrome.requestRefresh()
+                    } label: {
+                        Label(chrome.refreshLabel, systemImage: "arrow.clockwise")
+                    }
+                    .help(chrome.refreshLabel)
+                }
+
+                Menu {
+                    ForEach(Stage3MacOSRuntime.diagnosticPages) { page in
+                        Button(page.label) {
+                            if page.id == Stage3MacOSRuntime.infrastructureWorkspacePageID {
+                                openWindow(id: page.id)
+                            } else {
+                                appState.selectInfrastructureTool(page.id)
+                                openWindow(id: page.id)
+                            }
+                        }
+                    }
+                } label: {
+                    Label("诊断", systemImage: "wrench.and.screwdriver.fill")
+                }
+                .help("打开诊断工具窗口")
+
+                if chrome.canToggleInspector {
+                    Button {
+                        chrome.toggleInspector()
+                    } label: {
+                        Image(systemName: chrome.isInspectorVisible ? "sidebar.trailing" : "sidebar.right")
+                    }
+                    .help(chrome.isInspectorVisible ? "收起 Inspector" : "显示 Inspector")
+                }
+            }
         }
         .onChange(of: router.handoffSerial) { _ in
             guard router.lastRequestedRoute != .home else { return }
@@ -88,14 +149,59 @@ public struct Stage3MacOSDesktopShellView: View {
             if selectedTabID != restoredTabID {
                 selectedTabID = restoredTabID
             }
+            chrome.prepare(for: activeTabID)
         }
         .onChange(of: selectedTabID) { tabID in
             appState.selectTab(tabID)
+            chrome.prepare(for: tabID)
         }
         .onChange(of: appState.selectedTabID) { tabID in
             if selectedTabID != tabID {
                 selectedTabID = tabID
             }
+        }
+    }
+
+    @ViewBuilder
+    private var toolbarSearchField: some View {
+        if let searchPrompt = chrome.searchPrompt {
+            HStack(spacing: Spacing.xs) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField(searchPrompt, text: $chrome.searchText)
+                    .textFieldStyle(.plain)
+            }
+            .padding(.horizontal, Spacing.sm)
+            .padding(.vertical, 7)
+            .frame(width: 248)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.white.opacity(0.96))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.spareYellow.opacity(0.22), lineWidth: 1)
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var toolbarFilterMenu: some View {
+        if !chrome.filterOptions.isEmpty {
+            let title = chrome.selectedFilterTitle ?? "筛选"
+
+            Menu {
+                ForEach(chrome.filterOptions) { option in
+                    Button {
+                        chrome.selectFilter(option.id)
+                    } label: {
+                        Label(option.title, systemImage: option.systemImage)
+                    }
+                }
+            } label: {
+                Label(title, systemImage: "line.3.horizontal.decrease.circle")
+            }
+            .help("切换当前工作区筛选")
         }
     }
 
@@ -169,15 +275,29 @@ public struct Stage3MacOSDesktopShellView: View {
 
             Spacer()
 
-            Text("与 iOS 同模块顺序、同入口语义")
-                .font(.spareCaptionSB)
-                .foregroundColor(.spareYellowInk)
-                .padding(.horizontal, Spacing.md)
-                .padding(.vertical, Spacing.xs)
-                .background(
-                    Capsule()
-                        .fill(Color.spareYellow.opacity(0.16))
-                )
+            HStack(spacing: Spacing.sm) {
+                if let selectedFilterTitle = chrome.selectedFilterTitle {
+                    Text(selectedFilterTitle)
+                        .font(.spareCaptionSB)
+                        .foregroundColor(.spareYellowInk)
+                        .padding(.horizontal, Spacing.md)
+                        .padding(.vertical, Spacing.xs)
+                        .background(
+                            Capsule()
+                                .fill(Color.spareYellow.opacity(0.16))
+                        )
+                }
+
+                Text("与 iOS 同模块顺序、同入口语义")
+                    .font(.spareCaptionSB)
+                    .foregroundColor(.spareYellowInk)
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.xs)
+                    .background(
+                        Capsule()
+                            .fill(Color.spareYellow.opacity(0.16))
+                    )
+            }
         }
         .padding(.horizontal, Spacing.lg)
         .padding(.vertical, Spacing.md)

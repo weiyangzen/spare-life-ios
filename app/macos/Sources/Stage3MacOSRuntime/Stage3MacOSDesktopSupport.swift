@@ -412,6 +412,27 @@ private struct Stage3MacOSHoverLiftModifier: ViewModifier {
     }
 }
 
+struct Stage3MacOSAccessoryWorkspaceSplit<MainContent: View, PanelContent: View>: View {
+    let isPresented: Bool
+    let autosaveName: String
+    @ViewBuilder let mainContent: () -> MainContent
+    @ViewBuilder let panelContent: () -> PanelContent
+
+    var body: some View {
+        HSplitView {
+            mainContent()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            if isPresented {
+                panelContent()
+                    .frame(minWidth: 320, idealWidth: 360, maxWidth: 420, maxHeight: .infinity, alignment: .topLeading)
+                    .background(Color(nsColor: .windowBackgroundColor))
+            }
+        }
+        .stage3SplitAutosave(autosaveName)
+    }
+}
+
 public extension View {
     func stage3WindowConfiguration(_ configuration: Stage3MacOSWindowConfiguration) -> some View {
         background(Stage3MacOSWindowProbe(configuration: configuration))

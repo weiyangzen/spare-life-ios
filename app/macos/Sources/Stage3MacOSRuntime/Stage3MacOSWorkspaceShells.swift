@@ -7,19 +7,25 @@ public struct Stage3MacOSWorkspaceSnapshot: Equatable, Sendable {
     public let columnKinds: [String]
     public let mirroredContentKinds: [String]
     public let mirroredEntryKinds: [String]
+    public let desktopChromeKinds: [String]
+    public let panelRules: [String]
 
     public init(
         tabID: String,
         layoutStyle: String,
         columnKinds: [String],
         mirroredContentKinds: [String],
-        mirroredEntryKinds: [String]
+        mirroredEntryKinds: [String],
+        desktopChromeKinds: [String],
+        panelRules: [String]
     ) {
         self.tabID = tabID
         self.layoutStyle = layoutStyle
         self.columnKinds = columnKinds
         self.mirroredContentKinds = mirroredContentKinds
         self.mirroredEntryKinds = mirroredEntryKinds
+        self.desktopChromeKinds = desktopChromeKinds
+        self.panelRules = panelRules
     }
 }
 
@@ -32,7 +38,12 @@ extension Stage3MacOSRuntime {
                 layoutStyle: "list-detail-inspector",
                 columnKinds: ["topic catalog", "topic detail", "topic inspector"],
                 mirroredContentKinds: ["topic feed cards", "topic shard cards", "topic metadata"],
-                mirroredEntryKinds: ["topic open", "feed refresh", "detail refresh"]
+                mirroredEntryKinds: ["topic open", "feed refresh", "detail refresh"],
+                desktopChromeKinds: ["toolbar search", "refresh", "diagnostic menu", "inspector toggle"],
+                panelRules: [
+                    "topic catalog stays visible beside detail",
+                    "metadata stays in trailing inspector instead of popover"
+                ]
             )
         case "messages":
             return Stage3MacOSWorkspaceSnapshot(
@@ -47,6 +58,13 @@ extension Stage3MacOSRuntime {
                     "memory open",
                     "quad role open",
                     "group play open"
+                ],
+                desktopChromeKinds: ["toolbar search", "thread kind filter", "refresh", "diagnostic menu", "inspector toggle"],
+                panelRules: [
+                    "hub stays in a dedicated primary column",
+                    "typed route detail stays embedded in the center column",
+                    "thread context and entry actions stay in the trailing inspector",
+                    "quad-role guidance uses a desktop accessory side panel"
                 ]
             )
         case "master":
@@ -55,7 +73,12 @@ extension Stage3MacOSRuntime {
                 layoutStyle: "directory-session-inspector",
                 columnKinds: ["master directory", "conversation session", "supporting inspector"],
                 mirroredContentKinds: ["master cards", "master conversation", "recent sessions"],
-                mirroredEntryKinds: ["directory search", "domain filter", "session restore", "conversation open"]
+                mirroredEntryKinds: ["directory search", "domain filter", "session restore", "conversation open"],
+                desktopChromeKinds: ["toolbar search", "domain filter", "refresh", "diagnostic menu", "inspector toggle"],
+                panelRules: [
+                    "directory and session stay side-by-side on desktop",
+                    "resource mapping and recent sessions stay in the trailing inspector"
+                ]
             )
         case "earnSocial":
             return Stage3MacOSWorkspaceSnapshot(
@@ -63,7 +86,12 @@ extension Stage3MacOSRuntime {
                 layoutStyle: "market-canvas-inspector",
                 columnKinds: ["category catalog", "market canvas", "engagement inspector"],
                 mirroredContentKinds: ["category rails", "waterfall cards", "preference and chat entry"],
-                mirroredEntryKinds: ["category index", "card open", "preference open"]
+                mirroredEntryKinds: ["category index", "card open", "preference open"],
+                desktopChromeKinds: ["toolbar search", "category quick filter", "refresh", "diagnostic menu", "inspector toggle"],
+                panelRules: [
+                    "category context stays in a dedicated catalog column",
+                    "runtime truth and desktop context stay visible in the trailing inspector"
+                ]
             )
         case "myProfile":
             return Stage3MacOSWorkspaceSnapshot(
@@ -71,7 +99,12 @@ extension Stage3MacOSRuntime {
                 layoutStyle: "identity-dashboard-inspector",
                 columnKinds: ["identity summary", "feature dashboard", "avatar and backend inspector"],
                 mirroredContentKinds: ["profile metrics", "dashboard surfaces", "visibility and backend state"],
-                mirroredEntryKinds: ["surface switch", "diagnostic open", "backend open"]
+                mirroredEntryKinds: ["surface switch", "diagnostic open", "backend open"],
+                desktopChromeKinds: ["toolbar search", "surface quick filter", "refresh", "diagnostic menu", "inspector toggle"],
+                panelRules: [
+                    "identity summary and dashboard stay parallel",
+                    "backend and diagnostics context stays in the trailing inspector"
+                ]
             )
         default:
             return nil
@@ -80,11 +113,25 @@ extension Stage3MacOSRuntime {
 }
 
 struct Stage3MacOSXianxiaWorkspaceView: View {
+    @ObservedObject private var chrome = Stage3MacOSWorkspaceChrome.shared
     @StateObject private var viewModel = XianxiaHomeViewModel()
     @State private var selectedTopicID: String?
+    @State private var searchQuery = ""
+
+    private var filteredTopics: [XianxiaTopic] {
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return viewModel.topics }
+
+        let normalizedQuery = query.lowercased()
+        return viewModel.topics.filter { topic in
+            topic.title.lowercased().contains(normalizedQuery) ||
+            topic.summaryText.lowercased().contains(normalizedQuery) ||
+            topic.senderTailDisplay.lowercased().contains(normalizedQuery)
+        }
+    }
 
     private var selectedTopic: XianxiaTopic? {
-        let candidates = viewModel.topics
+        let candidates = filteredTopics
         guard !candidates.isEmpty else { return nil }
         return candidates.first(where: { $0.id == selectedTopicID }) ?? candidates.first
     }
@@ -97,13 +144,19 @@ struct Stage3MacOSXianxiaWorkspaceView: View {
             detailColumn
                 .frame(minWidth: 480, idealWidth: 620, maxWidth: .infinity)
 
-            inspectorColumn
-                .frame(minWidth: 260, idealWidth: 292, maxWidth: 332)
+            if chrome.isInspectorVisible {
+                inspectorColumn
+                    .frame(minWidth: 260, idealWidth: 292, maxWidth: 332)
+            }
         }
         .stage3SplitAutosave("xianxiaWorkspace")
         .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            synchronizeChrome()
+        }
         .task {
             viewModel.loadIfNeeded()
+            synchronizeChrome()
         }
         .onChange(of: viewModel.topics) { topics in
             guard !topics.isEmpty else {
@@ -121,6 +174,26 @@ struct Stage3MacOSXianxiaWorkspaceView: View {
             }
 
             self.selectedTopicID = topics.first?.id
+        }
+        .onChange(of: searchQuery) { query in
+            if chrome.activeWorkspaceID == "xianxia", chrome.searchText != query {
+                chrome.searchText = query
+            }
+
+            guard filteredTopics.contains(where: { $0.id == selectedTopicID }) else {
+                selectedTopicID = filteredTopics.first?.id
+                return
+            }
+        }
+        .onChange(of: chrome.searchText) { query in
+            guard chrome.activeWorkspaceID == "xianxia" else { return }
+            if searchQuery != query {
+                searchQuery = query
+            }
+        }
+        .onChange(of: chrome.refreshRequestSerial) { _ in
+            guard chrome.activeWorkspaceID == "xianxia" else { return }
+            viewModel.refresh()
         }
     }
 
@@ -170,42 +243,63 @@ struct Stage3MacOSXianxiaWorkspaceView: View {
                     }
                 case .loadedFromCache, .loaded:
                     ScrollView(.vertical, showsIndicators: false) {
-                        LazyVStack(alignment: .leading, spacing: Spacing.md) {
-                            ForEach(viewModel.topics) { topic in
-                                TopicFeedCardView(topic: topic) {
-                                    withAnimation(.spareSpring) {
-                                        selectedTopicID = topic.id
+                        if filteredTopics.isEmpty {
+                            EmptyStateView(
+                                icon: "magnifyingglass",
+                                title: "没有匹配的话题",
+                                message: "换个关键词试试，或者清空顶部工具栏搜索。"
+                            )
+                            .padding(.top, Spacing.xxxl)
+                            .padding(.horizontal, Spacing.md)
+                        } else {
+                            LazyVStack(alignment: .leading, spacing: Spacing.md) {
+                                ForEach(filteredTopics) { topic in
+                                    TopicFeedCardView(topic: topic) {
+                                        withAnimation(.spareSpring) {
+                                            selectedTopicID = topic.id
+                                        }
+                                    }
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: CornerRadius.md, style: .continuous)
+                                            .stroke(
+                                                selectedTopic?.id == topic.id ? Color.spareYellowInk.opacity(0.42) : Color.clear,
+                                                lineWidth: 2
+                                            )
+                                    )
+                                    .onAppear {
+                                        viewModel.loadMoreIfNeeded(after: topic)
                                     }
                                 }
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: CornerRadius.md, style: .continuous)
-                                        .stroke(
-                                            selectedTopic?.id == topic.id ? Color.spareYellowInk.opacity(0.42) : Color.clear,
-                                            lineWidth: 2
-                                        )
-                                )
-                                .onAppear {
-                                    viewModel.loadMoreIfNeeded(after: topic)
-                                }
-                            }
 
-                            if viewModel.isLoadingMore {
-                                HStack(spacing: Spacing.sm) {
-                                    ProgressView()
-                                    Text("继续加载更多话题…")
-                                        .font(.spareCaption)
-                                        .foregroundColor(.secondary)
+                                if viewModel.isLoadingMore {
+                                    HStack(spacing: Spacing.sm) {
+                                        ProgressView()
+                                        Text("继续加载更多话题…")
+                                            .font(.spareCaption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .padding(.vertical, Spacing.sm)
                                 }
-                                .padding(.vertical, Spacing.sm)
                             }
+                            .padding(Spacing.md)
                         }
-                        .padding(Spacing.md)
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .workspacePaneBackground()
+    }
+
+    private func synchronizeChrome() {
+        chrome.configure(
+            workspaceID: "xianxia",
+            searchPrompt: "搜索话题标题或摘要",
+            searchText: searchQuery,
+            filterOptions: [],
+            selectedFilterID: nil,
+            refreshLabel: "刷新话题目录"
+        )
     }
 
     private var detailColumn: some View {
@@ -379,10 +473,21 @@ private struct Stage3MacOSXianxiaDetailColumn: View {
 }
 
 struct Stage3MacOSMessagesWorkspaceView: View {
+    @ObservedObject private var chrome = Stage3MacOSWorkspaceChrome.shared
     @EnvironmentObject private var router: ConversationRouter
     @StateObject private var store = ConversationHubStore()
     @State private var sortMode: ConversationSortMode = .byTime
     @State private var focusedThreadID: String?
+
+    private var threadKindFilterOptions: [Stage3MacOSToolbarFilterOption] {
+        [
+            Stage3MacOSToolbarFilterOption(id: "all", title: "全部会话", systemImage: "tray.full"),
+            Stage3MacOSToolbarFilterOption(id: ConversationKind.human.rawValue, title: "熟人", systemImage: "person.fill"),
+            Stage3MacOSToolbarFilterOption(id: ConversationKind.quadRole.rawValue, title: "四人场", systemImage: "person.3.fill"),
+            Stage3MacOSToolbarFilterOption(id: ConversationKind.group.rawValue, title: "群聊", systemImage: "person.2.circle.fill"),
+            Stage3MacOSToolbarFilterOption(id: ConversationKind.agentDirect.rawValue, title: "分身", systemImage: "sparkles")
+        ]
+    }
 
     private var activeRoute: MessagesRoute {
         router.currentRoute
@@ -419,13 +524,19 @@ struct Stage3MacOSMessagesWorkspaceView: View {
             detailColumn
                 .frame(minWidth: 520, idealWidth: 640, maxWidth: .infinity)
 
-            inspectorColumn
-                .frame(minWidth: 260, idealWidth: 296, maxWidth: 336)
+            if chrome.isInspectorVisible {
+                inspectorColumn
+                    .frame(minWidth: 260, idealWidth: 296, maxWidth: 336)
+            }
         }
         .stage3SplitAutosave("messagesWorkspace")
         .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            synchronizeChrome()
+        }
         .task {
             store.load()
+            synchronizeChrome()
         }
         .onChange(of: store.threads) { threads in
             guard !threads.isEmpty else {
@@ -448,6 +559,40 @@ struct Stage3MacOSMessagesWorkspaceView: View {
             if let context = route.threadContext {
                 focusedThreadID = context.canonicalThreadID
             }
+        }
+        .onChange(of: store.searchQuery) { query in
+            if chrome.activeWorkspaceID == "messages", chrome.searchText != query {
+                chrome.searchText = query
+            }
+        }
+        .onChange(of: store.selectedKind?.rawValue ?? "all") { _ in
+            synchronizeChrome()
+        }
+        .onChange(of: chrome.searchText) { query in
+            guard chrome.activeWorkspaceID == "messages" else { return }
+            if store.searchQuery != query {
+                store.searchQuery = query
+            }
+        }
+        .onChange(of: chrome.selectedFilterID) { filterID in
+            guard chrome.activeWorkspaceID == "messages" else { return }
+
+            switch filterID ?? "all" {
+            case ConversationKind.human.rawValue:
+                store.selectedKind = .human
+            case ConversationKind.quadRole.rawValue:
+                store.selectedKind = .quadRole
+            case ConversationKind.group.rawValue:
+                store.selectedKind = .group
+            case ConversationKind.agentDirect.rawValue:
+                store.selectedKind = .agentDirect
+            default:
+                store.selectedKind = nil
+            }
+        }
+        .onChange(of: chrome.refreshRequestSerial) { _ in
+            guard chrome.activeWorkspaceID == "messages" else { return }
+            Task { await store.refresh() }
         }
     }
 
@@ -740,6 +885,17 @@ struct Stage3MacOSMessagesWorkspaceView: View {
         focusedThreadID = thread.canonicalThreadID
         router.openChat(thread)
     }
+
+    private func synchronizeChrome() {
+        chrome.configure(
+            workspaceID: "messages",
+            searchPrompt: "搜索联系人或消息",
+            searchText: store.searchQuery,
+            filterOptions: threadKindFilterOptions,
+            selectedFilterID: store.selectedKind?.rawValue ?? "all",
+            refreshLabel: "刷新消息"
+        )
+    }
 }
 
 private struct Stage3MacOSMessagesThreadRow: View {
@@ -895,8 +1051,17 @@ private struct Stage3MacOSMessagesPendingSurfaceView: View {
 }
 
 struct Stage3MacOSMastersWorkspaceView: View {
+    @ObservedObject private var chrome = Stage3MacOSWorkspaceChrome.shared
     @StateObject private var store = MasterExperienceStore()
     @State private var selectedMasterID: String?
+
+    private var domainFilterOptions: [Stage3MacOSToolbarFilterOption] {
+        let allDomains = [Stage3MacOSToolbarFilterOption(id: "all", title: "全部领域", systemImage: "square.grid.2x2")]
+        let domains = store.domains.map {
+            Stage3MacOSToolbarFilterOption(id: $0.id, title: $0.title, systemImage: "graduationcap.fill")
+        }
+        return allDomains + domains
+    }
 
     private var selectedMaster: MasterProfile? {
         if let conversationMasterID = store.conversation?.masterID,
@@ -920,13 +1085,19 @@ struct Stage3MacOSMastersWorkspaceView: View {
             sessionColumn
                 .frame(minWidth: 520, idealWidth: 640, maxWidth: .infinity)
 
-            inspectorColumn
-                .frame(minWidth: 280, idealWidth: 320, maxWidth: 360)
+            if chrome.isInspectorVisible {
+                inspectorColumn
+                    .frame(minWidth: 280, idealWidth: 320, maxWidth: 360)
+            }
         }
         .stage3SplitAutosave("mastersWorkspace")
         .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            synchronizeChrome()
+        }
         .task {
             store.loadIfNeeded()
+            synchronizeChrome()
         }
         .onChange(of: store.directoryMasters.map(\.id)) { ids in
             guard !ids.isEmpty else {
@@ -949,6 +1120,32 @@ struct Stage3MacOSMastersWorkspaceView: View {
             if let masterID {
                 selectedMasterID = masterID
             }
+        }
+        .onChange(of: store.query) { query in
+            if chrome.activeWorkspaceID == "master", chrome.searchText != query {
+                chrome.searchText = query
+            }
+        }
+        .onChange(of: store.selectedDomainID ?? "all") { _ in
+            synchronizeChrome()
+        }
+        .onChange(of: store.domains.map(\.id)) { _ in
+            synchronizeChrome()
+        }
+        .onChange(of: chrome.searchText) { query in
+            guard chrome.activeWorkspaceID == "master" else { return }
+            if store.query != query {
+                store.query = query
+            }
+        }
+        .onChange(of: chrome.selectedFilterID) { filterID in
+            guard chrome.activeWorkspaceID == "master" else { return }
+            let resolvedID = filterID ?? "all"
+            store.selectedDomainID = resolvedID == "all" ? nil : resolvedID
+        }
+        .onChange(of: chrome.refreshRequestSerial) { _ in
+            guard chrome.activeWorkspaceID == "master" else { return }
+            Task { await store.refreshCatalog() }
         }
     }
 
@@ -1191,6 +1388,17 @@ struct Stage3MacOSMastersWorkspaceView: View {
             .padding(Spacing.md)
         }
         .workspacePaneBackground(tint: Color.spareYellow.opacity(0.05))
+    }
+
+    private func synchronizeChrome() {
+        chrome.configure(
+            workspaceID: "master",
+            searchPrompt: "搜索大师或关键词",
+            searchText: store.query,
+            filterOptions: domainFilterOptions,
+            selectedFilterID: store.selectedDomainID ?? "all",
+            refreshLabel: "刷新大师目录"
+        )
     }
 }
 

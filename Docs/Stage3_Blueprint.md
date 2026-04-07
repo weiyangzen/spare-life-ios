@@ -72,7 +72,7 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 - [x] S3-025 让 `EarnSocialHomeView` 与 `EarnSocialExperienceStore` 收口成单一 runtime truth，不再继续双路径并存；当前首页已改成 store-backed root，lane/filter/feed/sheet 全部走 `EarnSocialExperienceStore`，不再保留页面内独立 mock category/card/chat 状态。
 - [x] S3-026 让 `MyProfile` 根页明确区分 live-ish 聚合值、seeded fallback、未接线指标与 route target；当前 root 已接入 `MyProfileOverviewMetrics` 的 live/cached 聚合、集中 seeded feature snapshot 与 unhooked messages placeholder，并在根页显式展示 provenance badge 与 route target。
 - [x] S3-027 修正 `Xianxia` topic/shard `loadMore()` 追加语义，停止覆盖已有数组；`XianxiaHomeViewModel` 与 `SceneTopicViewModel` 现都在 presentation 层显式做 upsert-append，不再把累计语义偷偷依赖给 repository cache merge。
-- [ ] S3-028 对当前 `masters -> messages/profile`、`earn social -> messages`、`xianxia -> earn social` 的字符串 route 生产端做统一归口。
+- [x] S3-028 对当前 `masters -> messages/profile`、`earn social -> messages`、`xianxia -> earn social` 的字符串 route 生产端做统一归口；当前 `LegacyAppRouteBuilder + LegacyAppRouteNormalizer + AppHandoffRouter` 已冻结 `messages compose/thread`、`my/profile highlight=memory`、`earn-social/market` 这几类 legacy route 的统一生产/解释入口，`EarnSocial` 关系任务与 `Xianxia` 社交流程都改走同一套归口。
 
 ### 6.4 OpenClaw IM 对齐与消息卡片唯一标识
 
@@ -126,8 +126,8 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 - [x] S3-080 把 `messages` 内部 route、跨 tab handoff、OpenClaw IM locator 对齐成同一套主键体系；Swift runtime 已冻结 `MessagesConversationLocator / MessagesThreadIdentity / CrossTabHandoff`，thread context 只按 canonical locator 身份比较，thread-anchored handoff 对 `mask / relationship / memory / quadRole / groupPlay / groupVote` 统一复用同一 locator + hint。
 - [x] S3-081 冻结 `CrossTabHandoff` 的 canonical payload，不再继续扩散 ad-hoc URI。
 - [x] S3-082 为 `messages/self?draft=...`、`thread?lane=...&counterpart=...`、`thread?bond_id=...&icebreak_session_id=...` 建立 legacy normalizer，并把 `messages/self` 收口到 canonical `compose_draft` handoff，把两类 `thread` 历史入口统一降级为 `messages home + pendingThread` 兼容层。
-- [ ] S3-083 让 `masters -> messages`、`masters -> profile`、`earn social -> messages` 在 iOS 与 macOS 上共享同一 handoff 解释逻辑。
-- [ ] S3-084 当目标 surface 尚未 ready 时，为 iOS 和 macOS 同时提供 pending handoff，而不是直接丢 payload。
+- [x] S3-083 让 `masters -> messages`、`masters -> profile`、`earn social -> messages` 在 iOS 与 macOS 上共享同一 handoff 解释逻辑；当前 `CrossTabHandoff` 已扩成共享 `messages / earn social / my profile` payload，`MainTabView`、`MessagesFeatureRootView`、`MyProfileView`、`EarnSocialHomeView` 统一只认 `AppHandoffRouter` 提供的 shared normalizer/interpreter，不再各自解释 ad-hoc URI。
+- [x] S3-084 当目标 surface 尚未 ready 时，为 iOS 和 macOS 同时提供 pending handoff，而不是直接丢 payload；当前 `masters -> messages compose`、`earn social -> messages thread bridge`、`masters -> profile memory highlight` 都会落成 shared pending handoff，由 `MessagesFeatureRootView` / `MyProfileView` 显式承接，不再静默丢弃 payload。
 
 ### 6.8 验证、联调与验收
 

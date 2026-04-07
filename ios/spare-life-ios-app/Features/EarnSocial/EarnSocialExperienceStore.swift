@@ -8,7 +8,7 @@ import SwiftUI
 
 // MARK: - Lane
 
-enum EarnSocialLaneID: String, CaseIterable, Identifiable, Hashable {
+enum EarnSocialLaneID: String, CaseIterable, Identifiable, Hashable, Sendable {
     case idleGoods = "idle_goods"
     case skillQA = "skill_qa"
     case romance = "romance"
@@ -646,6 +646,22 @@ final class EarnSocialExperienceStore: ObservableObject {
         activeSheet = .wallet
     }
 
+    func applyExternalHandoff(_ handoff: CrossTabHandoff) {
+        guard handoff.targetSurface == .earnSocial else { return }
+        guard case .earnSocial(let route) = handoff.route else { return }
+
+        switch route {
+        case .market(let lane, let topic):
+            selectLane(lane)
+            if let topic, !topic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               marketDraft.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                marketDraft.note = topic
+            }
+            openMarket()
+            toastMessage = "已从\(handoff.sourceSurface.title)带入 \(lane.title) 赛道。"
+        }
+    }
+
     func updateDraftTemplate(_ template: EarnIntentTemplate) {
         marketDraft = EarnIntentDraft(
             lane: template.lane,
@@ -911,7 +927,10 @@ final class EarnSocialExperienceStore: ObservableObject {
                         )
                     ],
                     milestones: [],
-                    threadRoute: "sparelife://messages/thread?lane=\(session.lane.rawValue)&counterpart=\(session.counterpartName)"
+                    threadRoute: LegacyAppRouteBuilder.messagesThread(
+                        lane: session.lane,
+                        counterpartName: session.counterpartName
+                    )
                 )
                 addEnergy(
                     amount: 7,

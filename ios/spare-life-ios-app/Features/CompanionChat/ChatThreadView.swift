@@ -490,7 +490,7 @@ struct ChatThreadView: View {
             .onTapGesture {
                 dismissKeyboard()
             }
-            .onChange(of: store.messages.count) { _, _ in
+            .onChange(of: store.messages.count) { _ in
                 if let last = store.messages.last {
                     withAnimation(.spareEase) {
                         proxy.scrollTo(last.id, anchor: .bottom)

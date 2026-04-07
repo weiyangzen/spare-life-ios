@@ -19,6 +19,7 @@ private enum EarnSocialPalette {
 
 struct EarnSocialHomeView: View {
     @StateObject private var store = EarnSocialExperienceStore()
+    @EnvironmentObject private var appHandoffRouter: AppHandoffRouter
 
     var body: some View {
         NavigationStack {
@@ -34,6 +35,13 @@ struct EarnSocialHomeView: View {
         }
         .task {
             store.loadIfNeeded()
+            if let handoff = appHandoffRouter.lastHandoff {
+                store.applyExternalHandoff(handoff)
+            }
+        }
+        .onChange(of: appHandoffRouter.handoffSerial) { _ in
+            guard let handoff = appHandoffRouter.lastHandoff else { return }
+            store.applyExternalHandoff(handoff)
         }
         .sheet(item: $store.activeSheet) { sheet in
             EarnSocialSheetHostView(sheet: sheet, store: store)
@@ -1058,6 +1066,7 @@ private struct EarnSocialArenaSheetView: View {
 
 private struct EarnSocialBondSheetView: View {
     @ObservedObject var store: EarnSocialExperienceStore
+    @EnvironmentObject private var appHandoffRouter: AppHandoffRouter
 
     var body: some View {
         EarnSocialSheetScaffold(title: "关系任务") {
@@ -1071,6 +1080,19 @@ private struct EarnSocialBondSheetView: View {
                                 Text("目标对象：\(story.counterpartName) · 强度 \(story.strengthScore)")
                                     .font(.spareCaption)
                                     .foregroundColor(.secondary)
+
+                                Button {
+                                    store.activeSheet = nil
+                                    appHandoffRouter.openLegacyRoute(
+                                        story.threadRoute,
+                                        sourceSurface: .earnSocial
+                                    )
+                                } label: {
+                                    Label("去消息页接手", systemImage: "message.fill")
+                                        .font(.spareCaptionSB)
+                                        .foregroundColor(.spareYellowInk)
+                                }
+                                .buttonStyle(.plain)
                             }
                         }
 

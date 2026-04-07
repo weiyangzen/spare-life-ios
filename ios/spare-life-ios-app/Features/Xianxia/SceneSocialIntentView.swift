@@ -16,6 +16,7 @@ struct SceneSocialIntentView: View {
     var targetAvatar: SceneAvatarCard? = nil
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var appHandoffRouter: AppHandoffRouter
     @StateObject private var vm: SocialIntentViewModel
 
     init(scene: Scene, targetAvatar: SceneAvatarCard? = nil) {
@@ -190,12 +191,16 @@ struct SceneSocialIntentView: View {
 
             Button {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                appHandoffRouter.openLegacyRoute(
+                    vm.earnSocialRoute(targetAvatarName: targetAvatar?.displayName),
+                    sourceSurface: .xianxia
+                )
                 dismiss()
             } label: {
                 HStack(spacing: Spacing.sm) {
-                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                    Image(systemName: "bolt.circle.fill")
                         .font(.system(size: 14))
-                    Text("查看对话")
+                    Text("去赚闲能继续破冰")
                         .font(.spareBodySB)
                 }
                 .foregroundColor(.spareDark)
@@ -668,6 +673,13 @@ final class SocialIntentViewModel: ObservableObject {
         }
     }
 
+    func earnSocialRoute(targetAvatarName: String?) -> String {
+        LegacyAppRouteBuilder.earnSocialMarket(
+            lane: earnSocialLane,
+            topic: handoffTopic(targetAvatarName: targetAvatarName)
+        )
+    }
+
     func submit() {
         guard case .form = submitState else { return }
         submitState = .submitting
@@ -677,5 +689,29 @@ final class SocialIntentViewModel: ObservableObject {
             try? await Task.sleep(nanoseconds: 1_200_000_000)
             submitState = .success
         }
+    }
+
+    private var earnSocialLane: EarnSocialLaneID {
+        switch draft.lane {
+        case .friend, .meal:
+            return .friendship
+        case .collab, .jobSeek:
+            return .jobHiring
+        case .skill:
+            return .skillQA
+        case .errand:
+            return .errandHelp
+        }
+    }
+
+    private func handoffTopic(targetAvatarName: String?) -> String? {
+        let note = draft.note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !note.isEmpty {
+            return note
+        }
+        if let targetAvatarName, !targetAvatarName.isEmpty {
+            return "\(draft.sceneName) · \(targetAvatarName)"
+        }
+        return draft.sceneName
     }
 }

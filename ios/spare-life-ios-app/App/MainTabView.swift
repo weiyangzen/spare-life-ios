@@ -66,6 +66,21 @@ enum MainTab: String, CaseIterable, Identifiable {
             return .myProfile
         }
     }
+
+    init?(surfaceID: AppSurfaceID) {
+        switch surfaceID {
+        case .xianxia:
+            self = .xianxia
+        case .masters:
+            self = .master
+        case .earnSocial:
+            self = .earnSocial
+        case .messages:
+            self = .messages
+        case .myProfile:
+            self = .myProfile
+        }
+    }
 }
 
 // MARK: - Main Tab View
@@ -74,16 +89,26 @@ struct MainTabView: View {
     @State private var selectedTab: MainTab = .xianxia
     @StateObject private var badgeStore = TabBadgeStore()
     @StateObject private var router = ConversationRouter()
+    @StateObject private var appHandoffRouter = AppHandoffRouter()
 
     var body: some View {
         tabLayer
             .environmentObject(router)
-            .onChange(of: router.handoffSerial) { _, _ in
+            .environmentObject(appHandoffRouter)
+            .onChange(of: router.handoffSerial) { _ in
                 guard router.lastHandoff?.targetSurface == .messages else { return }
                 guard router.lastRequestedRoute != .home else { return }
                 guard selectedTab != .messages else { return }
                 withAnimation(.spareSpring) {
                     selectedTab = .messages
+                }
+            }
+            .onChange(of: appHandoffRouter.handoffSerial) { _ in
+                guard let handoff = appHandoffRouter.lastHandoff else { return }
+                guard let targetTab = MainTab(surfaceID: handoff.targetSurface) else { return }
+                guard selectedTab != targetTab else { return }
+                withAnimation(.spareSpring) {
+                    selectedTab = targetTab
                 }
             }
     }

@@ -229,7 +229,7 @@ struct QuadRoleChatView: View {
                 .padding(.horizontal, Spacing.md)
                 .padding(.vertical, Spacing.md)
             }
-            .onChange(of: store.messages.count) { _, _ in
+            .onChange(of: store.messages.count) { _ in
                 if let last = store.messages.last {
                     withAnimation(.spareEase) {
                         proxy.scrollTo(last.id, anchor: .bottom)

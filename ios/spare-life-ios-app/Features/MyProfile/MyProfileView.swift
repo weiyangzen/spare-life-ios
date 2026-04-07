@@ -86,6 +86,7 @@ final class MyProfileStore: ObservableObject {
     @Published var loadState: ProfileLoadState = .idle
     @Published var profile: UserProfile? = nil
     @Published var avatarProfile: AvatarPublicProfile? = nil
+    @Published var pendingHandoff: MyProfilePendingHandoff?
     @Published var editingProfile = false
     @Published var editingProfileAvatar = false
     @Published var editingAvatar = false
@@ -139,6 +140,16 @@ final class MyProfileStore: ObservableObject {
         moduleOverviews = MyProfileStore.makeInitialModuleOverviews()
         loadState = .idle
         load()
+    }
+
+    func applyExternalHandoff(_ handoff: CrossTabHandoff) {
+        guard handoff.targetSurface == .myProfile else { return }
+        guard case .myProfile = handoff.route else { return }
+        pendingHandoff = handoff.myProfilePending
+    }
+
+    func clearPendingHandoff() {
+        pendingHandoff = nil
     }
 
     func updateAvatarAnimal(_ animal: ProfileAnimalAvatar) {
@@ -331,6 +342,7 @@ final class MyProfileStore: ObservableObject {
 
 struct MyProfileView: View {
     @StateObject private var store = MyProfileStore()
+    @EnvironmentObject private var appHandoffRouter: AppHandoffRouter
 
     var body: some View {
         NavigationStack {
@@ -340,7 +352,16 @@ struct MyProfileView: View {
             }
             .spareNavigationBarHidden(true)
         }
-        .task { store.load() }
+        .task {
+            store.load()
+            if let handoff = appHandoffRouter.lastHandoff {
+                store.applyExternalHandoff(handoff)
+            }
+        }
+        .onChange(of: appHandoffRouter.handoffSerial) { _ in
+            guard let handoff = appHandoffRouter.lastHandoff else { return }
+            store.applyExternalHandoff(handoff)
+        }
     }
 
     @ViewBuilder
@@ -372,6 +393,15 @@ private struct ProfileScrollView: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: Spacing.lg) {
+                    if let pending = store.pendingHandoff {
+                        MyProfilePendingHandoffCard(
+                            pending: pending,
+                            dismissPending: {
+                                store.clearPendingHandoff()
+                            }
+                        )
+                    }
+
                     ProfileHeroSection(
                         profile: profile,
                         avatarProfile: store.avatarProfile,
@@ -1284,6 +1314,52 @@ private struct MyProfileOverviewCardView: View {
         .padding(Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .profileSurface(cornerRadius: 28)
+    }
+}
+
+private struct MyProfilePendingHandoffCard: View {
+    let pending: MyProfilePendingHandoff
+    let dismissPending: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            HStack(alignment: .top, spacing: Spacing.sm) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(ProfilePalette.ink)
+                    .frame(width: 36, height: 36)
+                    .background(Color.spareYellow.opacity(0.16), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("待接线 handoff")
+                        .font(.spareCaptionSB)
+                        .foregroundColor(ProfilePalette.ink)
+
+                    Text(message)
+                        .font(.spareCaption)
+                        .foregroundColor(ProfilePalette.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            Button("继续查看我的首页") {
+                dismissPending()
+            }
+            .font(.spareMicro)
+            .foregroundColor(ProfilePalette.ink)
+        }
+        .padding(Spacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .profileSurface(cornerRadius: 28)
+    }
+
+    private var message: String {
+        switch pending {
+        case .highlightMemory(let sourceSurface):
+            return "\(sourceSurface.title) 试图直接高亮记忆授权，但 MyProfile 目前只有根页总览，还没有独立的 memory runtime surface，所以先把 handoff 挂起在这里。"
+        }
     }
 }
 

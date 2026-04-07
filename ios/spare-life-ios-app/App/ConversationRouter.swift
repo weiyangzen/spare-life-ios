@@ -153,6 +153,7 @@ final class ConversationRouter: ObservableObject {
     @Published var path: [MessagesRoute] = []
     @Published private(set) var lastRequestedRoute: MessagesRoute = .home
     @Published private(set) var lastHandoff: CrossTabHandoff?
+    @Published private(set) var pendingHandoff: MessagesPendingHandoff?
     @Published private(set) var handoffSerial: UInt64 = 0
 
     var currentRoute: MessagesRoute {
@@ -219,9 +220,42 @@ final class ConversationRouter: ObservableObject {
         )
     }
 
+    func applyExternalHandoff(_ handoff: CrossTabHandoff) {
+        guard handoff.targetSurface == .messages else { return }
+        guard case .messages(let route) = handoff.route else { return }
+
+        lastRequestedRoute = .home
+        lastHandoff = handoff
+        path = []
+
+        switch route {
+        case .home:
+            pendingHandoff = handoff.messagesPending
+        case .composeDraft(let draftID, let seedText, let recipientLocator):
+            pendingHandoff = handoff.messagesPending ?? .composeDraft(
+                draftID: draftID,
+                seedText: seedText,
+                sessionID: nil,
+                recipientLocator: recipientLocator
+            )
+        case .thread(let locator, let hint):
+            pendingHandoff = handoff.messagesPending ?? .unresolvedThread(
+                locator: locator,
+                hint: hint
+            )
+        }
+
+        handoffSerial &+= 1
+    }
+
+    func clearPendingHandoff() {
+        pendingHandoff = nil
+    }
+
     private func navigate(to route: MessagesRoute, sourceSurface: AppSurfaceID = .messages) {
         lastRequestedRoute = route
         lastHandoff = route.handoff(sourceSurface: sourceSurface)
+        pendingHandoff = nil
         path = route.canonicalStack
         handoffSerial &+= 1
     }

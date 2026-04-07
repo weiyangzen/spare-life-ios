@@ -5,13 +5,22 @@ import SwiftUI
 
 struct MessagesFeatureRootView: View {
     @EnvironmentObject private var router: ConversationRouter
+    @EnvironmentObject private var appHandoffRouter: AppHandoffRouter
 
     var body: some View {
         NavigationStack(path: $router.path) {
-            ConversationHubView()
+            rootContent
                 .navigationDestination(for: MessagesRoute.self) { route in
                     destination(for: route)
                 }
+        }
+        .task {
+            guard let handoff = appHandoffRouter.lastHandoff else { return }
+            router.applyExternalHandoff(handoff)
+        }
+        .onChange(of: appHandoffRouter.handoffSerial) { _ in
+            guard let handoff = appHandoffRouter.lastHandoff else { return }
+            router.applyExternalHandoff(handoff)
         }
     }
 
@@ -50,6 +59,21 @@ struct MessagesFeatureRootView: View {
             )
         case .groupVote, .composeDraft:
             MessagesPendingSurfaceView(route: route)
+        }
+    }
+
+    @ViewBuilder
+    private var rootContent: some View {
+        if let pending = router.pendingHandoff, router.path.isEmpty {
+            MessagesPendingHandoffView(
+                pending: pending,
+                sourceSurface: router.lastHandoff?.sourceSurface,
+                dismissPending: {
+                    router.clearPendingHandoff()
+                }
+            )
+        } else {
+            ConversationHubView()
         }
     }
 }
@@ -150,6 +174,108 @@ private struct MessagesPendingSurfaceView: View {
             return "draft_id: \(context.draftID)"
         case .home, .thread:
             return nil
+        }
+    }
+}
+
+private struct MessagesPendingHandoffView: View {
+    let pending: MessagesPendingHandoff
+    let sourceSurface: AppSurfaceID?
+    let dismissPending: () -> Void
+
+    var body: some View {
+        VStack(spacing: Spacing.lg) {
+            Image(systemName: pendingIcon)
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundColor(.spareYellowInk)
+
+            VStack(spacing: Spacing.sm) {
+                Text("待接线 handoff")
+                    .font(.spareTitle3)
+                    .foregroundColor(.primary)
+
+                Text(pendingMessage)
+                    .font(.spareBody)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            if let contextLine {
+                Text(contextLine)
+                    .font(.spareCaption)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, Spacing.md)
+                    .padding(.vertical, Spacing.sm)
+                    .background(
+                        Capsule()
+                            .fill(Color.spareYellow.opacity(0.12))
+                    )
+            }
+
+            Button("继续看消息首页") {
+                dismissPending()
+            }
+            .font(.spareCaptionSB)
+            .foregroundColor(.spareYellowInk)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, Spacing.xl)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.spareYellow.opacity(0.10),
+                    Color.white,
+                    Color.white
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+        )
+        .navigationTitle("消息待接线")
+        .spareNavigationBarTitleDisplayMode(.inline)
+    }
+
+    private var pendingIcon: String {
+        switch pending {
+        case .composeDraft:
+            return "square.and.pencil"
+        case .legacyThreadLaneCounterpart, .legacyBondBridge, .unresolvedThread:
+            return "clock.arrow.circlepath"
+        }
+    }
+
+    private var pendingMessage: String {
+        switch pending {
+        case .composeDraft:
+            let sourceTitle = sourceSurface?.title ?? "上游页面"
+            return "\(sourceTitle) 已把草稿 handoff 交给消息页，但 compose surface 还没有接成独立 runtime。"
+        case .legacyThreadLaneCounterpart:
+            return "已把赚闲能带来的消息接手请求挂起。当前 messages root 先落到 hub，等 thread bridge ready 后再消化这份 payload。"
+        case .legacyBondBridge:
+            return "已保留关系任务到消息线程的桥接 payload。当前还没有可直接打开的 bond thread runtime，所以先挂起。"
+        case .unresolvedThread:
+            return "已收到 thread locator，但当前消息根页还拿不到可渲染的 live thread summary，只能先保留 handoff。"
+        }
+    }
+
+    private var contextLine: String? {
+        switch pending {
+        case .composeDraft(_, let seedText, let sessionID, _):
+            if let sessionID, !sessionID.isEmpty {
+                return "session_id: \(sessionID)"
+            }
+            guard let seedText, !seedText.isEmpty else { return nil }
+            return "草稿预填：\(seedText)"
+        case .legacyThreadLaneCounterpart(let laneID, let counterpartName):
+            return "lane: \(laneID) · counterpart: \(counterpartName)"
+        case .legacyBondBridge(let bondID, let icebreakSessionID):
+            if let icebreakSessionID, !icebreakSessionID.isEmpty {
+                return "bond_id: \(bondID) · icebreak_session_id: \(icebreakSessionID)"
+            }
+            return "bond_id: \(bondID)"
+        case .unresolvedThread(let locator, _):
+            return locator.canonicalThreadID
         }
     }
 }

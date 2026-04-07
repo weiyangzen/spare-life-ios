@@ -115,11 +115,11 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 ### 6.6 macOS 与 iOS 的共享代码策略
 
 - [x] S3-070 明确哪些 Swift 文件是 iOS/macOS 直接共享，哪些只在 desktop shell、desktop container、desktop interaction 层做分支；当前以 `Docs/Stage3_macOS_Shared_Surface_Policy.md` 与 `ios/spare-life-ios-app/App/DesignSystem/PlatformSurfacePolicy.swift` 冻结共享/分支矩阵。
-- [ ] S3-071 为 `DesignTokens`、`PlatformCompat`、`WaterfallLayout`、shared feed 组件建立跨 iOS/macOS 的最小兼容检查。
-- [ ] S3-072 梳理哪些页面当前隐含依赖 UIKit / iOS-only API，列出 macOS UIUX 复刻与 desktop optimization 的 blockers。
+- [x] S3-071 为 `DesignTokens`、`PlatformCompat`、`WaterfallLayout`、shared feed 组件建立跨 iOS/macOS 的最小兼容检查；当前已在 `PlatformCompat.swift` 冻结 `Stage3SharedSurfaceCompatibilityMatrix.minimumChecks()` 作为显式兼容矩阵，并由 `Docs/Stage3_Shared_Surface_Compatibility.md` 与 `Docs/scripts/validate_stage3_shared_surface.sh` 承接可重复 smoke。
+- [x] S3-072 梳理哪些页面当前隐含依赖 UIKit / iOS-only API，列出 macOS UIUX 复刻与 desktop optimization 的 blockers；当前已在 `Docs/Stage3_macOS_UIKit_Blockers.md` 固定 `masters / messages / xianxia / root shell` 的硬 blocker、软 blocker 与推荐抽象路径。
 - [x] S3-073 若存在必须分支的页面，优先把差异收口在壳层、容器层、交互层，不允许在 feature 业务层到处散落 `#if os(...)`；共享 feed/design system 已移除无必要平台 import，并把条件编译约束收口到 compat 与显式分层规则。
 - [x] S3-074 为 macOS 建立“共享内容与状态、分支容器与交互”的实现原则，避免刚开始就复制出第二套页面树；`app/macos` 与桌面车道 README 已同步为“共享内容/状态、分支壳层/容器/交互”的执行规则。
-- [ ] S3-075 对需要 desktop optimization 的页面，优先抽象成共享 view model + 平台专属 layout shell，而不是复制业务逻辑。
+- [x] S3-075 对需要 desktop optimization 的页面，优先抽象成共享 view model + 平台专属 layout shell，而不是复制业务逻辑；当前 `UnifiedDiscoverFeedView.swift` 已重构为共享 `DiscoverFeedViewModel` + `SharedFeedLayoutShell` 参考实现，桌面侧只调整外层 workspace shell，不复制 feed 排序与加载逻辑。
 
 ### 6.7 路由、handoff 与跨端一致性
 

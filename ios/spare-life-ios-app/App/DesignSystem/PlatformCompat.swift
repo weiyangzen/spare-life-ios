@@ -85,6 +85,125 @@ enum SpareImpactFeedbackStyle {
     case medium
 }
 
+enum Stage3SharedSurfaceCompatibilityArea: String, CaseIterable, Sendable {
+    case designTokens = "design-tokens"
+    case platformCompat = "platform-compat"
+    case waterfallLayout = "waterfall-layout"
+    case sharedFeed = "shared-feed"
+}
+
+struct Stage3SharedSurfaceCompatibilityCheck: Identifiable, Equatable, Sendable {
+    let area: Stage3SharedSurfaceCompatibilityArea
+    let fileAnchors: [String]
+    let smokeAnchors: [String]
+    let expectation: String
+
+    var id: String { area.rawValue }
+}
+
+@MainActor
+enum Stage3SharedSurfaceCompatibilityMatrix {
+    private struct CompatibilitySmokeCard: Identifiable {
+        let id: String
+    }
+
+    static func minimumChecks() -> [Stage3SharedSurfaceCompatibilityCheck] {
+        _ = Color.spareYellow
+        _ = Font.spareTitle2
+        _ = Animation.spareSpring
+        _ = CardShadow(prominent: true)
+        _ = EmptyStateView(icon: "sparkles", title: "Smoke", message: "Compile anchor")
+        _ = ErrorStateView(message: "Smoke")
+        _ = CardPressStyle()
+
+        _ = spareBottomSafeAreaInset()
+        _ = ToolbarItemPlacement.spareNavigationLeading
+        _ = ToolbarItemPlacement.spareNavigationTrailing
+        _ = ToolbarItemPlacement.spareTopBarTrailing
+        _ = SpareNavigationBarTitleDisplayMode.inline
+
+        _ = WaterfallColumns.count(for: 1180)
+        _ = ResponsiveMasonryLayout(columns: 3, spacing: Spacing.md)
+
+        let layoutCards = [CompatibilitySmokeCard(id: "stage3-shared-surface-smoke")]
+        _ = WaterfallGrid(layoutCards) { card in
+            Text(card.id)
+        }
+
+        let mixedCards = DiscoverMixedFeedDemo.sampleCards()
+        _ = FeedSorter.sorted(mixedCards)
+        _ = UnifiedWaterfallFeed(
+            loadState: .loaded,
+            cards: layoutCards,
+            emptyIcon: "tray",
+            emptyTitle: "Smoke",
+            emptyMessage: "Compile anchor"
+        ) { card in
+            Text(card.id)
+        }
+        _ = DiscoverMixedFeedSection(cards: mixedCards)
+        _ = UnifiedDiscoverFeedView()
+
+        return [
+            Stage3SharedSurfaceCompatibilityCheck(
+                area: .designTokens,
+                fileAnchors: ["App/DesignSystem/DesignTokens.swift"],
+                smokeAnchors: [
+                    "Color.spareYellow",
+                    "EmptyStateView",
+                    "ErrorStateView",
+                    "CardPressStyle"
+                ],
+                expectation: "Shared color, typography, placeholder, empty/error, and press-state primitives compile unchanged on iOS and macOS."
+            ),
+            Stage3SharedSurfaceCompatibilityCheck(
+                area: .platformCompat,
+                fileAnchors: ["App/DesignSystem/PlatformCompat.swift"],
+                smokeAnchors: [
+                    "spareBottomSafeAreaInset()",
+                    "ToolbarItemPlacement.spareNavigationLeading",
+                    "SpareNavigationBarTitleDisplayMode.inline"
+                ],
+                expectation: "UIKit-only affordances stay behind compat shims while macOS resolves to AppKit or no-op equivalents."
+            ),
+            Stage3SharedSurfaceCompatibilityCheck(
+                area: .waterfallLayout,
+                fileAnchors: ["App/DesignSystem/WaterfallLayout.swift"],
+                smokeAnchors: [
+                    "WaterfallColumns.count(for:)",
+                    "ResponsiveMasonryLayout",
+                    "WaterfallGrid"
+                ],
+                expectation: "Waterfall layout math, skeletons, and width heuristics stay shared and build for both Apple targets."
+            ),
+            Stage3SharedSurfaceCompatibilityCheck(
+                area: .sharedFeed,
+                fileAnchors: [
+                    "Features/Shared/FeedCardProtocol.swift",
+                    "Features/Shared/UnifiedWaterfallFeed.swift",
+                    "Features/Shared/DiscoverMixedFeedSection.swift",
+                    "Features/Shared/UnifiedDiscoverFeedView.swift"
+                ],
+                smokeAnchors: [
+                    "FeedSorter.sorted(_:)",
+                    "UnifiedWaterfallFeed",
+                    "DiscoverMixedFeedSection",
+                    "UnifiedDiscoverFeedView"
+                ],
+                expectation: "Shared feed state, ranking, waterfall rendering, and discover-page shell build as one source of truth, with desktop-only layout branching kept outside business logic."
+            )
+        ]
+    }
+
+    static func summaryLines() -> [String] {
+        minimumChecks().map { check in
+            let files = check.fileAnchors.joined(separator: ", ")
+            let anchors = check.smokeAnchors.joined(separator: ", ")
+            return "[\(check.area.rawValue)] files: \(files) | anchors: \(anchors)"
+        }
+    }
+}
+
 @MainActor
 func spareBottomSafeAreaInset() -> CGFloat {
     #if canImport(UIKit)

@@ -13,7 +13,7 @@ import SwiftUI
 // MARK: - Discover Feed Store
 
 @MainActor
-final class DiscoverFeedStore: ObservableObject {
+final class DiscoverFeedViewModel: ObservableObject {
     @Published private(set) var loadState: FeedLoadState = .idle
     @Published private(set) var allCards: [AnyFeedCard] = []
     @Published var selectedKind: FeedCardKind? = nil
@@ -48,7 +48,7 @@ final class DiscoverFeedStore: ObservableObject {
         return nil
     }
 
-    func load() {
+    func loadIfNeeded() {
         guard case .idle = loadState else { return }
         loadState = .loading
         Task {
@@ -65,7 +65,7 @@ final class DiscoverFeedStore: ObservableObject {
 
     func retry() {
         loadState = .idle
-        load()
+        loadIfNeeded()
     }
 
     // MARK: - Card Factory (production: assembled from repositories)
@@ -175,47 +175,205 @@ final class DiscoverFeedStore: ObservableObject {
     }
 }
 
+typealias DiscoverFeedStore = DiscoverFeedViewModel
+
+// MARK: - Shared Feed Layout Shell
+
+private struct SharedFeedLayoutShellMetrics {
+    let maxContentWidth: CGFloat?
+    let outerHorizontalPadding: CGFloat
+    let topPadding: CGFloat
+    let bottomPadding: CGFloat
+    let sectionSpacing: CGFloat
+    let panelPadding: CGFloat
+    let panelCornerRadius: CGFloat
+
+    static var current: Self {
+        #if os(macOS)
+        SharedFeedLayoutShellMetrics(
+            maxContentWidth: 1180,
+            outerHorizontalPadding: Spacing.xl,
+            topPadding: Spacing.lg,
+            bottomPadding: Spacing.lg,
+            sectionSpacing: Spacing.lg,
+            panelPadding: Spacing.lg,
+            panelCornerRadius: 28
+        )
+        #else
+        SharedFeedLayoutShellMetrics(
+            maxContentWidth: nil,
+            outerHorizontalPadding: 0,
+            topPadding: 0,
+            bottomPadding: 0,
+            sectionSpacing: 0,
+            panelPadding: 0,
+            panelCornerRadius: 0
+        )
+        #endif
+    }
+}
+
+/// Shared content/state stays in the view model; only the outer workspace shell branches by platform.
+private struct SharedFeedLayoutShell<Controls: View, Banner: View, Content: View>: View {
+    let showsBanner: Bool
+    let controls: Controls
+    let banner: Banner
+    let content: Content
+
+    private let metrics = SharedFeedLayoutShellMetrics.current
+
+    init(
+        showsBanner: Bool,
+        @ViewBuilder controls: () -> Controls,
+        @ViewBuilder banner: () -> Banner,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.showsBanner = showsBanner
+        self.controls = controls()
+        self.banner = banner()
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack {
+            backgroundLayer
+
+            VStack(spacing: metrics.sectionSpacing) {
+                controlsPanel
+                contentPanel
+            }
+            .frame(
+                maxWidth: metrics.maxContentWidth ?? .infinity,
+                maxHeight: .infinity,
+                alignment: .top
+            )
+            .padding(.horizontal, metrics.outerHorizontalPadding)
+            .padding(.top, metrics.topPadding)
+            .padding(.bottom, metrics.bottomPadding)
+        }
+    }
+
+    private var backgroundLayer: some View {
+        LinearGradient(
+            colors: [
+                Color.spareYellow.opacity(0.10),
+                Color.white,
+                Color.white
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+    }
+
+    @ViewBuilder
+    private var controlsPanel: some View {
+        #if os(macOS)
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            HStack(alignment: .center, spacing: Spacing.md) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("发现工作区")
+                        .font(.spareTitle3)
+                        .foregroundColor(.primary)
+                    Text("共享推荐逻辑，桌面只改壳层密度与编排。")
+                        .font(.spareCaption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                PillTag(label: "shared VM + desktop shell", color: .spareYellowInk)
+            }
+
+            controls
+
+            if showsBanner {
+                banner
+            }
+        }
+        .padding(metrics.panelPadding)
+        .background(
+            RoundedRectangle(cornerRadius: metrics.panelCornerRadius, style: .continuous)
+                .fill(Color.white.opacity(0.92))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: metrics.panelCornerRadius, style: .continuous)
+                .stroke(Color.spareYellow.opacity(0.18), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.06), radius: 18, y: 10)
+        #else
+        VStack(spacing: 0) {
+            controls
+
+            Divider()
+
+            if showsBanner {
+                banner
+                    .padding(.top, Spacing.sm)
+            }
+        }
+        #endif
+    }
+
+    @ViewBuilder
+    private var contentPanel: some View {
+        #if os(macOS)
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(
+                RoundedRectangle(cornerRadius: metrics.panelCornerRadius, style: .continuous)
+                    .fill(Color.white.opacity(0.95))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: metrics.panelCornerRadius, style: .continuous)
+                    .stroke(Color.spareYellow.opacity(0.14), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: metrics.panelCornerRadius, style: .continuous))
+            .shadow(color: Color.black.opacity(0.05), radius: 18, y: 12)
+        #else
+        content
+        #endif
+    }
+}
+
 // MARK: - Discover Feed View
 
 struct UnifiedDiscoverFeedView: View {
-    @StateObject private var store = DiscoverFeedStore()
+    @StateObject private var viewModel = DiscoverFeedViewModel()
+
+    private var showsPinnedBanner: Bool {
+        viewModel.selectedKind == nil && viewModel.pinnedBannerCard != nil
+    }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Kind filter bar
+            SharedFeedLayoutShell(showsBanner: showsPinnedBanner) {
                 FeedKindFilterBar(
-                    selected: $store.selectedKind,
-                    counts: store.kindCounts
+                    selected: $viewModel.selectedKind,
+                    counts: viewModel.kindCounts
                 )
-
-                Divider()
-
-                // Pinned banner (if present)
-                if let pinned = store.pinnedBannerCard, store.selectedKind == nil {
+            } banner: {
+                if let pinned = viewModel.pinnedBannerCard {
                     FeedPinnedBanner(card: pinned)
-                        .padding(.top, Spacing.sm)
                 }
-
-                // Main waterfall feed
+            } content: {
                 UnifiedWaterfallFeed(
-                    loadState: store.loadState,
-                    cards: store.displayCards,
+                    loadState: viewModel.loadState,
+                    cards: viewModel.displayCards,
                     emptyIcon: "rectangle.on.rectangle.slash",
                     emptyTitle: "暂无推荐内容",
                     emptyMessage: "系统正在为你收集跨场景内容，稍后再来看看。",
                     emptyActionLabel: "刷新",
-                    emptyAction: { store.retry() },
-                    onRefresh: { await store.refresh() },
-                    onRetry: { store.retry() }
+                    emptyAction: { viewModel.retry() },
+                    onRefresh: { await viewModel.refresh() },
+                    onRetry: { viewModel.retry() }
                 ) { card in
                     MixedFeedCardView(card: card)
                 }
             }
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("发现")
             .spareNavigationBarTitleDisplayMode(.large)
-            .task { store.load() }
+            .task { viewModel.loadIfNeeded() }
         }
     }
 }

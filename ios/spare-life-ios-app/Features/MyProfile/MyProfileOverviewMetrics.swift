@@ -1,5 +1,91 @@
 import Foundation
 
+enum MyProfileOverviewSourceKind: String, Equatable {
+    case live
+    case cached
+    case seeded
+    case unhooked
+
+    var badgeTitle: String {
+        switch self {
+        case .live:
+            return "live-ish"
+        case .cached:
+            return "cached"
+        case .seeded:
+            return "seeded fallback"
+        case .unhooked:
+            return "未接线"
+        }
+    }
+}
+
+struct MyProfileOverviewMetricValue: Identifiable, Equatable {
+    let label: String
+    let value: String
+
+    var id: String { label }
+}
+
+struct MyProfileModuleOverview: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let sourceKind: MyProfileOverviewSourceKind
+    let sourceSummary: String
+    let detail: String
+    let routeTarget: String
+    let values: [MyProfileOverviewMetricValue]
+}
+
+struct MyProfileHeroStatSnapshot: Equatable {
+    let value: String
+    let label: String
+    let intro: String
+    let sourceKind: MyProfileOverviewSourceKind
+    let sourceSummary: String
+}
+
+struct MyProfileMemoryBarSnapshot: Equatable {
+    let label: String
+    let fraction: Double
+}
+
+struct MyProfileSeededFeatureSnapshot: Equatable {
+    let sourceKind: MyProfileOverviewSourceKind
+    let sourceSummary: String
+    let syncScoreText: String
+    let syncSummary: String
+    let personalityCode: String
+    let personalityLabel: String
+    let personalitySummary: String
+    let personalityFootnote: String
+    let memoryCountText: String
+    let memoryBars: [MyProfileMemoryBarSnapshot]
+    let privacyStatusText: String
+    let privacyStorageText: String
+    let privacyFootnote: String
+
+    static let seeded = MyProfileSeededFeatureSnapshot(
+        sourceKind: .seeded,
+        sourceSummary: "这些卡片还没有稳定 Swift provider，先由 overview 层集中托管 seeded fallback。",
+        syncScoreText: "72%",
+        syncSummary: "当前先用 support-side design contract 对齐的种子分数占位。",
+        personalityCode: "INTP",
+        personalityLabel: "逻辑学家",
+        personalitySummary: "偏好独立思考、抽象建模和延迟定论。",
+        personalityFootnote: "人格摘要暂由 seeded overview 提供，后续再对齐 awakening/provider。",
+        memoryCountText: "248",
+        memoryBars: [
+            MyProfileMemoryBarSnapshot(label: "对话", fraction: 0.60),
+            MyProfileMemoryBarSnapshot(label: "行动", fraction: 0.25),
+            MyProfileMemoryBarSnapshot(label: "情绪", fraction: 0.15)
+        ],
+        privacyStatusText: "本地后端运行中",
+        privacyStorageText: "12.4 MB",
+        privacyFootnote: "隐私卡当前显示的是 seeded local-backend 摘要，还未接成实时诊断聚合。"
+    )
+}
+
 struct MyProfileXianrenStats: Equatable {
     let channelCount: Int
     let topicCount: Int
@@ -83,7 +169,7 @@ actor MyProfileXianrenStatsRepository {
 
         repeat {
             let batch = try await topicRepository.fetchTopics(cursor: cursor, batchSize: 200)
-            mergedTopics = batch.items
+            mergedTopics = Self.upsertAppend(existing: mergedTopics, incoming: batch.items)
             cursor = batch.nextCursor
         } while cursor != nil
 
@@ -119,6 +205,25 @@ actor MyProfileXianrenStatsRepository {
 
     private static func mentionCount(in summary: String) -> Int {
         MyProfileXianrenTextParser.mentionCount(in: summary)
+    }
+
+    private static func upsertAppend(
+        existing: [XianxiaTopic],
+        incoming: [XianxiaTopic]
+    ) -> [XianxiaTopic] {
+        var merged = existing
+        var indexByID = Dictionary(uniqueKeysWithValues: merged.enumerated().map { ($1.id, $0) })
+
+        for topic in incoming {
+            if let index = indexByID[topic.id] {
+                merged[index] = topic
+            } else {
+                indexByID[topic.id] = merged.count
+                merged.append(topic)
+            }
+        }
+
+        return merged
     }
 }
 

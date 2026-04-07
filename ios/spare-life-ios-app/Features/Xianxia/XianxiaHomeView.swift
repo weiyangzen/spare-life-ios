@@ -215,10 +215,10 @@ final class XianxiaHomeViewModel: ObservableObject {
 
         do {
             let batch = try await repository.fetchTopics(cursor: nextCursor)
-            topics = batch.items
+            topics = Self.upsertAppend(existing: topics, incoming: batch.items)
             totalTopicsCount = batch.total
             self.nextCursor = batch.nextCursor
-            feedState = batch.items.isEmpty ? .empty : .loaded
+            feedState = topics.isEmpty ? .empty : .loaded
         } catch {
             if topics.isEmpty {
                 feedState = .error(error.xianxiaUserFacingMessage)
@@ -252,5 +252,24 @@ final class XianxiaHomeViewModel: ObservableObject {
                 feedState = .loading
             }
         }
+    }
+
+    private static func upsertAppend(
+        existing: [XianxiaTopic],
+        incoming: [XianxiaTopic]
+    ) -> [XianxiaTopic] {
+        var merged = existing
+        var indexByID = Dictionary(uniqueKeysWithValues: merged.enumerated().map { ($1.id, $0) })
+
+        for topic in incoming {
+            if let index = indexByID[topic.id] {
+                merged[index] = topic
+            } else {
+                indexByID[topic.id] = merged.count
+                merged.append(topic)
+            }
+        }
+
+        return merged
     }
 }

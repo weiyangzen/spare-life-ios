@@ -69,9 +69,9 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 - [x] S3-022 冻结 `MessagesRoute`，至少覆盖 `home / thread / mask / relationship / memory / quadRole / groupPlay / groupVote / composeDraft`。
 - [x] S3-023 把 `ChatThreadView` 当前本地 `showContactMask / showRelationship / showQuadRole / showGroupPlay / showCrossSessionMemory` 迁移成 typed navigation action；线程内入口现统一走 `ConversationRouter + MessagesRoute`，`mask / relationship / memory / quadRole / groupPlay` 由 `MessagesFeatureRootView` 的 typed destination 承接，不再各自持有本地 sheet bool。
 - [x] S3-024 按 `S4-03` 边界，把 `CompanionChatStore.swift` 最少拆成 `hub / thread / mask / relationship / memory / group play / shared`；当前已拆到 `Features/CompanionChat/{Hub,Thread,Mask,Relationship,Memory,GroupPlay,Shared}` 并移除旧大一统文件，消息 shared identity 与各边界模型各自归位。
-- [ ] S3-025 让 `EarnSocialHomeView` 与 `EarnSocialExperienceStore` 收口成单一 runtime truth，不再继续双路径并存。
-- [ ] S3-026 让 `MyProfile` 根页明确区分 live-ish 聚合值、seeded fallback、未接线指标与 route target。
-- [ ] S3-027 修正 `Xianxia` topic/shard `loadMore()` 追加语义，停止覆盖已有数组。
+- [x] S3-025 让 `EarnSocialHomeView` 与 `EarnSocialExperienceStore` 收口成单一 runtime truth，不再继续双路径并存；当前首页已改成 store-backed root，lane/filter/feed/sheet 全部走 `EarnSocialExperienceStore`，不再保留页面内独立 mock category/card/chat 状态。
+- [x] S3-026 让 `MyProfile` 根页明确区分 live-ish 聚合值、seeded fallback、未接线指标与 route target；当前 root 已接入 `MyProfileOverviewMetrics` 的 live/cached 聚合、集中 seeded feature snapshot 与 unhooked messages placeholder，并在根页显式展示 provenance badge 与 route target。
+- [x] S3-027 修正 `Xianxia` topic/shard `loadMore()` 追加语义，停止覆盖已有数组；`XianxiaHomeViewModel` 与 `SceneTopicViewModel` 现都在 presentation 层显式做 upsert-append，不再把累计语义偷偷依赖给 repository cache merge。
 - [ ] S3-028 对当前 `masters -> messages/profile`、`earn social -> messages`、`xianxia -> earn social` 的字符串 route 生产端做统一归口。
 
 ### 6.4 OpenClaw IM 对齐与消息卡片唯一标识

@@ -217,9 +217,9 @@ final class SceneTopicViewModel: ObservableObject {
 
         do {
             let batch = try await repository.fetchShards(topicId: topic.topicId, cursor: nextCursor)
-            shards = batch.items
+            shards = Self.upsertAppend(existing: shards, incoming: batch.items)
             self.nextCursor = batch.nextCursor
-            loadState = batch.items.isEmpty ? .empty : .loaded
+            loadState = shards.isEmpty ? .empty : .loaded
         } catch {
             if shards.isEmpty {
                 loadState = .error(error.xianxiaUserFacingMessage)
@@ -252,6 +252,25 @@ final class SceneTopicViewModel: ObservableObject {
                 loadState = .loading
             }
         }
+    }
+
+    private static func upsertAppend(
+        existing: [XianxiaTopicShard],
+        incoming: [XianxiaTopicShard]
+    ) -> [XianxiaTopicShard] {
+        var merged = existing
+        var indexByID = Dictionary(uniqueKeysWithValues: merged.enumerated().map { ($1.id, $0) })
+
+        for shard in incoming {
+            if let index = indexByID[shard.id] {
+                merged[index] = shard
+            } else {
+                indexByID[shard.id] = merged.count
+                merged.append(shard)
+            }
+        }
+
+        return merged
     }
 }
 

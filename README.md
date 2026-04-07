@@ -20,6 +20,13 @@ Current app logo source:
 
 - The server checkout is expected at `../spare-life-server` for client/server joint debugging.
 - As of `2026-04-06`, the upstream `alphane-ai/spare-life-server` clone at that path is present but empty, so the sibling path contract is ready even though no server working tree content is available yet.
+- In the current Stage 3 worker checkout, the effective same-machine sibling path resolves to `/Users/wangweiyang/GitHub/spare-life-server`; `server-backed joint debug` stays `gated` until that repo has tracked files.
+
+## Apple Parity And Verification Matrix
+
+- `S3-094` is frozen in [Docs/Stage3_Apple_Parity_Checklists.md](/Users/wangweiyang/GitHub/spare-life-ios/.cron/stage3_exec_repo_slot4/Docs/Stage3_Apple_Parity_Checklists.md). It keeps iOS/macOS page parity and desktop optimization tied to `validate_stage3_shared_surface.sh`, `validate_stage3_messages_typed_routes.sh`, and `validate_stage3_macos_smoke.sh`.
+- `S3-095` and `S3-096` are frozen in [Docs/Stage3_Verification_Matrix.md](/Users/wangweiyang/GitHub/spare-life-ios/.cron/stage3_exec_repo_slot4/Docs/Stage3_Verification_Matrix.md), [Docs/scripts/validate_stage3_verification_matrix.sh](/Users/wangweiyang/GitHub/spare-life-ios/.cron/stage3_exec_repo_slot4/Docs/scripts/validate_stage3_verification_matrix.sh), and [Docs/scripts/validate_stage3_joint_debug_contracts.sh](/Users/wangweiyang/GitHub/spare-life-ios/.cron/stage3_exec_repo_slot4/Docs/scripts/validate_stage3_joint_debug_contracts.sh).
+- The matrix explicitly separates `plugin-demo`, `client-only-local-seed`, and `server-backed joint debug`, and it keeps the server lane visibly `gated` instead of pretending the empty sibling checkout is already wired runtime.
 
 ## iOS Path Validation
 

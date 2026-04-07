@@ -13,10 +13,17 @@ echo "[stage3-ios-path-validation] package docs"
 swift test --package-path Docs/Stage3IOSPathValidation
 
 echo "[stage3-ios-path-validation] shared swift typecheck"
-xcrun --sdk iphonesimulator swiftc -typecheck \
-  -target arm64-apple-ios16.0-simulator \
+xcrun swiftc -typecheck \
+  -target arm64-apple-macos13.0 \
+  -sdk "$(xcrun --sdk macosx --show-sdk-path)" \
+  ios/spare-life-ios-app/App/DesignSystem/DesignTokens.swift \
   ios/spare-life-ios-app/App/DesignSystem/PlatformCompat.swift \
-  ios/spare-life-ios-app/App/DesignSystem/PlatformSurfacePolicy.swift
+  ios/spare-life-ios-app/App/DesignSystem/PlatformSurfacePolicy.swift \
+  ios/spare-life-ios-app/App/DesignSystem/WaterfallLayout.swift \
+  ios/spare-life-ios-app/Features/Shared/FeedCardProtocol.swift \
+  ios/spare-life-ios-app/Features/Shared/UnifiedWaterfallFeed.swift \
+  ios/spare-life-ios-app/Features/Shared/DiscoverMixedFeedSection.swift \
+  ios/spare-life-ios-app/Features/Shared/UnifiedDiscoverFeedView.swift
 
 echo "[stage3-ios-path-validation] route contract anchor"
 test -f ios/spare-life-ios-app/Domain/Models/crossTabHandoffContracts.mjs

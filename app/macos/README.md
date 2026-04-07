@@ -23,6 +23,14 @@ Stage 3 Wave 1 turns this lane into the real macOS host while keeping the Stage 
 - The runtime compiles the existing shared `App / Features / Domain/Models` sources directly, while keeping the package-only workaround local to `app/macos`.
 - No second macOS feature tree is duplicated here.
 
+## Parity And Validation
+
+- Page parity and desktop optimization acceptance are frozen in [Docs/Stage3_Apple_Parity_Checklists.md](/Users/wangweiyang/GitHub/spare-life-ios/.cron/stage3_exec_repo_slot4/Docs/Stage3_Apple_Parity_Checklists.md).
+- The verification tiers are frozen in [Docs/Stage3_Verification_Matrix.md](/Users/wangweiyang/GitHub/spare-life-ios/.cron/stage3_exec_repo_slot4/Docs/Stage3_Verification_Matrix.md).
+- Run `bash Docs/scripts/validate_stage3_shared_surface.sh` to keep shared Apple source truthful.
+- Run `bash Docs/scripts/validate_stage3_messages_typed_routes.sh` to prove the shared `messages` typed route still behaves the same before the desktop shell wraps it.
+- Run `bash Docs/scripts/validate_stage3_macos_smoke.sh` to prove the five mirrored pages, multi-column workspaces, and desktop shell still open from the current macOS host.
+
 ## What still does not live here
 
 - A second feature tree, duplicated stores, or a macOS-only information architecture fork.

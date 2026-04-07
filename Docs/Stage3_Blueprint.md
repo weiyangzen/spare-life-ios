@@ -110,7 +110,7 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 - [x] S3-063 为 macOS 增加桌面级工具栏与搜索入口，让全局搜索、筛选、刷新、诊断入口不再完全复刻移动端按钮摆放；当前 `Stage3MacOSDesktopShellView + Stage3MacOSWorkspaceChrome` 已把 sidebar toggle、workspace picker、toolbar search、workspace filter、refresh、diagnostic menu、inspector toggle 收口进顶栏，并让 `xianxia / messages / masters / earnSocial / myProfile` 各自把搜索/筛选状态同步回桌面壳层，不再只靠页面内移动端式按钮。
 - [x] S3-064 为 macOS 增加桌面级多栏 / inspector / side panel 承接规则，优先把详情、上下文、诊断信息从 modal 改成更适合桌面的并排工作区；当前 desktop shell 与五个主 workspace 都支持 inspector 显隐规则，`xianxia / messages / masters / earnSocial / myProfile` 已固定 `catalog-or-summary + detail + inspector` 的并排承接，`QuadRole` 的说明面也改成 macOS 内建 accessory side panel，不再只剩 modal 弹层。
 - [x] S3-065 保持 macOS 与 iOS 的视觉语言同源：色板、卡片、文案、模块边界、状态语义一致；但允许在密度、布局、快捷交互、窗口组织上做桌面优化；当前已通过 `Stage3MacOSRuntime.visualParitySnapshot()`、workspace snapshot 与对应 runtime tests 冻结 shared `spareYellow` 色板、白底卡片、中文文案与 loading/error/status 语义，同时把 toolbar chrome、可折叠 sidebar/inspector、workspace split autosave 作为桌面专属优化。
-- [ ] S3-066 不允许把 `macOS` 做成另一套产品：桌面优化必须建立在同一 IA、同一功能路径、同一数据与 route 契约之上。
+- [x] S3-066 不允许把 `macOS` 做成另一套产品：桌面优化必须建立在同一 IA、同一功能路径、同一数据与 route 契约之上；当前已在 `Stage3MacOSTargetContract` 冻结 shared `MainTabView -> AppSurfaceID` 绑定、`MessagesRoute` case 集合与 `Stage3MacOSRuntime` shared source intake，并由 `stage3-macos-target-smoke` 真实校验这条同源链路，避免 `app/macos` 长出第二套产品骨架。
 
 ### 6.6 macOS 与 iOS 的共享代码策略
 

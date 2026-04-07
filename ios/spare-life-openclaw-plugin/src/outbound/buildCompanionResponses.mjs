@@ -5,6 +5,7 @@ import {
   buildConversationSearchInputModel,
   buildConversationSearchOutputModel,
   buildIMCardEnvelope,
+  buildOpenClawIMActionContract,
   buildIMCapabilityFlags,
   buildMessagesHomeHandoff,
   buildMessagesHomeInputModel,
@@ -13,12 +14,15 @@ import {
   buildOpenClawIMCapabilityChecklist
 } from '../../../spare-life-ios-app/Domain/Models/companionContracts.mjs';
 
-function decorateCapabilitySurface(result, surfaceKind) {
+function decorateCapabilitySurface(result, actionKey, surfaceKind) {
   return {
     ...result,
     surfaceKind,
     capabilityFlags: buildIMCapabilityFlags(surfaceKind),
-    capabilityChecklist: buildOpenClawIMCapabilityChecklist(surfaceKind)
+    capabilityChecklist: buildOpenClawIMCapabilityChecklist(surfaceKind),
+    actionContract: buildOpenClawIMActionContract(actionKey, {
+      surfaceKind
+    })
   };
 }
 
@@ -39,6 +43,8 @@ function rewriteCardEnvelopeForSourceSurface(card, sourceSurface = 'messages') {
     'companion';
   const conversationId =
     card.conversationId ??
+    card.conversationID ??
+    card.id ??
     card.cardEnvelope?.conversationId ??
     (locator.kind === 'conversation' ? locator.conversationID : null);
   const envelope = buildIMCardEnvelope({
@@ -77,6 +83,55 @@ function rewriteCardEnvelopeForSourceSurface(card, sourceSurface = 'messages') {
   return {
     ...card,
     ...envelope
+  };
+}
+
+function dedupeContextCards(cards = []) {
+  const seen = new Set();
+  return (Array.isArray(cards) ? cards : []).filter((card) => {
+    const key = `${card?.cardType ?? 'unknown'}:${card?.route ?? 'no-route'}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildGroupLaneContextCards(groupContext = null) {
+  const lanes = Array.isArray(groupContext?.actionLanes) ? groupContext.actionLanes : [];
+  return lanes.map((lane) => ({
+    cardType: lane.laneKey,
+    title: lane.title,
+    route: lane.route,
+    handoff: lane.handoff,
+    payload: {
+      actionKey: lane.actionKey,
+      stage3Item: lane.stage3Item,
+      targetID: lane.targetID,
+      uiReady: lane.uiReady,
+      uiStatus: lane.uiStatus,
+      uiUnavailableCopy: lane.uiUnavailableCopy,
+      errorSurface: lane.errorSurface,
+      requiredIDs: lane.requiredIDs,
+      fallbackIDs: lane.fallbackIDs,
+      optionalHints: lane.optionalHints,
+      supportedErrorKinds: lane.supportedErrorKinds,
+      surfaceGate: lane.surfaceGate,
+      latestVote: groupContext?.latestVote ?? null,
+      latestSummary: groupContext?.latestSummary ?? null
+    }
+  }));
+}
+
+function attachGroupLaneCards(outputModel) {
+  const laneCards = buildGroupLaneContextCards(outputModel?.groupContext);
+  if (!laneCards.length) {
+    return outputModel;
+  }
+  return {
+    ...outputModel,
+    contextCards: dedupeContextCards([...(outputModel.contextCards ?? []), ...laneCards])
   };
 }
 
@@ -126,11 +181,13 @@ export function buildConversationResponse(result, input = {}) {
     contextCards: result.contextCards ?? [],
     votes: result.votes ?? [],
     groupSummaries: result.groupSummaries ?? [],
+    sourceSurface: inputModel.sourceSurface,
     homeRoute: result.homeRoute ?? null,
     homeHandoff: buildMessagesHomeHandoff({
       sourceSurface: inputModel.sourceSurface
     })
   });
+  const normalizedOutputModel = attachGroupLaneCards(outputModel);
 
   return {
     ...result,
@@ -151,18 +208,19 @@ export function buildConversationResponse(result, input = {}) {
         }
       : result.conversation,
     input: inputModel,
-    output: outputModel,
-    conversationSummary: outputModel.conversation,
-    surfaceKind: outputModel.conversation.surfaceKind,
-    capabilityFlags: outputModel.conversation.capabilityFlags,
-    capabilityChecklist: outputModel.conversation.capabilityChecklist,
-    participantModels: outputModel.participants,
-    messageModels: outputModel.messages,
-    timeline: outputModel.timeline,
-    stageContext: outputModel.stageContext,
-    groupContext: outputModel.groupContext,
-    homeRoute: outputModel.homeRoute,
-    homeHandoff: outputModel.homeHandoff
+    output: normalizedOutputModel,
+    conversationSummary: normalizedOutputModel.conversation,
+    surfaceKind: normalizedOutputModel.conversation.surfaceKind,
+    capabilityFlags: normalizedOutputModel.conversation.capabilityFlags,
+    capabilityChecklist: normalizedOutputModel.conversation.capabilityChecklist,
+    participantModels: normalizedOutputModel.participants,
+    messageModels: normalizedOutputModel.messages,
+    timeline: normalizedOutputModel.timeline,
+    stageContext: normalizedOutputModel.stageContext,
+    groupContext: normalizedOutputModel.groupContext,
+    contextCards: normalizedOutputModel.contextCards,
+    homeRoute: normalizedOutputModel.homeRoute,
+    homeHandoff: normalizedOutputModel.homeHandoff
   };
 }
 
@@ -196,37 +254,113 @@ export function buildConversationSearchResponse(result, input = {}, extras = {})
 }
 
 export function buildDirectMessageResponse(result) {
-  return decorateCapabilitySurface(result, 'dm');
+  return decorateCapabilitySurface(result, 'send_direct_message', 'dm');
 }
 
 export function buildMaskUpdateResponse(result) {
-  return decorateCapabilitySurface(result, 'dm');
+  return decorateCapabilitySurface(result, 'update_contact_mask', 'dm');
 }
 
 export function buildSharedStageDraftResponse(result) {
-  return decorateCapabilitySurface(result, 'dm');
+  return decorateCapabilitySurface(result, 'draft_shared_stage', 'dm');
 }
 
-export function buildStageResponse(result) {
-  return decorateCapabilitySurface(result, 'dm');
+export function buildStageResponse(result, actionKey = 'post_stage_message') {
+  return decorateCapabilitySurface(result, actionKey, 'dm');
 }
 
-export function buildRitualResponse(result) {
-  return decorateCapabilitySurface(result, 'dm');
+export function buildRitualResponse(result, actionKey = 'schedule_relationship_ritual') {
+  return decorateCapabilitySurface(result, actionKey, 'dm');
 }
 
-export function buildGroupConversationResponse(result) {
-  return decorateCapabilitySurface(result, 'group');
+export function buildGroupConversationResponse(result, input = {}) {
+  const sourceSurface = input.sourceSurface ?? 'messages';
+  const fallbackLocator = {
+    kind: 'group',
+    conversationId: result.conversation?.id ?? null,
+    groupId: result.group?.id ?? result.conversation?.groupId ?? null
+  };
+  const normalizedConversationEnvelope = rewriteCardEnvelopeForSourceSurface(
+    result.cardEnvelope ?? {
+      ...result.conversation,
+      locator: result.conversation?.locator ?? fallbackLocator,
+      surfaceKind: result.conversation?.surfaceKind ?? 'group'
+    },
+    sourceSurface
+  );
+  const inputModel = buildConversationOpenInputModel({
+    ...input,
+    conversationId: result.conversation?.id ?? input.conversationId ?? null,
+    locator:
+      input.locator ??
+      normalizedConversationEnvelope?.locator ?? {
+        kind: 'group',
+        conversationId: result.conversation?.id ?? null,
+        groupId: result.group?.id ?? result.conversation?.groupId ?? null
+      },
+    sourceSurface,
+    markRead: false,
+    limit: input.limit ?? 40,
+    envelope: normalizedConversationEnvelope
+  });
+  const outputModel = attachGroupLaneCards(
+    buildConversationOpenOutputModel({
+      conversation: result.conversation ?? {},
+      cardEnvelope: normalizedConversationEnvelope,
+      participants: result.participants ?? [],
+      messages: result.messages ?? [],
+      contextCards: result.contextCards ?? [],
+      votes: result.votes ?? [],
+      groupSummaries: result.summaries ?? result.groupSummaries ?? [],
+      sourceSurface: inputModel.sourceSurface
+    })
+  );
+
+  return {
+    ...decorateCapabilitySurface(result, 'open_group_conversation', 'group'),
+    cardEnvelope: normalizedConversationEnvelope,
+    conversation: normalizedConversationEnvelope
+      ? {
+          ...result.conversation,
+          canonicalCardID: normalizedConversationEnvelope.canonicalCardID,
+          locator: normalizedConversationEnvelope.locator,
+          sourceChannelID: normalizedConversationEnvelope.sourceChannelID,
+          surfaceKind: normalizedConversationEnvelope.surfaceKind,
+          renderFields: normalizedConversationEnvelope.renderFields,
+          fieldSources: normalizedConversationEnvelope.fieldSources,
+          capabilityChecklist: normalizedConversationEnvelope.capabilityChecklist,
+          capabilityFlags: normalizedConversationEnvelope.capabilityFlags,
+          handoff: normalizedConversationEnvelope.handoff,
+          openAction: normalizedConversationEnvelope.openAction
+        }
+      : result.conversation,
+    input: inputModel,
+    output: outputModel,
+    conversationSummary: outputModel.conversation,
+    participantModels: outputModel.participants,
+    messageModels: outputModel.messages,
+    timeline: outputModel.timeline,
+    stageContext: outputModel.stageContext,
+    groupContext: outputModel.groupContext,
+    contextCards: outputModel.contextCards
+  };
 }
 
-export function buildGroupVoteResponse(result) {
-  return decorateCapabilitySurface(result, 'group');
+export function buildGroupMessageResponse(result, actionKey = 'post_group_message') {
+  return decorateCapabilitySurface(result, actionKey, 'group');
 }
 
-export function buildGroupSummaryResponse(result) {
-  return decorateCapabilitySurface(result, 'group');
+export function buildGroupVoteResponse(result, actionKey = 'launch_group_vote') {
+  return decorateCapabilitySurface(result, actionKey, 'group');
+}
+
+export function buildGroupSummaryResponse(result, actionKey = 'summarize_group') {
+  return decorateCapabilitySurface(result, actionKey, 'group');
 }
 
 export function buildCompanionInspectionResponse(result) {
-  return result;
+  return {
+    ...result,
+    actionContract: buildOpenClawIMActionContract('inspect_companion', {})
+  };
 }

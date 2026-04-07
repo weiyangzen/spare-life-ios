@@ -215,6 +215,22 @@ dm:<channel_id>:<peer_id>
    - `companionChatHandler.sendDirectMessage(...)` 会通过 `assertOpenClawIMCapabilityAllowed(...)` 拒绝 group surface 误入
    - `companionChatHandler.openGroupConversation(...)` 会通过同一 gate 拒绝 direct surface 误入
    - 当前其余 group-only / direct-only action 仍主要依赖 `capabilityFlags` 呈现，后续再由 `S3-040/S3-041/S3-043/S3-044` 继续补齐更细的 route/error gate
+11. `S3-040` 当前已把 `group vote launch / ballot / summary` 从“view 自己判断是不是群聊”推进到 contract-first：
+   - `conversation_group_context.actionLanes[*]` 现在固定输出 `group_vote_launch / group_vote_ballot / group_summary`
+   - 每条 lane 同时带 `route / handoff / surfaceGate / requiredIDs / fallbackIDs / optionalHints / uiStatus`
+   - `openConversation(...)` 与 `openGroupConversation(...)` 的 response 会把这些 lane 追加成 `contextCards`，因此 group-only UI lane 已经是 plugin/runtime truth，而不是 view 内临时 if
+12. `S3-043` 当前已把所有 OpenClaw IM action 的输入 contract 明确到动作级：
+   - `buildOpenClawIMActionContract(actionKey, context)` 固定输出 `requiredIDs / fallbackIDs / optionalHints / supportedErrorKinds / uiUnavailableCopy / uiStatus`
+   - 例如 `cast_group_vote` 现明确支持 `group_id -> latest_open_vote`、`option_label -> option_id` fallback
+   - `summarize_group` 现明确支持 `vote_id -> vote.group_id` fallback
+   - 这层 contract 会同时回流到 capability checklist、action response 和 unified channel failure
+13. `S3-044` 当前已落地 5 类错误面，不再继续压成单一异常字符串：
+   - `unsupported`
+   - `not_ready`
+   - `invalid_locator`
+   - `temporarily_unavailable`
+   - `permission_denied`
+   具体实现是 `buildOpenClawIMErrorSurface(...)` 与 `normalizeOpenClawIMActionError(...)`。companion handler 现在会把 raw runtime error 归一成结构化 `errorKind + errorSurface`，而 `buildUnifiedChannelFailure(...)` 也会把这些字段透出给上层。
 
 ## 风险
 

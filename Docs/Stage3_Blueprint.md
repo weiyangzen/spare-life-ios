@@ -86,11 +86,11 @@ Stage 3 的目标不是“继续加功能”，而是完成以下 5 条主线：
 - [x] S3-037 为 `conversation search` 定义 query、result item、定位主键与空结果语义；当前已落地 `conversation_search_input/output`、`conversation_search_query`、`conversation_search_result_item`、`conversation_search_empty_state`，并固定 `locationPrimaryKey(message_id + turnIndex)` 与 thread handoff hint。
 - [x] S3-038 为 `direct message` 定义 direct-only capability gate；`normalizeDirectMessageInput(...)` 现可接 `cardEnvelope / locator / surfaceKind` 上下文，`companionChatHandler.sendDirectMessage(...)` 会拒绝 group surface 误入。
 - [x] S3-039 为 `group conversation` 定义 group-only capability gate；`normalizeGroupConversationInput(...)` 现可接 `cardEnvelope / locator / surfaceKind` 上下文，`companionChatHandler.openGroupConversation(...)` 会拒绝 direct surface 误入。
-- [ ] S3-040 为 `group vote launch / ballot / summary` 建 group-only UI 与 route gate，不再只靠 view 内临时 if 判断。
+- [x] S3-040 为 `group vote launch / ballot / summary` 建 group-only UI 与 route gate，不再只靠 view 内临时 if 判断；当前已在 `conversation_group_context.actionLanes` 冻结 `group_vote_launch / ballot / summary` 三条 group-only lane，并在 `openConversation/openGroupConversation` response 回写 route gate、handoff hint 与 context cards。
 - [ ] S3-041 为 `mask update`、`shared stage draft / access / message`、`ritual schedule / complete` 明确其卡片入口、线程入口与错误回退面。
 - [ ] S3-042 为 `companion inspect` 定义它在 client 侧的承接位置：诊断入口、内部工具入口或线程附属面，不再悬空。
-- [ ] S3-043 为所有 OpenClaw IM action 明确 required ID、fallback ID、可选 hint、错误分类、UI 不可用文案。
-- [ ] S3-044 区分 `unsupported`、`not_ready`、`invalid_locator`、`temporarily_unavailable`、`permission_denied` 五类错误面，不再继续压成一个统一空态。
+- [x] S3-043 为所有 OpenClaw IM action 明确 required ID、fallback ID、可选 hint、错误分类、UI 不可用文案；当前已在 `buildOpenClawIMActionContract(actionKey, context)` 冻结 `requiredIDs / fallbackIDs / optionalHints / supportedErrorKinds / uiUnavailableCopy / uiStatus`，并把 ballot/summary 的 `group_id -> latest_open_vote`、`vote_id -> vote.group_id`、`option_label -> option_id` fallback 接到 handler/runtime。
+- [x] S3-044 区分 `unsupported`、`not_ready`、`invalid_locator`、`temporarily_unavailable`、`permission_denied` 五类错误面，不再继续压成一个统一空态；当前已通过 `buildOpenClawIMErrorSurface(...)` / `normalizeOpenClawIMActionError(...)` 与 unified channel failure payload 输出结构化 `errorKind + errorSurface`，不再只剩单一错误字符串。
 
 ### 6.5 macOS UIUX 复刻与 Desktop Optimization 主线
 

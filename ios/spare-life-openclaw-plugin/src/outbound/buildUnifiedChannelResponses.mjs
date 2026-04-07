@@ -47,7 +47,19 @@ export function buildUnifiedChannelFailure({ normalizedEnvelope, error }) {
     }),
     error: {
       name: sanitizeText(error?.name) || 'Error',
-      message: sanitizeText(error?.message) || 'Unknown channel runtime error.'
+      message: sanitizeText(error?.message) || 'Unknown channel runtime error.',
+      code: sanitizeText(error?.code) || null,
+      legacyCode: sanitizeText(error?.legacyCode) || null,
+      errorKind: sanitizeText(error?.errorKind) || null,
+      actionKey: sanitizeText(error?.actionKey) || null,
+      stage3Item: sanitizeText(error?.stage3Item) || null,
+      surfaceKind: sanitizeText(error?.surfaceKind) || null,
+      allowedSurfaceKind: sanitizeText(error?.allowedSurfaceKind) || null,
+      missingIDs: Array.isArray(error?.missingIDs) ? error.missingIDs : [],
+      errorSurface:
+        error?.errorSurface && typeof error.errorSurface === 'object'
+          ? error.errorSurface
+          : null
     }
   };
 }

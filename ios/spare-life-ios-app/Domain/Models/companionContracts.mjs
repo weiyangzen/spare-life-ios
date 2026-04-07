@@ -41,6 +41,13 @@ export const OPENCLAW_IM_CAPABILITY_SURFACE_SCOPES = new Set([
   'direct_only',
   'group_only'
 ]);
+export const OPENCLAW_IM_ERROR_KINDS = new Set([
+  'unsupported',
+  'not_ready',
+  'invalid_locator',
+  'temporarily_unavailable',
+  'permission_denied'
+]);
 
 const OPENCLAW_IM_CAPABILITY_DEFINITIONS = Object.freeze([
   Object.freeze({
@@ -221,6 +228,179 @@ const OPENCLAW_IM_CAPABILITY_DEFINITIONS = Object.freeze([
   })
 ]);
 
+const OPENCLAW_IM_ACTION_RUNTIME_CONTRACTS = Object.freeze({
+  open_messages_home: Object.freeze({
+    uiTitle: '打开消息首页',
+    uiStatus: 'ready',
+    uiUnavailableCopy: '消息首页暂时不可用，请稍后重试。',
+    requiredIDs: ['user_id'],
+    fallbackIDs: [],
+    optionalHints: ['tab', 'source_surface'],
+    supportedErrorKinds: ['temporarily_unavailable']
+  }),
+  open_conversation: Object.freeze({
+    uiTitle: '打开会话',
+    uiStatus: 'ready',
+    uiUnavailableCopy: '当前会话入口不可用，请先从消息卡片或线程主路由重新进入。',
+    requiredIDs: ['user_id', 'conversation_id | locator'],
+    fallbackIDs: [
+      'locator.conversation_id',
+      'locator.group_id + channel_id',
+      'locator.dm_peer_id + channel_id',
+      'card_envelope.locator'
+    ],
+    optionalHints: ['source_surface', 'location_primary_key', 'location_turn_index'],
+    supportedErrorKinds: ['invalid_locator', 'temporarily_unavailable']
+  }),
+  search_conversation: Object.freeze({
+    uiTitle: '搜索会话',
+    uiStatus: 'ready',
+    uiUnavailableCopy: '当前会话搜索入口不可用，请先回到线程主路由后再试。',
+    requiredIDs: ['user_id', 'conversation_id | locator'],
+    fallbackIDs: [
+      'locator.conversation_id',
+      'locator.group_id + channel_id',
+      'locator.dm_peer_id + channel_id',
+      'card_envelope.locator'
+    ],
+    optionalHints: ['query', 'source_surface', 'result_limit'],
+    supportedErrorKinds: ['invalid_locator', 'temporarily_unavailable']
+  }),
+  send_direct_message: Object.freeze({
+    uiTitle: '发送私聊消息',
+    uiStatus: 'ready',
+    uiUnavailableCopy: '只有私聊线程可以发消息；若当前是群聊卡片，请先切回私聊。',
+    requiredIDs: ['user_id', 'contact_id'],
+    fallbackIDs: ['locator.peer_id', 'card_envelope.locator.peer_id'],
+    optionalHints: ['conversation_id', 'source_surface'],
+    supportedErrorKinds: ['unsupported', 'invalid_locator', 'temporarily_unavailable']
+  }),
+  update_contact_mask: Object.freeze({
+    uiTitle: '更新对人面具',
+    uiStatus: 'not_ready',
+    uiUnavailableCopy: '对人面具的 OpenClaw IM 入口仍在消息线程收口中，暂不作为独立卡片入口开放。',
+    requiredIDs: ['user_id', 'contact_id'],
+    fallbackIDs: ['locator.peer_id', 'card_envelope.locator.peer_id'],
+    optionalHints: ['tone', 'openness', 'boundary_tags', 'signature'],
+    supportedErrorKinds: ['unsupported', 'not_ready', 'invalid_locator', 'temporarily_unavailable']
+  }),
+  draft_shared_stage: Object.freeze({
+    uiTitle: '生成共享舞台草稿',
+    uiStatus: 'not_ready',
+    uiUnavailableCopy: '共享舞台草稿仍在 direct thread 内部收口中，暂不作为独立 OpenClaw IM 入口开放。',
+    requiredIDs: ['user_id', 'contact_id'],
+    fallbackIDs: ['locator.peer_id', 'card_envelope.locator.peer_id'],
+    optionalHints: ['conversation_id', 'source_surface'],
+    supportedErrorKinds: ['unsupported', 'not_ready', 'invalid_locator', 'temporarily_unavailable']
+  }),
+  grant_stage_access: Object.freeze({
+    uiTitle: '管理舞台访问',
+    uiStatus: 'not_ready',
+    uiUnavailableCopy: '共享舞台授权入口还未收口成稳定的 OpenClaw IM route。',
+    requiredIDs: ['user_id', 'conversation_id', 'participant_key'],
+    fallbackIDs: ['card_envelope.conversation_id', 'locator.conversation_id'],
+    optionalHints: ['granted', 'source_surface'],
+    supportedErrorKinds: ['unsupported', 'not_ready', 'invalid_locator', 'temporarily_unavailable']
+  }),
+  post_stage_message: Object.freeze({
+    uiTitle: '发送舞台消息',
+    uiStatus: 'not_ready',
+    uiUnavailableCopy: '共享舞台消息入口还在 direct thread 内部整理中，暂不作为独立 OpenClaw IM route。',
+    requiredIDs: ['user_id', 'conversation_id', 'participant_key'],
+    fallbackIDs: ['card_envelope.conversation_id', 'locator.conversation_id'],
+    optionalHints: ['channel_kind', 'source_surface'],
+    supportedErrorKinds: ['unsupported', 'not_ready', 'invalid_locator', 'temporarily_unavailable']
+  }),
+  schedule_relationship_ritual: Object.freeze({
+    uiTitle: '安排关系仪式',
+    uiStatus: 'not_ready',
+    uiUnavailableCopy: '关系仪式入口仍在消息线程上下文卡里收口，暂不开放独立 OpenClaw IM 入口。',
+    requiredIDs: ['user_id', 'contact_id'],
+    fallbackIDs: ['locator.peer_id', 'card_envelope.locator.peer_id'],
+    optionalHints: ['ritual_kind', 'scheduled_for', 'note'],
+    supportedErrorKinds: ['unsupported', 'not_ready', 'invalid_locator', 'temporarily_unavailable']
+  }),
+  complete_relationship_ritual: Object.freeze({
+    uiTitle: '完成关系仪式',
+    uiStatus: 'not_ready',
+    uiUnavailableCopy: '关系仪式完成入口还未冻结成稳定 OpenClaw IM route。',
+    requiredIDs: ['user_id', 'ritual_id'],
+    fallbackIDs: [],
+    optionalHints: ['note'],
+    supportedErrorKinds: ['not_ready', 'invalid_locator', 'temporarily_unavailable']
+  }),
+  open_group_conversation: Object.freeze({
+    uiTitle: '打开群聊线程',
+    uiStatus: 'ready',
+    uiUnavailableCopy: '只有群聊卡片和群线程入口可以打开群聊主路由。',
+    requiredIDs: ['user_id', 'group_id'],
+    fallbackIDs: ['locator.group_id', 'card_envelope.locator.group_id'],
+    optionalHints: ['conversation_id', 'source_surface', 'message_limit'],
+    supportedErrorKinds: ['unsupported', 'invalid_locator', 'temporarily_unavailable']
+  }),
+  post_group_message: Object.freeze({
+    uiTitle: '发送群聊消息',
+    uiStatus: 'ready',
+    uiUnavailableCopy: '只有群聊线程可以发送群消息；若当前还在私聊或首页卡片，请先进入群聊主路由。',
+    requiredIDs: ['user_id', 'group_id', 'actor_key'],
+    fallbackIDs: [
+      'locator.group_id',
+      'card_envelope.locator.group_id',
+      'actor_key -> self_human'
+    ],
+    optionalHints: ['conversation_id', 'channel_kind', 'source_surface'],
+    supportedErrorKinds: ['unsupported', 'permission_denied', 'invalid_locator', 'temporarily_unavailable']
+  }),
+  launch_group_vote: Object.freeze({
+    uiTitle: '发起群投票',
+    uiLaneKey: 'group_vote_launch',
+    uiStatus: 'ready',
+    uiUnavailableCopy: '只有群聊 vote lane 可以发起投票；若当前不在群聊线程，请先从群卡片进入。',
+    requiredIDs: ['user_id', 'group_id'],
+    fallbackIDs: ['locator.group_id', 'card_envelope.locator.group_id'],
+    optionalHints: ['conversation_id', 'question_seed', 'options', 'source_surface'],
+    supportedErrorKinds: ['unsupported', 'not_ready', 'invalid_locator', 'temporarily_unavailable', 'permission_denied']
+  }),
+  cast_group_vote: Object.freeze({
+    uiTitle: '参与群投票',
+    uiLaneKey: 'group_vote_ballot',
+    uiStatus: 'ready',
+    uiUnavailableCopy: '当前没有可参与的开放投票，请先进入群聊 vote lane 再操作。',
+    requiredIDs: ['user_id', 'vote_id', 'option_id'],
+    fallbackIDs: [
+      'group_id -> latest_open_vote',
+      'locator.group_id -> latest_open_vote',
+      'option_label -> vote_option_id',
+      'voter_key -> self_human'
+    ],
+    optionalHints: ['conversation_id', 'source_surface', 'rationale'],
+    supportedErrorKinds: ['unsupported', 'not_ready', 'invalid_locator', 'temporarily_unavailable', 'permission_denied']
+  }),
+  summarize_group: Object.freeze({
+    uiTitle: '生成群总结',
+    uiLaneKey: 'group_summary',
+    uiStatus: 'ready',
+    uiUnavailableCopy: '群总结只在群聊 summary lane 提供；若当前不在群聊线程，请先进入群聊主路由。',
+    requiredIDs: ['user_id', 'group_id'],
+    fallbackIDs: [
+      'vote_id -> vote.group_id',
+      'locator.group_id',
+      'card_envelope.locator.group_id'
+    ],
+    optionalHints: ['latest_vote_id', 'summary_focus', 'conversation_id', 'source_surface'],
+    supportedErrorKinds: ['unsupported', 'not_ready', 'invalid_locator', 'temporarily_unavailable', 'permission_denied']
+  }),
+  inspect_companion: Object.freeze({
+    uiTitle: '检查 companion 状态',
+    uiStatus: 'not_ready',
+    uiUnavailableCopy: 'companion inspect 仍是内部诊断入口，当前还没有稳定的 client-facing IM 承接位。',
+    requiredIDs: ['user_id'],
+    fallbackIDs: [],
+    optionalHints: ['diagnostics_scope'],
+    supportedErrorKinds: ['not_ready', 'temporarily_unavailable']
+  })
+});
+
 export const COMPANION_CONTACT_SEEDS = [
   {
     id: 'lin-zhou',
@@ -321,7 +501,21 @@ function getOpenClawIMCapabilityDefinition(actionKey) {
   if (!definition) {
     throw new Error(`Unsupported OpenClaw IM capability action: ${normalizedActionKey || 'unknown'}`);
   }
-  return definition;
+  const runtimeContract = OPENCLAW_IM_ACTION_RUNTIME_CONTRACTS[normalizedActionKey] ?? null;
+  return {
+    ...definition,
+    uiTitle: sanitizeText(runtimeContract?.uiTitle) || definition.label,
+    uiLaneKey: sanitizeText(runtimeContract?.uiLaneKey) || null,
+    uiStatus: sanitizeText(runtimeContract?.uiStatus) === 'not_ready' ? 'not_ready' : 'ready',
+    uiUnavailableCopy: sanitizeText(runtimeContract?.uiUnavailableCopy) || null,
+    requiredIDs: Array.isArray(runtimeContract?.requiredIDs) ? [...runtimeContract.requiredIDs] : [],
+    fallbackIDs: Array.isArray(runtimeContract?.fallbackIDs) ? [...runtimeContract.fallbackIDs] : [],
+    optionalHints: Array.isArray(runtimeContract?.optionalHints) ? [...runtimeContract.optionalHints] : [],
+    supportedErrorKinds:
+      Array.isArray(runtimeContract?.supportedErrorKinds) && runtimeContract.supportedErrorKinds.length
+        ? runtimeContract.supportedErrorKinds.filter((kind) => OPENCLAW_IM_ERROR_KINDS.has(kind))
+        : [...OPENCLAW_IM_ERROR_KINDS]
+  };
 }
 
 function capabilityAvailableOnSurface(definition, surfaceKind) {
@@ -332,6 +526,226 @@ function capabilityAvailableOnSurface(definition, surfaceKind) {
     return surfaceKind === 'dm';
   }
   return surfaceKind === 'group';
+}
+
+function normalizeOpenClawIMErrorKind(value, fallback = 'temporarily_unavailable') {
+  const normalized = sanitizeText(value);
+  if (OPENCLAW_IM_ERROR_KINDS.has(normalized)) {
+    return normalized;
+  }
+  return OPENCLAW_IM_ERROR_KINDS.has(fallback) ? fallback : 'temporarily_unavailable';
+}
+
+function surfaceKindLabel(surfaceKind) {
+  return sanitizeText(surfaceKind) === 'group' ? '群聊' : '私聊';
+}
+
+function uniqueErrorIDs(values = []) {
+  return uniqueStrings(
+    (Array.isArray(values) ? values : [values])
+      .map((value) => sanitizeText(value))
+      .filter(Boolean)
+  );
+}
+
+export function buildOpenClawIMActionContract(actionKey, context = {}) {
+  const definition = getOpenClawIMCapabilityDefinition(actionKey);
+  const surfaceFallback = definition.surfaceScope === 'group_only' ? 'group' : 'dm';
+  const resolvedSurfaceKind = resolveIMCapabilitySurfaceKind(context, surfaceFallback);
+  const availableOnSurface = capabilityAvailableOnSurface(definition, resolvedSurfaceKind);
+  const blockedBySurface = definition.surfaceScope === 'shared'
+    ? null
+    : definition.surfaceScope === 'direct_only'
+      ? 'group'
+      : 'dm';
+  const uiReady = availableOnSurface && definition.uiStatus === 'ready';
+  const uiUnavailableErrorKind = !availableOnSurface
+    ? 'unsupported'
+    : definition.uiStatus === 'ready'
+      ? null
+      : 'not_ready';
+
+  return {
+    ...definition,
+    surfaceKind: resolvedSurfaceKind,
+    availableOnSurface,
+    blockedBySurface,
+    uiReady,
+    uiUnavailableErrorKind
+  };
+}
+
+export function buildOpenClawIMErrorSurface({
+  kind,
+  actionKey = null,
+  surfaceKind = null,
+  allowedSurfaceKind = null,
+  missingIDs = [],
+  detail = null
+} = {}) {
+  const resolvedKind = normalizeOpenClawIMErrorKind(kind);
+  const definition = actionKey ? getOpenClawIMCapabilityDefinition(actionKey) : null;
+  const actionTitle = definition?.uiTitle ?? definition?.label ?? '当前操作';
+  const normalizedDetail = sanitizeText(detail) || null;
+  const normalizedMissingIDs = uniqueErrorIDs(missingIDs);
+  const requiredIDs = definition?.requiredIDs ?? [];
+  const fallbackIDs = definition?.fallbackIDs ?? [];
+  const optionalHints = definition?.optionalHints ?? [];
+
+  let title = '暂时不可用';
+  let message = normalizedDetail || `${actionTitle} 暂时不可用，请稍后重试。`;
+  let recoveryHint = '请稍后再试。';
+
+  switch (resolvedKind) {
+    case 'unsupported':
+      title = '当前入口不支持';
+      message = allowedSurfaceKind
+        ? `${actionTitle} 仅支持${surfaceKindLabel(allowedSurfaceKind)}入口。`
+        : definition?.uiUnavailableCopy || `${actionTitle} 当前不在这个入口开放。`;
+      recoveryHint = allowedSurfaceKind
+        ? `请切换到${surfaceKindLabel(allowedSurfaceKind)}线程后再试。`
+        : definition?.uiUnavailableCopy || '请从对应消息主路由重新进入。';
+      break;
+    case 'not_ready':
+      title = '入口还没准备好';
+      message =
+        normalizedDetail ||
+        definition?.uiUnavailableCopy ||
+        `${actionTitle} 还没有接线到当前运行态，请先完成前置流程。`;
+      recoveryHint = '请先完成前置流程或稍后重试。';
+      break;
+    case 'invalid_locator':
+      title = '定位信息不完整';
+      message = normalizedMissingIDs.length
+        ? `${actionTitle} 需要稳定主键才能继续，当前缺少：${normalizedMissingIDs.join(' / ')}。`
+        : normalizedDetail || `${actionTitle} 的 locator 或主键无效。`;
+      recoveryHint = '请从消息首页卡片或线程主路由重新进入，再触发当前动作。';
+      break;
+    case 'permission_denied':
+      title = '当前身份没有权限';
+      message = normalizedDetail || `${actionTitle} 当前身份没有权限执行。`;
+      recoveryHint = '请切换到有权限的参与者，或等待授权后再试。';
+      break;
+    case 'temporarily_unavailable':
+    default:
+      title = '暂时不可用';
+      message = normalizedDetail || `${actionTitle} 暂时不可用，请稍后重试。`;
+      recoveryHint = '若问题持续，请回到消息主路由重新打开。';
+      break;
+  }
+
+  return {
+    kind: resolvedKind,
+    title,
+    message,
+    recoveryHint,
+    actionKey: definition?.actionKey ?? (sanitizeText(actionKey) || null),
+    stage3Item: definition?.stage3Item ?? null,
+    label: definition?.label ?? null,
+    uiTitle: definition?.uiTitle ?? null,
+    surfaceKind: sanitizeText(surfaceKind) || null,
+    allowedSurfaceKind: sanitizeText(allowedSurfaceKind) || null,
+    requiredIDs,
+    fallbackIDs,
+    optionalHints,
+    missingIDs: normalizedMissingIDs,
+    uiUnavailableCopy: definition?.uiUnavailableCopy ?? null,
+    detail: normalizedDetail
+  };
+}
+
+export function createOpenClawIMActionError({
+  kind,
+  actionKey = null,
+  surfaceKind = null,
+  allowedSurfaceKind = null,
+  missingIDs = [],
+  detail = null,
+  code = null,
+  extra = {}
+} = {}) {
+  const errorSurface = buildOpenClawIMErrorSurface({
+    kind,
+    actionKey,
+    surfaceKind,
+    allowedSurfaceKind,
+    missingIDs,
+    detail
+  });
+  const error = new Error(errorSurface.message);
+  error.name = 'OpenClawIMActionError';
+  error.code = sanitizeText(code) || errorSurface.kind;
+  error.errorKind = errorSurface.kind;
+  error.errorSurface = errorSurface;
+  error.actionKey = errorSurface.actionKey;
+  error.stage3Item = errorSurface.stage3Item;
+  error.surfaceKind = errorSurface.surfaceKind;
+  error.allowedSurfaceKind = errorSurface.allowedSurfaceKind;
+  error.missingIDs = errorSurface.missingIDs;
+  error.uiUnavailableCopy = errorSurface.uiUnavailableCopy;
+  Object.assign(error, extra);
+  return error;
+}
+
+export function normalizeOpenClawIMActionError(error, context = {}) {
+  if (!error) {
+    return createOpenClawIMActionError({
+      kind: 'temporarily_unavailable',
+      actionKey: context.actionKey ?? null,
+      surfaceKind: context.surfaceKind ?? null
+    });
+  }
+  if (error.errorSurface) {
+    return error;
+  }
+
+  const rawMessage = sanitizeText(error.message) || 'Unknown companion runtime error.';
+  const normalizedCode = sanitizeText(error.code) || null;
+  const missingFieldMatch = rawMessage.match(/Missing required field:\s*(.+)$/i);
+  const detectedMissingField = missingFieldMatch ? sanitizeText(missingFieldMatch[1]) : null;
+  const identityLikeField =
+    detectedMissingField &&
+    /(^|\.|_)(id|key)$|locator|conversationId|contactId|groupId|peerId|voteId|optionId|ritualId|participantKey|actorKey/i.test(
+      detectedMissingField
+    );
+  const missingIDs = uniqueErrorIDs([
+    ...(Array.isArray(context.missingIDs) ? context.missingIDs : []),
+    identityLikeField ? detectedMissingField : null
+  ]);
+
+  let kind = null;
+  const explicitKind = sanitizeText(context.kind ?? error.errorKind ?? normalizedCode);
+  if (OPENCLAW_IM_ERROR_KINDS.has(explicitKind)) {
+    kind = explicitKind;
+  } else if (/_capability_gate$/.test(normalizedCode ?? '') || /cannot run from .* surface/i.test(rawMessage)) {
+    kind = 'unsupported';
+  } else if (/already closed|no open vote|not ready/i.test(rawMessage)) {
+    kind = 'not_ready';
+  } else if (/cannot post|permission denied|forbidden|unauthorized/i.test(rawMessage)) {
+    kind = 'permission_denied';
+  } else if (
+    /unknown group|unknown contact|unknown conversation|unknown vote|locator|requires conversationID|requires groupID|requires peerID/i.test(
+      rawMessage
+    ) ||
+    identityLikeField
+  ) {
+    kind = 'invalid_locator';
+  } else {
+    kind = 'temporarily_unavailable';
+  }
+
+  return createOpenClawIMActionError({
+    kind,
+    actionKey: context.actionKey ?? error.actionKey ?? null,
+    surfaceKind: context.surfaceKind ?? error.surfaceKind ?? null,
+    allowedSurfaceKind: context.allowedSurfaceKind ?? error.allowedSurfaceKind ?? null,
+    missingIDs,
+    detail: rawMessage,
+    code: kind,
+    extra: {
+      legacyCode: normalizedCode
+    }
+  });
 }
 
 export function resolveIMCapabilitySurfaceKind(context = {}, fallback = 'dm') {
@@ -376,19 +790,11 @@ export function resolveIMCapabilitySurfaceKind(context = {}, fallback = 'dm') {
 }
 
 export function buildOpenClawIMCapabilityChecklist(surfaceKind) {
-  const resolvedSurfaceKind = resolveIMCapabilitySurfaceKind({
-    surfaceKind
-  });
-  return OPENCLAW_IM_CAPABILITY_DEFINITIONS.map((definition) => ({
-    ...definition,
-    surfaceKind: resolvedSurfaceKind,
-    availableOnSurface: capabilityAvailableOnSurface(definition, resolvedSurfaceKind),
-    blockedBySurface: definition.surfaceScope === 'shared'
-      ? null
-      : definition.surfaceScope === 'direct_only'
-        ? 'group'
-        : 'dm'
-  }));
+  return OPENCLAW_IM_CAPABILITY_DEFINITIONS.map((definition) =>
+    buildOpenClawIMActionContract(definition.actionKey, {
+      surfaceKind
+    })
+  );
 }
 
 export function assertOpenClawIMCapabilityAllowed({
@@ -400,37 +806,34 @@ export function assertOpenClawIMCapabilityAllowed({
   peerId = null,
   contactId = null
 } = {}) {
-  const definition = getOpenClawIMCapabilityDefinition(actionKey);
-  const resolvedSurfaceKind = resolveIMCapabilitySurfaceKind(
-    {
-      surfaceKind,
-      locator,
-      envelope,
-      groupId,
-      peerId,
-      contactId
-    },
-    definition.surfaceScope === 'group_only' ? 'group' : 'dm'
-  );
-  if (capabilityAvailableOnSurface(definition, resolvedSurfaceKind)) {
+  const contract = buildOpenClawIMActionContract(actionKey, {
+    surfaceKind,
+    locator,
+    envelope,
+    groupId,
+    peerId,
+    contactId
+  });
+  if (contract.availableOnSurface) {
     return {
-      actionKey: definition.actionKey,
-      stage3Item: definition.stage3Item,
-      flagKey: definition.flagKey,
-      surfaceKind: resolvedSurfaceKind
+      actionKey: contract.actionKey,
+      stage3Item: contract.stage3Item,
+      flagKey: contract.flagKey,
+      surfaceKind: contract.surfaceKind
     };
   }
-
-  const allowedSurfaceKind = definition.surfaceScope === 'group_only' ? 'group' : 'dm';
-  const error = new Error(
-    `OpenClaw IM action ${definition.actionKey} is ${definition.surfaceScope} and cannot run from ${resolvedSurfaceKind} surface.`
-  );
-  error.code = `${definition.surfaceScope}_capability_gate`;
-  error.actionKey = definition.actionKey;
-  error.stage3Item = definition.stage3Item;
-  error.surfaceKind = resolvedSurfaceKind;
-  error.allowedSurfaceKind = allowedSurfaceKind;
-  throw error;
+  const allowedSurfaceKind = contract.surfaceScope === 'group_only' ? 'group' : 'dm';
+  throw createOpenClawIMActionError({
+    kind: 'unsupported',
+    actionKey: contract.actionKey,
+    surfaceKind: contract.surfaceKind,
+    allowedSurfaceKind,
+    detail: `OpenClaw IM action ${contract.actionKey} is ${contract.surfaceScope} and cannot run from ${contract.surfaceKind} surface.`,
+    code: 'unsupported',
+    extra: {
+      legacyCode: `${contract.surfaceScope}_capability_gate`
+    }
+  });
 }
 
 export function resolveMessagesHomeTab(value, fallback = 'recent') {
@@ -1200,12 +1603,161 @@ export function buildConversationStageContextModel({
   };
 }
 
+function buildGroupThreadActionLane({
+  actionKey,
+  title,
+  conversation = {},
+  groupId,
+  sourceSurface = 'messages',
+  latestVote = null,
+  latestSummary = null,
+  availableOverride = null,
+  unavailableKind = null,
+  unavailableDetail = null
+} = {}) {
+  const normalizedGroupId = sanitizeText(groupId ?? conversation.groupId) || null;
+  if (!normalizedGroupId) {
+    return null;
+  }
+
+  const locator = buildIMConversationLocator({
+    conversationId: conversation.id ?? null,
+    groupId: normalizedGroupId
+  });
+  const actionContract = buildOpenClawIMActionContract(actionKey, {
+    surfaceKind: 'group',
+    locator,
+    groupId: normalizedGroupId
+  });
+  const route =
+    sanitizeText(conversation.route) ||
+    buildConversationRoute({
+      conversationId: sanitizeText(conversation.id) || null,
+      kind: 'group',
+      groupId: normalizedGroupId
+    });
+  const handoff = buildMessagesThreadHandoff({
+    sourceSurface,
+    conversationId: sanitizeText(conversation.id) || null,
+    groupId: normalizedGroupId,
+    hint: {
+      groupLaneKey: actionContract.uiLaneKey ?? actionContract.actionKey,
+      actionKey: actionContract.actionKey,
+      voteId: sanitizeText(latestVote?.id) || null,
+      summaryId: sanitizeText(latestSummary?.id) || null
+    }
+  });
+  const baseAvailable = actionContract.availableOnSurface && actionContract.uiStatus === 'ready';
+  const uiReady = typeof availableOverride === 'boolean'
+    ? baseAvailable && availableOverride
+    : baseAvailable;
+  const resolvedUnavailableKind = uiReady
+    ? null
+    : normalizeOpenClawIMErrorKind(unavailableKind ?? actionContract.uiUnavailableErrorKind ?? 'not_ready');
+
+  return {
+    laneKey: actionContract.uiLaneKey ?? actionContract.actionKey,
+    actionKey: actionContract.actionKey,
+    stage3Item: actionContract.stage3Item,
+    title: sanitizeText(title) || actionContract.uiTitle || actionContract.label,
+    surfaceKind: 'group',
+    entrySurface: actionContract.entrySurface,
+    route,
+    handoff,
+    targetID:
+      sanitizeText(latestVote?.id) ||
+      sanitizeText(latestSummary?.id) ||
+      normalizedGroupId,
+    requiredIDs: actionContract.requiredIDs,
+    fallbackIDs: actionContract.fallbackIDs,
+    optionalHints: actionContract.optionalHints,
+    supportedErrorKinds: actionContract.supportedErrorKinds,
+    uiReady,
+    uiStatus: uiReady ? 'ready' : resolvedUnavailableKind,
+    uiUnavailableCopy: actionContract.uiUnavailableCopy,
+    surfaceGate: {
+      allowedSurfaceKind: 'group',
+      blockedBySurface: actionContract.blockedBySurface
+    },
+    errorSurface: uiReady
+      ? null
+      : buildOpenClawIMErrorSurface({
+          kind: resolvedUnavailableKind,
+          actionKey: actionContract.actionKey,
+          surfaceKind: 'group',
+          allowedSurfaceKind: 'group',
+          detail: unavailableDetail
+        }),
+    payload: {
+      groupId: normalizedGroupId,
+      conversationId: sanitizeText(conversation.id) || null,
+      voteId: sanitizeText(latestVote?.id) || null,
+      summaryId: sanitizeText(latestSummary?.id) || null
+    }
+  };
+}
+
+export function buildGroupThreadActionLanes({
+  conversation = {},
+  votes = [],
+  groupSummaries = [],
+  sourceSurface = 'messages',
+  messageCount = 0
+} = {}) {
+  const normalizedGroupId = sanitizeText(conversation.groupId) || null;
+  if (!normalizedGroupId) {
+    return [];
+  }
+
+  const latestVote = Array.isArray(votes) ? votes[0] ?? null : null;
+  const latestOpenVote = Array.isArray(votes)
+    ? votes.find((vote) => resolveGroupVoteStatus(vote.status, 'open') === 'open') ?? null
+    : null;
+  const latestSummary = Array.isArray(groupSummaries) ? groupSummaries[0] ?? null : null;
+
+  return [
+    buildGroupThreadActionLane({
+      actionKey: 'launch_group_vote',
+      title: '发起群投票',
+      conversation,
+      groupId: normalizedGroupId,
+      sourceSurface
+    }),
+    buildGroupThreadActionLane({
+      actionKey: 'cast_group_vote',
+      title: '参与群投票',
+      conversation,
+      groupId: normalizedGroupId,
+      sourceSurface,
+      latestVote: latestOpenVote ?? latestVote,
+      availableOverride: Boolean(latestOpenVote),
+      unavailableKind: 'not_ready',
+      unavailableDetail: latestVote && resolveGroupVoteStatus(latestVote.status, 'open') === 'closed'
+        ? '上一轮投票已经关闭，当前没有开放中的 ballot。'
+        : '当前群聊还没有开放中的投票。'
+    }),
+    buildGroupThreadActionLane({
+      actionKey: 'summarize_group',
+      title: '生成群总结',
+      conversation,
+      groupId: normalizedGroupId,
+      sourceSurface,
+      latestVote,
+      latestSummary,
+      availableOverride: Math.max(0, Number(messageCount) || 0) > 0,
+      unavailableKind: 'not_ready',
+      unavailableDetail: '群聊还没有可总结的消息上下文。'
+    })
+  ].filter(Boolean);
+}
+
 export function buildConversationGroupContextModel({
   conversation = {},
   participants = [],
   messages = [],
   votes = [],
-  groupSummaries = []
+  groupSummaries = [],
+  sourceSurface = 'messages'
 } = {}) {
   const summary = buildConversationSummaryModel({ conversation });
   if (summary.surfaceKind !== 'group') {
@@ -1215,6 +1767,18 @@ export function buildConversationGroupContextModel({
   const latestVote = Array.isArray(votes) ? votes[0] ?? null : null;
   const latestSummary = Array.isArray(groupSummaries) ? groupSummaries[0] ?? null : null;
   const toolAgent = participants.find((participant) => participant.role === 'tool_agent') ?? null;
+  const actionLanes = buildGroupThreadActionLanes({
+    conversation: {
+      ...conversation,
+      ...summary
+    },
+    votes,
+    groupSummaries,
+    sourceSurface,
+    messageCount: messages.length
+  });
+  const ballotLane = actionLanes.find((lane) => lane.actionKey === 'cast_group_vote') ?? null;
+  const summaryLane = actionLanes.find((lane) => lane.actionKey === 'summarize_group') ?? null;
 
   return {
     kind: 'conversation_group_context',
@@ -1232,7 +1796,8 @@ export function buildConversationGroupContextModel({
           status: resolveGroupVoteStatus(latestVote.status),
           question: sanitizeText(latestVote.question) || null,
           resultSummary: sanitizeText(latestVote.resultSummary) || null,
-          route: sanitizeText(latestVote.route) || null,
+          route: sanitizeText(latestVote.route) || ballotLane?.route || null,
+          handoff: ballotLane?.handoff ?? null,
           updatedAt: normalizeIsoTimestamp(latestVote.updatedAt)
         }
       : null,
@@ -1241,9 +1806,12 @@ export function buildConversationGroupContextModel({
       ? {
           summaryId: sanitizeText(latestSummary.id) || null,
           suppressedCount: Math.max(0, Number(latestSummary.suppressedCount) || 0),
+          route: summaryLane?.route ?? null,
+          handoff: summaryLane?.handoff ?? null,
           createdAt: normalizeIsoTimestamp(latestSummary.createdAt)
         }
-      : null
+      : null,
+    actionLanes
   };
 }
 
@@ -1255,6 +1823,7 @@ export function buildConversationOpenOutputModel({
   contextCards = [],
   votes = [],
   groupSummaries = [],
+  sourceSurface = 'messages',
   homeRoute = null,
   homeHandoff = null
 } = {}) {
@@ -1308,7 +1877,8 @@ export function buildConversationOpenOutputModel({
       participants: participantModels,
       messages: messageModels,
       votes,
-      groupSummaries
+      groupSummaries,
+      sourceSurface
     }),
     contextCards: Array.isArray(contextCards) ? contextCards.filter(Boolean) : []
   };
